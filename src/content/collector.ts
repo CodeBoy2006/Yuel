@@ -12,11 +12,18 @@ interface CollectorOptions {
   flushIntervalMs?: number;
 }
 
+interface VisibleBlockState {
+  block: TextBlockCandidate;
+  visibleSince: number;
+  maxVisibleRatio: number;
+}
+
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
   const sessionId = createSessionId();
   const page = summarizeCurrentPage();
   const blocks = collectTextBlocks();
+  const visibleBlocks = new Map<string, VisibleBlockState>();
   const pendingEvents: ReadingEvent[] = [
     {
       id: createEventId('PageVisible'),
@@ -33,13 +40,28 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       const block = blocks.find((candidate) => candidate.element === entry.target);
       if (!block) continue;
 
+      const now = Date.now();
+      const isVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
+      const existingState = visibleBlocks.get(block.chunkId);
+
+      if (isVisible) {
+        visibleBlocks.set(block.chunkId, {
+          block,
+          visibleSince: existingState?.visibleSince ?? now,
+          maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
+        });
+      } else if (existingState) {
+        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now);
+        visibleBlocks.delete(block.chunkId);
+      }
+
       pendingEvents.push({
-        id: createEventId(entry.isIntersecting ? 'TextBlockVisible' : 'TextBlockHidden'),
+        id: createEventId(isVisible ? 'TextBlockVisible' : 'TextBlockHidden'),
         sessionId,
         pageId: page.pageId,
         chunkId: block.chunkId,
-        kind: entry.isIntersecting ? 'TextBlockVisible' : 'TextBlockHidden',
-        occurredAt: Date.now(),
+        kind: isVisible ? 'TextBlockVisible' : 'TextBlockHidden',
+        occurredAt: now,
         confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
         value: {
           visibleRatio: entry.intersectionRatio,
@@ -53,11 +75,21 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     observer.observe(block.element);
   }
 
+  const flushNow = async () => {
+    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks);
+    await flushEvents(page, blocks, pendingEvents);
+  };
+
   const flushTimer = window.setInterval(() => {
-    void flushEvents(page, blocks, pendingEvents);
+    void flushNow();
   }, flushIntervalMs);
 
   const onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks);
+      visibleBlocks.clear();
+    }
+
     pendingEvents.push({
       id: createEventId(document.visibilityState === 'hidden' ? 'PageHidden' : 'PageVisible'),
       sessionId,
@@ -68,7 +100,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     });
 
     if (document.visibilityState === 'hidden') {
-      void flushEvents(page, blocks, pendingEvents);
+      void flushNow();
     }
   };
 
@@ -93,7 +125,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   document.addEventListener('visibilitychange', onVisibilityChange);
   document.addEventListener('selectionchange', onSelectionChange);
 
-  void flushEvents(page, blocks, pendingEvents);
+  void flushNow();
 
   return {
     stop: () => {
@@ -101,9 +133,51 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       document.removeEventListener('visibilitychange', onVisibilityChange);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
-      void flushEvents(page, blocks, pendingEvents);
+      void flushNow();
     },
   };
+}
+
+function appendOpenExposureTicks(
+  pendingEvents: ReadingEvent[],
+  sessionId: string,
+  pageId: string,
+  visibleBlocks: Map<string, VisibleBlockState>,
+): void {
+  const now = Date.now();
+  for (const state of visibleBlocks.values()) {
+    appendExposureTick(pendingEvents, sessionId, pageId, state, now);
+    state.visibleSince = now;
+  }
+}
+
+function appendExposureTick(
+  pendingEvents: ReadingEvent[],
+  sessionId: string,
+  pageId: string,
+  state: VisibleBlockState,
+  now: number,
+): void {
+  const dwellMs = now - state.visibleSince;
+  if (dwellMs < 250) {
+    return;
+  }
+
+  pendingEvents.push({
+    id: createEventId('TextBlockExposureTick', now),
+    sessionId,
+    pageId,
+    chunkId: state.block.chunkId,
+    kind: 'TextBlockExposureTick',
+    occurredAt: now,
+    confidence: state.maxVisibleRatio > 0.65 ? 'high' : 'medium',
+    value: {
+      dwellMs,
+      visibleRatio: state.maxVisibleRatio,
+      wordCount: state.block.wordCount,
+      activeTab: document.visibilityState === 'visible',
+    },
+  });
 }
 
 async function flushEvents(
