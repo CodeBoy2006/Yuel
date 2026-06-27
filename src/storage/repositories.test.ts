@@ -188,6 +188,45 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
   });
 
+  it('does not refresh a previously read page timestamp for ineffective reading ticks', async () => {
+    const previousReadAt = capturedAt - 24 * 60 * 60 * 1_000;
+    mocks.pages.get.mockResolvedValueOnce({
+      pageId: 'page-1',
+      domain: 'docs.example.com',
+      titleHash: 'title',
+      urlHash: 'url',
+      language: 'en',
+      totalWords: 8,
+      effectiveWords: 120,
+      difficultyScore: 0,
+      firstSeenAt: previousReadAt - 60_000,
+      lastReadAt: previousReadAt,
+    });
+    const payload = createPayload();
+    payload.events = [
+      {
+        ...payload.events[0],
+        value: {
+          ...payload.events[0].value,
+          activeTab: false,
+          idle: true,
+          scrollSpeedWordsPerMinute: 1_500,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: 'page-1',
+        effectiveWords: 120,
+        lastReadAt: previousReadAt,
+      }),
+    );
+    expect(mocks.dailyStats.put).not.toHaveBeenCalled();
+  });
+
   it('does not record vocabulary exposure when a chunk has no new effective words to count', async () => {
     mocks.textChunks.get.mockResolvedValueOnce({
       chunkId: 'chunk-1',

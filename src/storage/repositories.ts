@@ -54,6 +54,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       if (!chunk.text || !firstEffectiveReadChunkIds.has(chunk.chunkId)) return [];
       return extractVocabExposureUpdates(chunk.text, now);
     });
+    const lastReadAt = summary.dailyUpdates.length > 0 ? now : (existingPage?.lastReadAt ?? now);
 
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,
@@ -65,7 +66,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       effectiveWords: (existingPage?.effectiveWords ?? 0) + effectiveWordsDelta,
       difficultyScore: existingPage?.difficultyScore ?? 0,
       firstSeenAt: existingPage?.firstSeenAt ?? payload.page.capturedAt,
-      lastReadAt: now,
+      lastReadAt,
     };
 
     await db.pages.put(pageRecord);

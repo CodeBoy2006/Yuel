@@ -357,3 +357,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard data quality around repeated page visits and long-running reading sessions.
 - **Context:** Reading minutes and effective word deltas still accumulate across later ticks, but vocabulary terms are no longer duplicated for the same local chunk.
+
+## [2026-06-28 02:48] Ineffective Page Timestamp Guard
+- **Changes:** Preserved an existing page's `lastReadAt` when a batch contains no effective reading activity, with repository coverage for idle or ineffective ticks.
+- **Status:** Completed
+- **Next Steps:** Continue tightening today-summary accuracy around repeated page visits and mixed effective/ineffective batches.
+- **Context:** Opened-only new pages can still be stored locally, but old read pages are no longer refreshed into today's page count by ineffective activity.
