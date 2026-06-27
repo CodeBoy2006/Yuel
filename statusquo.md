@@ -261,3 +261,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue investigating reliable automation or manual QA for the Chrome optional-host permission confirmation path.
 - **Context:** Browser smoke can drive the popup to Chrome's permission confirmation boundary, but the local CDP Extensions API does not expose a stable way to accept the browser confirmation prompt.
+
+## [2026-06-28 01:45] Popup Side Panel Launch
+- **Changes:** Added a popup action that opens the reading companion side panel through Chrome's `sidePanel.open` API with a sidepanel-page fallback, plus UI smoke coverage and README surface notes.
+- **Status:** Completed
+- **Next Steps:** Continue tightening first-run/manual QA around user-enabled sites and side-panel behavior in installed Chrome.
+- **Context:** `chrome.sidePanel.open` must run from a user gesture, so the default popup implementation calls it directly from the button action before falling back to `sidepanel.html`.

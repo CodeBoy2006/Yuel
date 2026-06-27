@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, ExternalLink, ShieldCheck, ToggleRight } from 'lucide-react';
+import { BarChart3, BookOpen, ExternalLink, PanelRightOpen, ShieldCheck, ToggleRight } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 
@@ -21,6 +21,7 @@ export interface PopupAppDependencies {
   enableCurrentTabSite: typeof enableCurrentTabSite;
   disableEnabledSite: typeof disableEnabledSite;
   openDashboard: () => Promise<void>;
+  openSidePanel: () => Promise<void>;
 }
 
 const defaultDependencies: PopupAppDependencies = {
@@ -32,6 +33,7 @@ const defaultDependencies: PopupAppDependencies = {
   openDashboard: async () => {
     await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
   },
+  openSidePanel: openExtensionSidePanel,
 };
 
 export function PopupApp({ dependencies = defaultDependencies }: { dependencies?: PopupAppDependencies }) {
@@ -41,6 +43,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
+  const [sidePanelBusy, setSidePanelBusy] = useState(false);
+  const [sidePanelFailed, setSidePanelFailed] = useState(false);
   const [removingOrigin, setRemovingOrigin] = useState<string>();
 
   useEffect(() => {
@@ -148,6 +152,20 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     }
   };
 
+  const openSidePanel = async () => {
+    setSidePanelBusy(true);
+    setSidePanelFailed(false);
+
+    try {
+      await dependencies.openSidePanel();
+    } catch (error) {
+      console.error('Failed to open Yuel side panel', error);
+      setSidePanelFailed(true);
+    } finally {
+      setSidePanelBusy(false);
+    }
+  };
+
   const hasLoaded = Boolean(summary) || loadFailed;
   const todayValue = summary ? formatWords(summary.effectiveWords) : 'Loading';
   const confidenceValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
@@ -227,7 +245,16 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         </div>
       </section>
 
-      <section className="border-t border-neutral-800 px-4 py-3">
+      <section className="grid gap-2 border-t border-neutral-800 px-4 py-3">
+        <button
+          type="button"
+          disabled={sidePanelBusy}
+          onClick={() => void openSidePanel()}
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-neutral-700 px-3 py-2 text-sm font-semibold text-neutral-100 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+          {sidePanelBusy ? 'Opening side panel' : 'Open side panel'}
+        </button>
         <button
           type="button"
           onClick={() => void dependencies.openDashboard()}
@@ -236,6 +263,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
           Open dashboard
         </button>
+        {sidePanelFailed ? <p className="text-center text-xs text-red-300">Side panel unavailable</p> : null}
       </section>
     </main>
   );
@@ -278,4 +306,28 @@ function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: b
   if (siteAccess.enabled) return 'Yuel can collect reading events on this site';
   if (siteAccess.granted) return 'Permission is granted; click to enable tracking';
   return 'Grant permission only for this site';
+}
+
+async function openExtensionSidePanel(): Promise<void> {
+  const chromeApi = (globalThis as typeof globalThis & {
+    chrome?: {
+      sidePanel?: {
+        open?: (options: { tabId?: number; windowId?: number }) => Promise<void>;
+      };
+      windows?: {
+        WINDOW_ID_CURRENT?: number;
+      };
+    };
+  }).chrome;
+
+  if (chromeApi?.sidePanel?.open && typeof chromeApi.windows?.WINDOW_ID_CURRENT === 'number') {
+    try {
+      await chromeApi.sidePanel.open({ windowId: chromeApi.windows.WINDOW_ID_CURRENT });
+      return;
+    } catch (error) {
+      console.warn('Failed to open Yuel side panel directly; falling back to sidepanel page', error);
+    }
+  }
+
+  await browser.tabs.create({ url: new URL('/sidepanel.html', window.location.href).toString() });
 }
