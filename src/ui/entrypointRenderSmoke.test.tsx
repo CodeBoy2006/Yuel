@@ -88,6 +88,38 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('<1 min read');
   });
 
+  it('shows unavailable popup metrics when local reading stats fail to load', async () => {
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => {
+            throw new Error('stats unavailable');
+          },
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites: async () => [],
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('TodayUnavailable');
+    expect(container.textContent).toContain('TimeUnavailable');
+    expect(container.textContent).toContain('PagesUnavailable');
+    expect(container.textContent).toContain('LearningUnavailable');
+  });
+
   it('opens the side panel companion from the popup action', async () => {
     const openSidePanel = vi.fn(async () => undefined);
     const container = await renderForSmoke(

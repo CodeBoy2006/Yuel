@@ -191,10 +191,10 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   };
 
   const hasLoaded = Boolean(summary) || loadFailed;
-  const todayValue = summary ? formatWords(summary.effectiveWords) : 'Loading';
+  const todayValue = loadFailed ? 'Unavailable' : summary ? formatWords(summary.effectiveWords) : 'Loading';
   const confidenceValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
-  const pagesValue = summary ? `${summary.readPages} pages` : 'Loading';
-  const learningValue = summary ? `${summary.learningWords} words` : 'Loading';
+  const pagesValue = loadFailed ? 'Unavailable' : summary ? `${summary.readPages} pages` : 'Loading';
+  const learningValue = loadFailed ? 'Unavailable' : summary ? `${summary.learningWords} words` : 'Loading';
   const currentSiteEnabled = siteAccess?.supported ? siteAccess.enabled : false;
   const canEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled && !siteAccessBusy);
 
