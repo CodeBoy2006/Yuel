@@ -220,6 +220,10 @@ export async function removeEnabledSitesForOrigins(
     };
   }
 
+  for (const removedOrigin of removedOrigins) {
+    await stopCurrentTabCollectorForOrigin(runtime, removedOrigin);
+  }
+
   await runtime.storage.local.set({
     [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
   });

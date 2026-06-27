@@ -441,3 +441,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-flow recovery around externally changed host permissions and currently injected tabs.
 - **Context:** A browser event such as `https://*/*` now removes all locally enabled HTTPS sites while preserving unrelated HTTP sites.
+
+## [2026-06-28 03:39] External Permission Removal Collector Stop
+- **Changes:** Stopped the current tab collector when externally revoked host permissions cover the current enabled site, with permission-service coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-flow recovery and browser-level checks for user-enabled site lifecycle edges.
+- **Context:** External permission removals now best-effort stop an already injected collector instead of only cleaning stored enabled-site records.

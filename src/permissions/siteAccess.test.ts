@@ -410,6 +410,27 @@ describe('removeEnabledSitesForOrigins', () => {
       remainingOrigins: ['https://old.example/*'],
     });
   });
+
+  it('stops the collector in the current tab when externally revoked permissions cover it', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+    });
+
+    await removeEnabledSitesForOrigins(['https://example.com/*'], runtime);
+
+    expect(runtime.executedFunctions).toHaveLength(1);
+
+    const stop = vi.fn();
+    const pageContext = globalThis as { __yuelReadingCollector?: { stop: () => void } };
+    pageContext.__yuelReadingCollector = { stop };
+    try {
+      expect(runtime.executedFunctions[0]()).toBe(true);
+      expect(stop).toHaveBeenCalledOnce();
+      expect(pageContext.__yuelReadingCollector).toBeUndefined();
+    } finally {
+      delete pageContext.__yuelReadingCollector;
+    }
+  });
 });
 
 describe('handleHostPermissionsRemoved', () => {
