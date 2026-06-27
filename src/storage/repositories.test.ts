@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import { recordReadingEventBatch } from './repositories';
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
   };
   const readingEvents = {
     bulkPut: vi.fn(),
+    where: vi.fn(),
   };
   const vocabExposures = {
     get: vi.fn(),
@@ -91,10 +92,20 @@ function createPayload(): ReadingEventBatchPayload {
 describe('recordReadingEventBatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Date, 'now').mockReturnValue(capturedAt + 60_000);
     mocks.pages.get.mockResolvedValue(undefined);
     mocks.textChunks.get.mockResolvedValue(undefined);
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
+    mocks.readingEvents.where.mockReturnValue({
+      below: vi.fn(() => ({
+        delete: vi.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('stores pack tags on vocabulary exposures matched by the bundled tech pack', async () => {
@@ -145,5 +156,21 @@ describe('recordReadingEventBatch', () => {
       effectiveSeenCount: 3,
       packTags: ['existing', 'architecture', 'risk'],
     });
+  });
+
+  it('prunes raw reading events older than the local retention window after recording a batch', async () => {
+    const deleteOldEvents = vi.fn();
+    const belowRetentionCutoff = vi.fn(() => ({
+      delete: deleteOldEvents,
+    }));
+    mocks.readingEvents.where.mockReturnValue({
+      below: belowRetentionCutoff,
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.readingEvents.where).toHaveBeenCalledWith('occurredAt');
+    expect(belowRetentionCutoff).toHaveBeenCalledWith(capturedAt + 60_000 - 7 * 24 * 60 * 60 * 1_000);
+    expect(deleteOldEvents).toHaveBeenCalledOnce();
   });
 });

@@ -123,3 +123,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening content-script signal quality.
 - **Context:** The collector defaults to a 45-second idle threshold and resets to active on pointer, keyboard, scroll, or text-selection activity.
+
+## [2026-06-27 22:59] Reading Event Retention
+- **Changes:** Added tested pruning of raw `readingEvents` older than seven days after each recorded batch while preserving aggregate tables and vocabulary memory.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or expose local data management controls for users.
+- **Context:** This keeps the local event-sourcing table short-lived as intended by the architecture while leaving report-facing summaries intact.

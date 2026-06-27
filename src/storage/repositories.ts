@@ -7,6 +7,7 @@ import { summarizeReadingEventBatch } from './aggregateReading';
 
 const BASIC_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'be', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to']);
 const ACTIVE_PACKS: YuelPack[] = [techEnglishPack as YuelPack];
+const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
@@ -79,7 +80,13 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
           : update,
       );
     }
+
+    await pruneExpiredReadingEvents(now);
   });
+}
+
+async function pruneExpiredReadingEvents(now: number): Promise<void> {
+  await db.readingEvents.where('occurredAt').below(now - READING_EVENT_RETENTION_MS).delete();
 }
 
 async function recordDailyStatIncrements(
