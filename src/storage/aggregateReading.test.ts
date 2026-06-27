@@ -109,4 +109,41 @@ describe('summarizeReadingEventBatch', () => {
     expect(summary.totalExposureSeconds).toBe(0);
     expect(summary.dailyUpdates).toEqual([]);
   });
+
+  it('does not count daily reading minutes for ineffective exposure ticks', () => {
+    const summary = summarizeReadingEventBatch(
+      createPayload({
+        events: [
+          {
+            id: 'event-1',
+            sessionId: 'session-1',
+            pageId: 'page-1',
+            chunkId: 'chunk-1',
+            kind: 'TextBlockExposureTick',
+            occurredAt: capturedAt,
+            confidence: 'low',
+            value: {
+              visibleRatio: 0.2,
+              dwellMs: 30_000,
+              wordCount: 100,
+              activeTab: false,
+              idle: true,
+              scrollSpeedWordsPerMinute: 1_500,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(summary.chunkUpdates).toEqual([
+      {
+        chunkId: 'chunk-1',
+        exposureSeconds: 30,
+        effectiveWords: 0,
+      },
+    ]);
+    expect(summary.pageEffectiveWords).toBe(0);
+    expect(summary.totalExposureSeconds).toBe(30);
+    expect(summary.dailyUpdates).toEqual([]);
+  });
 });

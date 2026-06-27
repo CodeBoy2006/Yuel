@@ -52,6 +52,10 @@ export function summarizeReadingEventBatch(payload: ReadingEventBatchPayload): R
     pageEffectiveWords += effectiveWords;
     totalExposureSeconds += exposureSeconds;
 
+    if (effectiveWords <= 0) {
+      continue;
+    }
+
     const date = formatLocalDate(event.occurredAt);
     const existingDailyUpdate = dailyUpdates.get(date);
     dailyUpdates.set(date, {
