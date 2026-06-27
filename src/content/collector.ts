@@ -162,6 +162,8 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     if (document.visibilityState === 'hidden') {
       appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
       visibleBlocks.clear();
+    } else {
+      restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
     }
 
     pendingEvents.push({
@@ -250,6 +252,59 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       void flushNow();
     },
   };
+}
+
+function restoreVisibleBlocksFromLayout(
+  pendingEvents: ReadingEvent[],
+  sessionId: string,
+  pageId: string,
+  blocks: TextBlockCandidate[],
+  visibleBlocks: Map<string, VisibleBlockState>,
+): void {
+  const now = Date.now();
+  for (const block of blocks) {
+    if (visibleBlocks.has(block.chunkId)) {
+      continue;
+    }
+
+    const visibleRatio = getViewportVisibleRatio(block.element);
+    if (visibleRatio < 0.15) {
+      continue;
+    }
+
+    visibleBlocks.set(block.chunkId, {
+      block,
+      visibleSince: now,
+      maxVisibleRatio: visibleRatio,
+    });
+    pendingEvents.push({
+      id: createEventId('TextBlockVisible', now),
+      sessionId,
+      pageId,
+      chunkId: block.chunkId,
+      kind: 'TextBlockVisible',
+      occurredAt: now,
+      confidence: visibleRatio > 0.65 ? 'high' : 'medium',
+      value: {
+        visibleRatio,
+        wordCount: block.wordCount,
+      },
+    });
+  }
+}
+
+function getViewportVisibleRatio(element: Element): number {
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return 0;
+  }
+
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.width;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height;
+  const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
+  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+
+  return (visibleWidth * visibleHeight) / (rect.width * rect.height);
 }
 
 function appendOpenExposureTicks(

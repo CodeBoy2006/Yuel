@@ -60,6 +60,13 @@ function setWindowScrollY(value: number): void {
   });
 }
 
+function setDocumentVisibility(visibilityState: DocumentVisibilityState): void {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visibilityState,
+  });
+}
+
 describe('startReadingCollector', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -75,6 +82,7 @@ describe('startReadingCollector', () => {
       configurable: true,
       value: 1_800,
     });
+    setDocumentVisibility('visible');
     setWindowScrollY(0);
     TestIntersectionObserver.instances = [];
     document.body.innerHTML = '';
@@ -248,6 +256,54 @@ describe('startReadingCollector', () => {
           kind: 'TextBlockExposureTick',
           value: expect.objectContaining({
             idle: false,
+          }),
+        }),
+      ]),
+    );
+
+    controller.stop();
+  });
+
+  it('resumes exposure ticks for visible blocks after the tab becomes visible again', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Visible documentation should continue accumulating local reading exposure after returning to the tab.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    setDocumentVisibility('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    setDocumentVisibility('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const batch = mocks.sendMessage.mock.calls[0][0];
+    expect(batch.payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'TextBlockExposureTick',
+          chunkId: expect.any(String),
+          value: expect.objectContaining({
+            activeTab: true,
           }),
         }),
       ]),

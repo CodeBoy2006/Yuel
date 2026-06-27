@@ -171,3 +171,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening runtime enable/disable behavior.
 - **Context:** Default starter sites now show as tracked by default in the popup instead of asking users for redundant host permission.
+
+## [2026-06-27 23:41] Visibility Resume Exposure
+- **Changes:** Restored visible text-block tracking from layout when a hidden tab becomes visible again, so exposure ticks continue even if IntersectionObserver does not re-emit entries.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening content-script signal quality.
+- **Context:** The collector still clears open exposure when a tab hides; this slice restarts timing for currently visible blocks on return to the tab.
