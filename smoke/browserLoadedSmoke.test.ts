@@ -13,6 +13,7 @@ describe('browser-loaded extension smoke', () => {
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
     expect(result.dashboardText).toContain('Local reading dashboard');
     expect(result.popupText).toContain('Yuel Reading');
+    expect(result.sidePanelText).toContain('Reading companion');
   }, 30_000);
 
   it('records reading data through the loaded extension runtime', async () => {

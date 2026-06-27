@@ -65,7 +65,7 @@ CI=true pnpm test:extension-browser-smoke
 
 `test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
 
-`test:extension-browser-smoke` builds the same output, loads it into a temporary Google Chrome profile through Chrome DevTools Protocol, verifies the popup and dashboard pages render, records a sample reading batch through the extension runtime, and serves a local HTTPS starter-site page to prove the packaged content script can auto-capture reading data. Set `CHROME_PATH` if Chrome is installed outside `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; the starter-site check also needs `openssl` for a temporary self-signed certificate.
+`test:extension-browser-smoke` builds the same output, loads it into a temporary Google Chrome profile through Chrome DevTools Protocol, verifies the popup, side panel, and dashboard pages render, records a sample reading batch through the extension runtime, and serves a local HTTPS starter-site page to prove the packaged content script can auto-capture reading data. Set `CHROME_PATH` if Chrome is installed outside `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; the starter-site check also needs `openssl` for a temporary self-signed certificate.
 
 ## Architecture
 

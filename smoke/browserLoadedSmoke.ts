@@ -12,6 +12,7 @@ export interface BrowserLoadedSmokeResult {
   extensionId: string;
   dashboardText: string;
   popupText: string;
+  sidePanelText: string;
 }
 
 export interface BrowserRuntimeReadingLoopSmokeResult {
@@ -58,8 +59,9 @@ export async function validateBrowserLoadedExtension(
   return withLoadedExtension(outputDir, options, async ({ client, extensionId, timeoutMs }) => {
     const dashboardText = await client.readPageText(`chrome-extension://${extensionId}/dashboard.html`, timeoutMs);
     const popupText = await client.readPageText(`chrome-extension://${extensionId}/popup.html`, timeoutMs);
+    const sidePanelText = await client.readPageText(`chrome-extension://${extensionId}/sidepanel.html`, timeoutMs);
 
-    return { extensionId, dashboardText, popupText };
+    return { extensionId, dashboardText, popupText, sidePanelText };
   });
 }
 

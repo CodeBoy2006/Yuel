@@ -267,3 +267,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening first-run/manual QA around user-enabled sites and side-panel behavior in installed Chrome.
 - **Context:** `chrome.sidePanel.open` must run from a user gesture, so the default popup implementation calls it directly from the button action before falling back to `sidepanel.html`.
+
+## [2026-06-28 01:50] Browser Side Panel Smoke
+- **Changes:** Extended the Chrome-loaded extension smoke to read `sidepanel.html` and assert the reading companion renders, then updated README verification coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level coverage around user-enabled site permission flows where automation is stable.
+- **Context:** The smoke still loads side panel content as an extension page; direct Chrome side-panel panel opening remains bound to user gesture constraints.
