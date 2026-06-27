@@ -351,3 +351,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening real-page capture and dashboard data quality around repeated page visits.
 - **Context:** Vocabulary memory now follows newly credited effective reading instead of every effective-looking tick on a fully counted chunk.
+
+## [2026-06-28 02:44] First Effective Chunk Vocabulary
+- **Changes:** Limited reading-derived vocabulary exposure to the first effective read of each text chunk, with repository coverage for partially credited chunks.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard data quality around repeated page visits and long-running reading sessions.
+- **Context:** Reading minutes and effective word deltas still accumulate across later ticks, but vocabulary terms are no longer duplicated for the same local chunk.

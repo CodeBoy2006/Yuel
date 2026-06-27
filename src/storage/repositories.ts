@@ -22,7 +22,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     const batchPayload = newEvents.length === payload.events.length ? payload : { ...payload, events: newEvents };
     const summary = summarizeReadingEventBatch(batchPayload);
     const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
-    const newlyEffectiveReadChunkIds = new Set<string>();
+    const firstEffectiveReadChunkIds = new Set<string>();
 
     const existingPage = await db.pages.get(payload.page.pageId);
     let effectiveWordsDelta = 0;
@@ -36,8 +36,8 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       const newEffectiveWords = nextEffectiveWords - priorEffectiveWords;
 
       effectiveWordsDelta += newEffectiveWords;
-      if (newEffectiveWords > 0) {
-        newlyEffectiveReadChunkIds.add(chunk.chunkId);
+      if (priorEffectiveWords === 0 && newEffectiveWords > 0) {
+        firstEffectiveReadChunkIds.add(chunk.chunkId);
       }
       chunkRecords.push({
         chunkId: chunk.chunkId,
@@ -51,7 +51,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       });
     }
     const vocabUpdates = payload.chunks.flatMap((chunk) => {
-      if (!chunk.text || !newlyEffectiveReadChunkIds.has(chunk.chunkId)) return [];
+      if (!chunk.text || !firstEffectiveReadChunkIds.has(chunk.chunkId)) return [];
       return extractVocabExposureUpdates(chunk.text, now);
     });
 
