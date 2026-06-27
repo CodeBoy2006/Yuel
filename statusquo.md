@@ -51,3 +51,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Component dependencies default to production services; tests inject local stubs to avoid real IndexedDB and extension APIs.
+
+## [2026-06-27 21:56] Collector Flush Retry
+- **Changes:** Added a collector regression test for runtime message delivery failure and kept pending reading events queued for retry when a flush cannot reach the background service worker.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Failed sends now restore the attempted batch to the front of the queue, preserving event order for the next flush interval.

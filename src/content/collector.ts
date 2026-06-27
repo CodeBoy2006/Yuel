@@ -192,8 +192,13 @@ async function flushEvents(
   const events = pendingEvents.splice(0, pendingEvents.length);
   const chunks: TextChunkSnapshot[] = blocks.map(({ element: _element, ...chunk }) => chunk);
 
-  await browser.runtime.sendMessage({
-    type: MESSAGE_TYPES.readingEventsBatch,
-    payload: { page, chunks, events },
-  });
+  try {
+    await browser.runtime.sendMessage({
+      type: MESSAGE_TYPES.readingEventsBatch,
+      payload: { page, chunks, events },
+    });
+  } catch (error) {
+    pendingEvents.unshift(...events);
+    console.warn('Failed to deliver Yuel reading events; will retry on the next flush', error);
+  }
 }
