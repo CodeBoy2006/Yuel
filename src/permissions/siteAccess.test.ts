@@ -24,15 +24,22 @@ function createRuntime({
 } = {}): SiteAccessRuntime & {
   requestedOrigins: string[][];
   executedFiles: string[];
+  registeredScripts: unknown[];
+  unregisteredFilters: Array<{ ids: string[] }>;
   storedValues: Record<string, unknown>[];
 } {
+  let currentEnabledOrigins = enabledOrigins;
   const requestedOrigins: string[][] = [];
   const executedFiles: string[] = [];
+  const registeredScripts: unknown[] = [];
+  const unregisteredFilters: Array<{ ids: string[] }> = [];
   const storedValues: Record<string, unknown>[] = [];
 
   return {
     requestedOrigins,
     executedFiles,
+    registeredScripts,
+    unregisteredFilters,
     storedValues,
     tabs: {
       async query() {
@@ -53,10 +60,11 @@ function createRuntime({
       local: {
         async get(key) {
           expect(key).toBe(ENABLED_SITE_ORIGINS_KEY);
-          return { [ENABLED_SITE_ORIGINS_KEY]: enabledOrigins };
+          return { [ENABLED_SITE_ORIGINS_KEY]: currentEnabledOrigins };
         },
         async set(values) {
           storedValues.push(values);
+          currentEnabledOrigins = values[ENABLED_SITE_ORIGINS_KEY] as string[];
         },
       },
     },
@@ -64,6 +72,12 @@ function createRuntime({
       async executeScript({ target, files }) {
         expect(target).toEqual({ tabId });
         executedFiles.push(...files);
+      },
+      async unregisterContentScripts(filter) {
+        unregisteredFilters.push(filter);
+      },
+      async registerContentScripts(scripts) {
+        registeredScripts.push(...scripts);
       },
     },
   };
@@ -125,6 +139,12 @@ describe('enableCurrentTabSite', () => {
       },
     ]);
     expect(runtime.executedFiles).toEqual([CONTENT_SCRIPT_FILE]);
+    expect(runtime.registeredScripts).toEqual([
+      expect.objectContaining({
+        matches: ['https://old.example/*', 'https://example.com/*'],
+        js: [CONTENT_SCRIPT_FILE],
+      }),
+    ]);
     expect(result).toEqual({
       supported: true,
       tabId: 42,

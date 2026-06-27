@@ -27,3 +27,9 @@
 - **Status:** Completed
 - **Next Steps:** Replace static starter-site matching with persisted user-enabled site registration or startup-time rehydration so enabled sites continue collecting after reload.
 - **Context:** The generated manifest still uses broad hosts only under `optional_host_permissions`; this slice does not add mandatory host access.
+
+## [2026-06-27 21:35] Enabled Site Script Registration
+- **Changes:** Added a tested dynamic content-script registration service, rehydrated enabled-site scripts from background install/startup, and refreshed registrations immediately after a site is enabled.
+- **Status:** Completed
+- **Next Steps:** Add a user-facing enabled-sites management view so users can inspect and remove granted sites.
+- **Context:** Dynamic scripts are registered from `yuel.enabledSiteOrigins` and use the existing guarded collector entrypoint, keeping broad host access optional rather than mandatory.

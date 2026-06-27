@@ -1,14 +1,21 @@
 import { browser } from 'wxt/browser';
 
-export const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
-export const ENABLED_SITE_ORIGINS_KEY = 'yuel.enabledSiteOrigins';
+import {
+  CONTENT_SCRIPT_FILE,
+  ENABLED_SITE_ORIGINS_KEY,
+  getEnabledSiteOrigins,
+  registerEnabledSiteContentScripts,
+  type ContentScriptRegistrationRuntime,
+} from './contentScriptRegistration';
+
+export { CONTENT_SCRIPT_FILE, ENABLED_SITE_ORIGINS_KEY } from './contentScriptRegistration';
 
 export interface SiteAccessTab {
   id?: number;
   url?: string;
 }
 
-export interface SiteAccessRuntime {
+export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
   tabs: {
     query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<SiteAccessTab[]>;
   };
@@ -24,6 +31,8 @@ export interface SiteAccessRuntime {
   };
   scripting: {
     executeScript: (injection: { target: { tabId: number }; files: string[] }) => Promise<unknown>;
+    unregisterContentScripts: (filter: { ids: string[] }) => Promise<void>;
+    registerContentScripts: ContentScriptRegistrationRuntime['scripting']['registerContentScripts'];
   };
 }
 
@@ -115,6 +124,7 @@ export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser 
   }
 
   await persistEnabledOrigin(runtime, access.origin);
+  await registerEnabledSiteContentScripts(runtime);
 
   return {
     ...access,
@@ -130,9 +140,7 @@ async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab |
 }
 
 async function getEnabledOrigins(runtime: SiteAccessRuntime): Promise<string[]> {
-  const stored = await runtime.storage.local.get(ENABLED_SITE_ORIGINS_KEY);
-  const value = stored[ENABLED_SITE_ORIGINS_KEY];
-  return Array.isArray(value) ? value.filter((origin): origin is string => typeof origin === 'string') : [];
+  return getEnabledSiteOrigins(runtime);
 }
 
 async function persistEnabledOrigin(runtime: SiteAccessRuntime, origin: string): Promise<void> {

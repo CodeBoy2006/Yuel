@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { isReadingEventBatchMessage } from '../src/messaging/contracts';
+import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
 import { recordReadingEventBatch } from '../src/storage/repositories';
 
 export default defineBackground({
@@ -9,6 +10,11 @@ export default defineBackground({
     browser.runtime.onInstalled.addListener(() => {
       void browser.alarms.create('yuel.rollup.hourly', { periodInMinutes: 60 });
       void enableSidePanelOnActionClick();
+      void rehydrateEnabledSiteContentScripts();
+    });
+
+    browser.runtime.onStartup.addListener(() => {
+      void rehydrateEnabledSiteContentScripts();
     });
 
     browser.runtime.onMessage.addListener((message) => {
@@ -36,5 +42,13 @@ async function enableSidePanelOnActionClick(): Promise<void> {
 
   if (chromeApi?.sidePanel?.setPanelBehavior) {
     await chromeApi.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  }
+}
+
+async function rehydrateEnabledSiteContentScripts(): Promise<void> {
+  try {
+    await registerEnabledSiteContentScripts();
+  } catch (error) {
+    console.error('Failed to register Yuel enabled-site content scripts', error);
   }
 }
