@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
+import { getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
@@ -8,6 +8,8 @@ function createStore({
   dailyStat,
   readPages = 0,
   learningWords = 0,
+  recentPages = [],
+  recentVocabulary = [],
 }: {
   dailyStat?: {
     effectiveWords: number;
@@ -19,6 +21,29 @@ function createStore({
   };
   readPages?: number;
   learningWords?: number;
+  recentPages?: Array<{
+    pageId: string;
+    domain: string;
+    titleHash: string;
+    urlHash: string;
+    language: string;
+    totalWords: number;
+    effectiveWords: number;
+    difficultyScore: number;
+    firstSeenAt: number;
+    lastReadAt: number;
+  }>;
+  recentVocabulary?: Array<{
+    lemma: string;
+    language: string;
+    seenCount: number;
+    effectiveSeenCount: number;
+    lookupCount: number;
+    savedCount: number;
+    lastSeenAt: number;
+    packTags: string[];
+    userStatus: 'new' | 'known' | 'learning' | 'ignored';
+  }>;
 }): ReadingStatsStore {
   return {
     dailyStats: {
@@ -41,6 +66,23 @@ function createStore({
           },
         };
       },
+      orderBy(index: string) {
+        expect(index).toBe('lastReadAt');
+        return {
+          reverse() {
+            return {
+              limit(count: number) {
+                expect(count).toBe(5);
+                return {
+                  async toArray() {
+                    return recentPages;
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
     },
     vocabExposures: {
       where(index: string) {
@@ -51,6 +93,23 @@ function createStore({
             return {
               async count() {
                 return learningWords;
+              },
+            };
+          },
+        };
+      },
+      orderBy(index: string) {
+        expect(index).toBe('lastSeenAt');
+        return {
+          reverse() {
+            return {
+              limit(count: number) {
+                expect(count).toBe(8);
+                return {
+                  async toArray() {
+                    return recentVocabulary;
+                  },
+                };
               },
             };
           },
@@ -107,5 +166,76 @@ describe('getTodayReadingSummary', () => {
       learningWords: 0,
       hasData: false,
     });
+  });
+});
+
+describe('getReadingDashboardDetails', () => {
+  it('loads today summary plus recent pages and vocabulary exposure details', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        dailyStat: {
+          effectiveWords: 620,
+          minutes: 8.25,
+          advancedWords: 7,
+          expressions: 3,
+          streak: 2,
+          topDomains: ['github.com'],
+        },
+        readPages: 2,
+        learningWords: 1,
+        recentPages: [
+          {
+            pageId: 'page-2',
+            domain: 'github.com',
+            titleHash: 'title-2',
+            urlHash: 'url-2',
+            language: 'en',
+            totalWords: 400,
+            effectiveWords: 220,
+            difficultyScore: 0,
+            firstSeenAt: morningOnJune27 - 2_000,
+            lastReadAt: morningOnJune27,
+          },
+        ],
+        recentVocabulary: [
+          {
+            lemma: 'resilience',
+            language: 'en',
+            seenCount: 4,
+            effectiveSeenCount: 3,
+            lookupCount: 1,
+            savedCount: 0,
+            lastSeenAt: morningOnJune27,
+            packTags: ['architecture'],
+            userStatus: 'learning',
+          },
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.summary.effectiveWords).toBe(620);
+    expect(details.recentPages).toEqual([
+      {
+        pageId: 'page-2',
+        domain: 'github.com',
+        totalWords: 400,
+        effectiveWords: 220,
+        lastReadAt: morningOnJune27,
+      },
+    ]);
+    expect(details.recentVocabulary).toEqual([
+      {
+        lemma: 'resilience',
+        seenCount: 4,
+        effectiveSeenCount: 3,
+        lookupCount: 1,
+        savedCount: 0,
+        lastSeenAt: morningOnJune27,
+        packTags: ['architecture'],
+        userStatus: 'learning',
+      },
+    ]);
+    expect(details.hasData).toBe(true);
   });
 });
