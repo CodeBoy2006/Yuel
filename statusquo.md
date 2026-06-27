@@ -483,3 +483,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
 - **Context:** Explicit saves still increment `savedCount`, but no longer move vocabulary recency backward when an older saved selection is processed.
+
+## [2026-06-28 04:11] Saved Selection Source Fallback
+- **Changes:** Normalized blank saved-selection source domains to `unknown` in dashboard read models, with storage coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
+- **Context:** Older or malformed saved-item records no longer render an empty source field in dashboard consumers.

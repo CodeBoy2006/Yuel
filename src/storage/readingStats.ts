@@ -182,7 +182,7 @@ export async function getReadingDashboardDetails(
     id: item.id,
     text: item.text,
     type: item.type,
-    sourceDomain: item.sourceDomain,
+    sourceDomain: normalizeSavedSourceDomain(item.sourceDomain),
     tags: item.tags,
     createdAt: item.createdAt,
   }));
@@ -205,6 +205,11 @@ function hasMeasuredReading(page: PageRecord): boolean {
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
   return vocab.effectiveSeenCount > 0 || vocab.savedCount > 0;
+}
+
+function normalizeSavedSourceDomain(sourceDomain: string): string {
+  const normalized = sourceDomain.trim();
+  return normalized || 'unknown';
 }
 
 function buildSummaryCardText(

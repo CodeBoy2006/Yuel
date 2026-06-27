@@ -427,6 +427,28 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(true);
   });
 
+  it('normalizes blank saved selection source domains for dashboard display', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-blank-source',
+            sourceDomain: '   ',
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems).toEqual([
+      expect.objectContaining({
+        id: 'saved-blank-source',
+        sourceDomain: 'unknown',
+      }),
+    ]);
+    expect(details.hasData).toBe(true);
+  });
+
   it('builds an empty dashboard card when no local reading data exists', async () => {
     const details = await getReadingDashboardDetails(createStore({}), morningOnJune27);
 
