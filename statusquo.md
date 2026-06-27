@@ -477,3 +477,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
 - **Context:** Intentional repeated saves now remain separate local saved-item records even when text and timestamp match.
+
+## [2026-06-28 04:08] Saved Vocabulary Recency Guard
+- **Changes:** Preserved newer vocabulary `lastSeenAt` values when saving older selected text, with storage coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
+- **Context:** Explicit saves still increment `savedCount`, but no longer move vocabulary recency backward when an older saved selection is processed.

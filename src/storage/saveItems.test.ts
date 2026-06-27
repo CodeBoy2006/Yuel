@@ -119,6 +119,37 @@ describe('saveSelectedTextItem', () => {
     });
   });
 
+  it('does not move vocabulary lastSeenAt backwards when saving older selected text', async () => {
+    mocks.vocabExposures.get.mockResolvedValueOnce({
+      lemma: 'resilience',
+      language: 'en',
+      seenCount: 3,
+      effectiveSeenCount: 2,
+      lookupCount: 0,
+      savedCount: 1,
+      lastSeenAt: savedAt + 1_000,
+      packTags: ['architecture'],
+      userStatus: 'known',
+    });
+
+    await saveSelectedTextItem('Resilience', {
+      sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+      createdAt: savedAt,
+    });
+
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith({
+      lemma: 'resilience',
+      language: 'en',
+      seenCount: 3,
+      effectiveSeenCount: 2,
+      lookupCount: 0,
+      savedCount: 2,
+      lastSeenAt: savedAt + 1_000,
+      packTags: ['architecture'],
+      userStatus: 'known',
+    });
+  });
+
   it('ignores empty selected text', async () => {
     const record = await saveSelectedTextItem('   ', {
       sourceUrl: 'https://example.com/article',

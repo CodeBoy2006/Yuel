@@ -59,7 +59,7 @@ function createSavedVocabularyRecord(
     ? {
         ...existing,
         savedCount: existing.savedCount + 1,
-        lastSeenAt: savedAt,
+        lastSeenAt: Math.max(existing.lastSeenAt, savedAt),
         userStatus:
           existing.userStatus === 'new' || existing.userStatus === 'ignored'
             ? 'learning'
