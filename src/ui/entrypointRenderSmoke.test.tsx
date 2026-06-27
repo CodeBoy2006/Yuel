@@ -196,6 +196,8 @@ describe('extension UI entrypoint smoke rendering', () => {
                 createdAt: Date.UTC(2026, 5, 27, 10, 5, 0),
               },
             ],
+            summaryCardText:
+              'Yuel Reading - 2026-06-27\nEffective words: 960\nReading time: 11 min\nPages: 2\nVocabulary: resilience\nSaved: fail gracefully under pressure',
             hasData: true,
           }),
         }}
@@ -209,6 +211,55 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('architecture');
     expect(container.textContent).toContain('fail gracefully under pressure');
     expect(container.textContent).toContain('Saved selections');
+    expect(container.textContent).toContain('Share card');
+    expect(container.textContent).toContain('Effective words: 960');
+  });
+
+  it('copies the dashboard share card text through injected clipboard service', async () => {
+    const copyTextToClipboard = vi.fn(async () => undefined);
+    const summaryCardText =
+      'Yuel Reading - 2026-06-27\nEffective words: 960\nReading time: 11 min\nPages: 2\nVocabulary: resilience\nSaved: fail gracefully under pressure';
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          copyTextToClipboard,
+          getReadingDashboardDetails: async () => ({
+            summary: {
+              date: '2026-06-27',
+              effectiveWords: 960,
+              minutes: 11,
+              advancedWords: 0,
+              expressions: 0,
+              streak: 0,
+              topDomains: ['developer.mozilla.org'],
+              readPages: 2,
+              learningWords: 5,
+              hasData: true,
+            },
+            recentPages: [],
+            recentVocabulary: [],
+            recentSavedItems: [],
+            summaryCardText,
+            hasData: true,
+          }),
+        }}
+      />,
+    );
+
+    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Copy card text');
+    expect(copyButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      copyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(copyTextToClipboard).toHaveBeenCalledWith(summaryCardText);
+    expect(container.textContent).toContain('Copied');
   });
 
   it('clears local dashboard data through injected services', async () => {
@@ -231,6 +282,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         recentPages: [],
         recentVocabulary: [],
         recentSavedItems: [],
+        summaryCardText: 'Yuel Reading - 2026-06-27\nEffective words: 960',
         hasData: true,
       })
       .mockResolvedValueOnce({
@@ -249,6 +301,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         recentPages: [],
         recentVocabulary: [],
         recentSavedItems: [],
+        summaryCardText: 'Yuel Reading - 2026-06-27\nNo reading data yet.',
         hasData: false,
       });
     const container = await renderForSmoke(
@@ -294,6 +347,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       recentPages: [],
       recentVocabulary: [],
       recentSavedItems: [],
+      summaryCardText: 'Yuel Reading - 2026-06-27\nEffective words: 960',
       hasData: true,
     }));
     const container = await renderForSmoke(

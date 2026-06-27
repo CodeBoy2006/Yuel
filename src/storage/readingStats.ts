@@ -52,6 +52,7 @@ export interface ReadingDashboardDetails {
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
   recentSavedItems: RecentSavedItemSummary[];
+  summaryCardText: string;
   hasData: boolean;
 }
 
@@ -186,12 +187,15 @@ export async function getReadingDashboardDetails(
     createdAt: item.createdAt,
   }));
 
+  const hasData = summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0;
+
   return {
     summary,
     recentPages,
     recentVocabulary,
     recentSavedItems,
-    hasData: summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0,
+    summaryCardText: buildSummaryCardText(summary, recentVocabulary, recentSavedItems, hasData),
+    hasData,
   };
 }
 
@@ -201,6 +205,55 @@ function hasMeasuredReading(page: PageRecord): boolean {
 
 function hasEffectiveVocabularyExposure(vocab: VocabExposureRecord): boolean {
   return vocab.effectiveSeenCount > 0;
+}
+
+function buildSummaryCardText(
+  summary: TodayReadingSummary,
+  recentVocabulary: RecentVocabularySummary[],
+  recentSavedItems: RecentSavedItemSummary[],
+  hasData: boolean,
+): string {
+  if (!hasData) {
+    return `Yuel Reading - ${summary.date}\nNo reading data yet.`;
+  }
+
+  const lines = [
+    `Yuel Reading - ${summary.date}`,
+    `Effective words: ${formatCardCount(summary.effectiveWords)}`,
+    `Reading time: ${formatCardMinutes(summary.minutes)}`,
+    `Pages: ${summary.readPages}`,
+  ];
+
+  if (summary.topDomains.length > 0) {
+    lines.push(`Top domains: ${summary.topDomains.slice(0, 2).join(', ')}`);
+  }
+
+  if (recentVocabulary.length > 0) {
+    lines.push(`Vocabulary: ${recentVocabulary.slice(0, 3).map((vocab) => vocab.lemma).join(', ')}`);
+  }
+
+  if (recentSavedItems.length > 0) {
+    lines.push(`Saved: ${truncateCardText(recentSavedItems[0].text)}`);
+  }
+
+  return lines.join('\n');
+}
+
+function formatCardCount(value: number): string {
+  return Math.round(value).toLocaleString();
+}
+
+function formatCardMinutes(value: number): string {
+  if (value < 1 && value > 0) {
+    return '<1 min';
+  }
+
+  return `${Math.round(value)} min`;
+}
+
+function truncateCardText(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
 }
 
 function formatLocalDate(timestamp: number): string {

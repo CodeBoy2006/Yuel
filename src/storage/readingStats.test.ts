@@ -260,6 +260,10 @@ describe('getReadingDashboardDetails', () => {
         createdAt: morningOnJune27,
       },
     ]);
+    expect(details.summaryCardText).toContain('Yuel Reading - 2026-06-27');
+    expect(details.summaryCardText).toContain('Effective words: 620');
+    expect(details.summaryCardText).toContain('Vocabulary: resilience');
+    expect(details.summaryCardText).toContain('Saved: fail gracefully under pressure');
     expect(details.hasData).toBe(true);
   });
 
@@ -389,6 +393,12 @@ describe('getReadingDashboardDetails', () => {
 
     expect(details.recentSavedItems.map((item) => item.id)).toEqual(['saved-new', 'saved-old']);
     expect(details.hasData).toBe(true);
+  });
+
+  it('builds an empty dashboard card when no local reading data exists', async () => {
+    const details = await getReadingDashboardDetails(createStore({}), morningOnJune27);
+
+    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
   });
 });
 

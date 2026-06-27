@@ -219,3 +219,9 @@
 - **Status:** Completed
 - **Next Steps:** Add a lightweight card/export surface that can reuse reading stats, vocabulary exposure, and saved selections.
 - **Context:** The explicit context-menu save path is now visible in the dashboard instead of only writing to IndexedDB.
+
+## [2026-06-28 00:34] Copyable Summary Card
+- **Changes:** Added a dashboard summary-card text export that combines reading metrics, vocabulary, and saved selections, plus a tested copy action with clipboard injection.
+- **Status:** Completed
+- **Next Steps:** Add a visual PNG card export when the summary-card layout stabilizes.
+- **Context:** This is a lightweight text export path; it does not yet render an image card.
