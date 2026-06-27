@@ -58,4 +58,24 @@ describe('collectTextBlocks', () => {
       text: 'Backward compatible defaults reduce migration risk while teams roll out analytics carefully.',
     });
   });
+
+  it('falls back to nested plain content while skipping navigation and footer copy', () => {
+    document.body.innerHTML = `
+      <nav><p id="nav">Documentation home pricing integrations changelog roadmap company careers contact support.</p></nav>
+      <div class="content-shell">
+        <div>
+          <p id="nested">Memory overhead can grow quickly when analytics batches retry across unstable browser extension contexts.</p>
+        </div>
+      </div>
+      <footer><p id="footer">Privacy terms security status cookies trademarks accessibility contact newsletter.</p></footer>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      selector: 'p#nested',
+      text: 'Memory overhead can grow quickly when analytics batches retry across unstable browser extension contexts.',
+    });
+  });
 });

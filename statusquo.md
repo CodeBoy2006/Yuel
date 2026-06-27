@@ -99,3 +99,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Targeted article/docs selectors still take precedence; fallback only runs when no structured reading blocks are found.
+
+## [2026-06-27 22:34] Nested Plain Text Extraction
+- **Changes:** Extended fallback extraction coverage and collection to nested body paragraphs/list items while excluding navigation, header, footer, aside, form, dialog, and aria-hidden regions.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** This improves user-enabled arbitrary sites that wrap article-like text in generic div containers instead of semantic reading landmarks.

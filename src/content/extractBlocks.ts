@@ -18,7 +18,8 @@ const TEXT_BLOCK_SELECTOR = [
   '[class*="docs"] li',
   'blockquote',
 ].join(',');
-const FALLBACK_TEXT_BLOCK_SELECTOR = 'body > p, body > ul > li, body > ol > li, body > blockquote';
+const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body blockquote';
+const FALLBACK_EXCLUDED_ANCESTOR_SELECTOR = 'nav, header, footer, aside, form, dialog, [aria-hidden="true"]';
 
 export function summarizeCurrentPage(doc: Document = document): PageSnapshot {
   const blocks = collectTextBlocks(doc);
@@ -46,6 +47,7 @@ function collectCandidates(doc: Document, pageId: string, selector: string): Tex
   const seen = new Set<string>();
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
+    .filter((element) => !isFallbackExcludedElement(selector, element))
     .map((element) => createCandidate(pageId, element))
     .filter((candidate): candidate is TextBlockCandidate => {
       if (!candidate) return false;
@@ -54,6 +56,10 @@ function collectCandidates(doc: Document, pageId: string, selector: string): Tex
       seen.add(candidate.textHash);
       return true;
     });
+}
+
+function isFallbackExcludedElement(selector: string, element: HTMLElement): boolean {
+  return selector === FALLBACK_TEXT_BLOCK_SELECTOR && Boolean(element.closest(FALLBACK_EXCLUDED_ANCESTOR_SELECTOR));
 }
 
 function createCandidate(pageId: string, element: HTMLElement): TextBlockCandidate | undefined {
