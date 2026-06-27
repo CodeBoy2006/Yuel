@@ -243,3 +243,9 @@
 - **Status:** Completed
 - **Next Steps:** Re-run the full verification set before committing.
 - **Context:** The browser smoke needs Chrome process access and should not be included in the sandbox-friendly static smoke command.
+
+## [2026-06-28 01:01] Browser Runtime Data Smoke
+- **Changes:** Extended the Chrome-loaded extension smoke to send a valid reading batch through `chrome.runtime.sendMessage` and wait for the dashboard to show the resulting local reading data.
+- **Status:** Completed
+- **Next Steps:** Continue closing the real-page capture path by exercising content-script startup on an enabled or starter site.
+- **Context:** The background message listener is intentionally fire-and-forget, so the smoke treats Chrome's no-response port closure as successful delivery and uses dashboard data as the proof of persistence.

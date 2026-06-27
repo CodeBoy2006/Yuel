@@ -3,10 +3,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 
+import { hashText } from '../src/domain/events';
+import { MESSAGE_TYPES, type ReadingEventBatchMessage, type ReadingEventBatchPayload } from '../src/messaging/contracts';
+
 export interface BrowserLoadedSmokeResult {
   extensionId: string;
   dashboardText: string;
   popupText: string;
+}
+
+export interface BrowserRuntimeReadingLoopSmokeResult {
+  extensionId: string;
+  dashboardText: string;
 }
 
 interface BrowserLoadedSmokeOptions {
@@ -31,15 +39,50 @@ interface ExtensionInfo {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAC_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const RUNTIME_LOOP_DOMAIN = 'runtime-loop.example';
 
 export async function validateBrowserLoadedExtension(
+  outputDir: string,
+  options: BrowserLoadedSmokeOptions = {},
+): Promise<BrowserLoadedSmokeResult> {
+  return withLoadedExtension(outputDir, options, async ({ client, extensionId, timeoutMs }) => {
+    const dashboardText = await client.readPageText(`chrome-extension://${extensionId}/dashboard.html`, timeoutMs);
+    const popupText = await client.readPageText(`chrome-extension://${extensionId}/popup.html`, timeoutMs);
+
+    return { extensionId, dashboardText, popupText };
+  });
+}
+
+export async function validateBrowserRuntimeReadingLoop(
+  outputDir: string,
+  options: BrowserLoadedSmokeOptions = {},
+): Promise<BrowserRuntimeReadingLoopSmokeResult> {
+  return withLoadedExtension(outputDir, options, async ({ client, extensionId, timeoutMs }) => {
+    const dashboardUrl = `chrome-extension://${extensionId}/dashboard.html`;
+    await client.sendExtensionRuntimeMessage(dashboardUrl, createRuntimeReadingBatchMessage(), timeoutMs);
+
+    const dashboardText = await waitFor(async () => {
+      const text = await client.readPageText(dashboardUrl, timeoutMs);
+      if (text.includes(RUNTIME_LOOP_DOMAIN) && !text.includes('No reading data yet')) {
+        return text;
+      }
+
+      throw new Error(`Dashboard did not show runtime reading data yet:\n${text.slice(0, 1_000)}`);
+    }, timeoutMs);
+
+    return { extensionId, dashboardText };
+  });
+}
+
+async function withLoadedExtension<T>(
   outputDir: string,
   {
     chromePath = process.env.CHROME_PATH ?? MAC_CHROME_PATH,
     headless = process.env.YUEL_BROWSER_SMOKE_HEADLESS === 'true',
     timeoutMs = DEFAULT_TIMEOUT_MS,
-  }: BrowserLoadedSmokeOptions = {},
-): Promise<BrowserLoadedSmokeResult> {
+  }: BrowserLoadedSmokeOptions,
+  runSmoke: (context: { client: CdpClient; extensionId: string; timeoutMs: number }) => Promise<T>,
+): Promise<T> {
   const extensionDir = path.resolve(outputDir);
   await access(path.join(extensionDir, 'manifest.json'));
   await access(chromePath);
@@ -54,10 +97,7 @@ export async function validateBrowserLoadedExtension(
 
     try {
       const extensionId = await client.loadUnpackedExtension(extensionDir, timeoutMs);
-      const dashboardText = await client.readPageText(`chrome-extension://${extensionId}/dashboard.html`, timeoutMs);
-      const popupText = await client.readPageText(`chrome-extension://${extensionId}/popup.html`, timeoutMs);
-
-      return { extensionId, dashboardText, popupText };
+      return await runSmoke({ client, extensionId, timeoutMs });
     } finally {
       client.close();
     }
@@ -73,6 +113,85 @@ export async function validateBrowserLoadedExtension(
     await stopChrome(chrome);
     await rm(userDataDir, { force: true, recursive: true });
   }
+}
+
+function createRuntimeReadingBatchMessage(now = Date.now()): ReadingEventBatchMessage {
+  return {
+    type: MESSAGE_TYPES.readingEventsBatch,
+    payload: createRuntimeReadingBatchPayload(now),
+  };
+}
+
+function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload {
+  const url = `https://${RUNTIME_LOOP_DOMAIN}/local-first-browser-reading`;
+  const pageId = `${RUNTIME_LOOP_DOMAIN}_${hashText(url)}`;
+  const chunkText =
+    'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.';
+  const chunkId = `${pageId}_${hashText(chunkText)}`;
+  const sessionId = `browser_smoke_${now}`;
+
+  return {
+    page: {
+      pageId,
+      domain: RUNTIME_LOOP_DOMAIN,
+      titleHash: hashText('Runtime reading loop'),
+      urlHash: hashText(url),
+      language: 'en',
+      totalWords: 14,
+      capturedAt: now,
+    },
+    chunks: [
+      {
+        chunkId,
+        pageId,
+        textHash: hashText(chunkText),
+        text: chunkText,
+        wordCount: 14,
+        sentenceCount: 1,
+        selector: 'article > p:nth-of-type(1)',
+      },
+    ],
+    events: [
+      {
+        id: `browser_smoke_visible_${now}`,
+        sessionId,
+        pageId,
+        kind: 'PageVisible',
+        occurredAt: now,
+        confidence: 'medium',
+      },
+      {
+        id: `browser_smoke_text_visible_${now}`,
+        sessionId,
+        pageId,
+        chunkId,
+        kind: 'TextBlockVisible',
+        occurredAt: now + 1,
+        confidence: 'high',
+        value: {
+          visibleRatio: 1,
+          wordCount: 14,
+        },
+      },
+      {
+        id: `browser_smoke_exposure_${now}`,
+        sessionId,
+        pageId,
+        chunkId,
+        kind: 'TextBlockExposureTick',
+        occurredAt: now + 60_000,
+        confidence: 'high',
+        value: {
+          dwellMs: 60_000,
+          visibleRatio: 1,
+          wordCount: 14,
+          activeTab: true,
+          scrollSpeedWordsPerMinute: 180,
+          idle: false,
+        },
+      },
+    ],
+  };
 }
 
 function collectProcessLogs(chrome: ChildProcessWithoutNullStreams): () => string {
@@ -243,29 +362,38 @@ class CdpClient {
   }
 
   async readPageText(url: string, timeoutMs: number): Promise<string> {
-    const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
-    const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
-      flatten: true,
-      targetId,
-    });
+    return this.withPage(url, timeoutMs, async (sessionId) => {
+      const text = await waitFor(async () => {
+        const pageText = await this.evaluate<string>('document.body?.innerText ?? ""', sessionId);
+        if (!pageText.trim()) {
+          throw new Error('Page text is empty');
+        }
 
-    await waitFor(async () => {
-      const readyState = await this.evaluate<string>('document.readyState', sessionId);
-      if (readyState !== 'complete') {
-        throw new Error(`Page is not ready: ${readyState}`);
-      }
-
-      const text = await this.evaluate<string>('document.body?.innerText ?? ""', sessionId);
-      if (!text.trim()) {
-        throw new Error('Page text is empty');
-      }
+        return pageText;
+      }, timeoutMs);
 
       return text;
-    }, timeoutMs);
+    });
+  }
 
-    const text = await this.evaluate<string>('document.body?.innerText ?? ""', sessionId);
-    await this.send('Target.closeTarget', { targetId });
-    return text;
+  async sendExtensionRuntimeMessage(url: string, message: ReadingEventBatchMessage, timeoutMs: number): Promise<void> {
+    await this.withPage(url, timeoutMs, async (sessionId) => {
+      await this.evaluate(
+        `(() => new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(${JSON.stringify(message)}, () => {
+            const lastError = chrome.runtime.lastError;
+            if (lastError?.message && !lastError.message.includes('The message port closed before a response was received')) {
+              reject(new Error(lastError.message));
+              return;
+            }
+
+            resolve(true);
+          });
+        }))()`,
+        sessionId,
+        { awaitPromise: true },
+      );
+    });
   }
 
   async loadUnpackedExtension(extensionDir: string, timeoutMs: number): Promise<string> {
@@ -288,15 +416,51 @@ class CdpClient {
     this.socket.close();
   }
 
-  private async evaluate<T>(expression: string, sessionId: string): Promise<T> {
-    const { result } = await this.send<{ result: { value: T } }>(
+  private async withPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
+    const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
+    const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
+      flatten: true,
+      targetId,
+    });
+
+    try {
+      await this.waitForPageReady(sessionId, timeoutMs);
+      return await readPage(sessionId);
+    } finally {
+      await this.send('Target.closeTarget', { targetId });
+    }
+  }
+
+  private async waitForPageReady(sessionId: string, timeoutMs: number): Promise<void> {
+    await waitFor(async () => {
+      const readyState = await this.evaluate<string>('document.readyState', sessionId);
+      if (readyState !== 'complete') {
+        throw new Error(`Page is not ready: ${readyState}`);
+      }
+    }, timeoutMs);
+  }
+
+  private async evaluate<T>(
+    expression: string,
+    sessionId: string,
+    { awaitPromise = false }: { awaitPromise?: boolean } = {},
+  ): Promise<T> {
+    const { result, exceptionDetails } = await this.send<{
+      result: { value: T };
+      exceptionDetails?: { text?: string; exception?: { description?: string } };
+    }>(
       'Runtime.evaluate',
       {
+        awaitPromise,
         expression,
         returnByValue: true,
       },
       sessionId,
     );
+
+    if (exceptionDetails) {
+      throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text ?? 'Runtime evaluation failed');
+    }
 
     return result.value;
   }

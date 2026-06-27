@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateBrowserLoadedExtension } from './browserLoadedSmoke';
+import { validateBrowserLoadedExtension, validateBrowserRuntimeReadingLoop } from './browserLoadedSmoke';
 
 describe('browser-loaded extension smoke', () => {
   it('loads the built extension pages in Chrome', async () => {
@@ -9,5 +9,14 @@ describe('browser-loaded extension smoke', () => {
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
     expect(result.dashboardText).toContain('Local reading dashboard');
     expect(result.popupText).toContain('Yuel Reading');
+  }, 30_000);
+
+  it('records reading data through the loaded extension runtime', async () => {
+    const result = await validateBrowserRuntimeReadingLoop('.output/chrome-mv3');
+
+    expect(result.extensionId).toMatch(/^[a-p]{32}$/);
+    expect(result.dashboardText).toContain('runtime-loop.example');
+    expect(result.dashboardText).toContain('Effective words');
+    expect(result.dashboardText).not.toContain('No reading data yet');
   }, 30_000);
 });
