@@ -453,3 +453,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
 - **Context:** Stopping a collector no longer leaves failed final events pending with no timer left to retry them.
+
+## [2026-06-28 03:47] Background Reading Message Failure Propagation
+- **Changes:** Routed reading-event runtime messages through a tested handler that returns the storage write promise and rejects on local write failure.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
+- **Context:** Content collectors can now observe background storage failures through `sendMessage` and keep their retry path meaningful.

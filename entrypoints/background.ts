@@ -1,11 +1,10 @@
 import { browser } from 'wxt/browser';
 
 import { handleMaintenanceAlarm, YUEL_MAINTENANCE_ALARM } from '../src/background/maintenance';
+import { handleReadingRuntimeMessage } from '../src/background/readingMessage';
 import { registerSaveSelectionClickHandler, registerSaveSelectionContextMenu } from '../src/background/saveSelectionMenu';
-import { isReadingEventBatchMessage } from '../src/messaging/contracts';
 import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
 import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
-import { recordReadingEventBatch } from '../src/storage/repositories';
 
 export default defineBackground({
   type: 'module',
@@ -32,17 +31,7 @@ export default defineBackground({
       void syncRemovedHostPermissions(permissions);
     });
 
-    browser.runtime.onMessage.addListener((message) => {
-      if (!isReadingEventBatchMessage(message)) {
-        return undefined;
-      }
-
-      void recordReadingEventBatch(message.payload).catch((error) => {
-        console.error('Failed to record Yuel reading batch', error);
-      });
-
-      return undefined;
-    });
+    browser.runtime.onMessage.addListener((message) => handleReadingRuntimeMessage(message));
   },
 });
 
