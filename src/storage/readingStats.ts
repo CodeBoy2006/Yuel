@@ -52,6 +52,7 @@ export interface ReadingStatsStore {
     where: (index: string) => {
       aboveOrEqual: (value: number) => {
         count: () => Promise<number>;
+        toArray: () => Promise<PageRecord[]>;
       };
     };
     orderBy: (index: string) => {
@@ -84,11 +85,12 @@ export async function getTodayReadingSummary(
 ): Promise<TodayReadingSummary> {
   const date = formatLocalDate(now);
   const startOfDay = getLocalStartOfDay(now);
-  const [dailyStat, readPages, learningWords] = await Promise.all([
+  const [dailyStat, todayPages, learningWords] = await Promise.all([
     store.dailyStats.get(date),
-    store.pages.where('lastReadAt').aboveOrEqual(startOfDay).count(),
+    store.pages.where('lastReadAt').aboveOrEqual(startOfDay).toArray(),
     store.vocabExposures.where('userStatus').equals('learning').count(),
   ]);
+  const readPages = todayPages.filter(hasMeasuredReading).length;
 
   const summary: TodayReadingSummary = {
     date,
@@ -125,13 +127,15 @@ export async function getReadingDashboardDetails(
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(8).toArray(),
   ]);
 
-  const recentPages = recentPageRecords.map((page): RecentPageSummary => ({
-    pageId: page.pageId,
-    domain: page.domain,
-    totalWords: page.totalWords,
-    effectiveWords: page.effectiveWords,
-    lastReadAt: page.lastReadAt,
-  }));
+  const recentPages = recentPageRecords
+    .filter(hasMeasuredReading)
+    .map((page): RecentPageSummary => ({
+      pageId: page.pageId,
+      domain: page.domain,
+      totalWords: page.totalWords,
+      effectiveWords: page.effectiveWords,
+      lastReadAt: page.lastReadAt,
+    }));
   const recentVocabulary = recentVocabularyRecords.map((vocab): RecentVocabularySummary => ({
     lemma: vocab.lemma,
     seenCount: vocab.seenCount,
@@ -149,6 +153,10 @@ export async function getReadingDashboardDetails(
     recentVocabulary,
     hasData: summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0,
   };
+}
+
+function hasMeasuredReading(page: PageRecord): boolean {
+  return page.effectiveWords > 0;
 }
 
 function formatLocalDate(timestamp: number): string {

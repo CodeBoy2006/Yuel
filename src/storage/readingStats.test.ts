@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
+import type { PageRecord } from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
 function createStore({
   dailyStat,
-  readPages = 0,
+  todayPages = [],
   learningWords = 0,
   recentPages = [],
   recentVocabulary = [],
@@ -19,20 +20,9 @@ function createStore({
     streak: number;
     topDomains: string[];
   };
-  readPages?: number;
+  todayPages?: PageRecord[];
   learningWords?: number;
-  recentPages?: Array<{
-    pageId: string;
-    domain: string;
-    titleHash: string;
-    urlHash: string;
-    language: string;
-    totalWords: number;
-    effectiveWords: number;
-    difficultyScore: number;
-    firstSeenAt: number;
-    lastReadAt: number;
-  }>;
+  recentPages?: PageRecord[];
   recentVocabulary?: Array<{
     lemma: string;
     language: string;
@@ -60,7 +50,10 @@ function createStore({
             expect(startOfDay).toBe(new Date(2026, 5, 27).getTime());
             return {
               async count() {
-                return readPages;
+                return todayPages.length;
+              },
+              async toArray() {
+                return todayPages;
               },
             };
           },
@@ -131,7 +124,12 @@ describe('getTodayReadingSummary', () => {
           streak: 3,
           topDomains: ['developer.mozilla.org', 'github.com'],
         },
-        readPages: 4,
+        todayPages: [
+          createPageRecord({ pageId: 'page-1', effectiveWords: 120 }),
+          createPageRecord({ pageId: 'page-2', effectiveWords: 220 }),
+          createPageRecord({ pageId: 'page-3', effectiveWords: 180 }),
+          createPageRecord({ pageId: 'page-4', effectiveWords: 320 }),
+        ],
         learningWords: 11,
       }),
       morningOnJune27,
@@ -149,6 +147,18 @@ describe('getTodayReadingSummary', () => {
       learningWords: 11,
       hasData: true,
     });
+  });
+
+  it('does not count opened pages without measured reading as today reading data', async () => {
+    const summary = await getTodayReadingSummary(
+      createStore({
+        todayPages: [createPageRecord({ pageId: 'opened-only-page', effectiveWords: 0 })],
+      }),
+      morningOnJune27,
+    );
+
+    expect(summary.readPages).toBe(0);
+    expect(summary.hasData).toBe(false);
   });
 
   it('returns an empty summary when the local database has no reading data for today', async () => {
@@ -181,21 +191,13 @@ describe('getReadingDashboardDetails', () => {
           streak: 2,
           topDomains: ['github.com'],
         },
-        readPages: 2,
+        todayPages: [
+          createPageRecord({ pageId: 'page-1', effectiveWords: 400 }),
+          createPageRecord({ pageId: 'page-2', effectiveWords: 220 }),
+        ],
         learningWords: 1,
         recentPages: [
-          {
-            pageId: 'page-2',
-            domain: 'github.com',
-            titleHash: 'title-2',
-            urlHash: 'url-2',
-            language: 'en',
-            totalWords: 400,
-            effectiveWords: 220,
-            difficultyScore: 0,
-            firstSeenAt: morningOnJune27 - 2_000,
-            lastReadAt: morningOnJune27,
-          },
+          createPageRecord({ pageId: 'page-2', domain: 'github.com', totalWords: 400, effectiveWords: 220 }),
         ],
         recentVocabulary: [
           {
@@ -238,4 +240,42 @@ describe('getReadingDashboardDetails', () => {
     ]);
     expect(details.hasData).toBe(true);
   });
+
+  it('omits recent pages that have no measured reading exposure', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentPages: [
+          createPageRecord({ pageId: 'opened-only-page', domain: 'example.com', effectiveWords: 0 }),
+          createPageRecord({ pageId: 'read-page', domain: 'developer.mozilla.org', effectiveWords: 120 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentPages).toEqual([
+      {
+        pageId: 'read-page',
+        domain: 'developer.mozilla.org',
+        totalWords: 400,
+        effectiveWords: 120,
+        lastReadAt: morningOnJune27,
+      },
+    ]);
+  });
 });
+
+function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
+  return {
+    pageId: 'page-1',
+    domain: 'example.com',
+    titleHash: 'title',
+    urlHash: 'url',
+    language: 'en',
+    totalWords: 400,
+    effectiveWords: 0,
+    difficultyScore: 0,
+    firstSeenAt: morningOnJune27 - 2_000,
+    lastReadAt: morningOnJune27,
+    ...overrides,
+  };
+}
