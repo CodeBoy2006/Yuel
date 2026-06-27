@@ -111,3 +111,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** If users revoke a site permission outside the popup, `yuel.enabledSiteOrigins` now drops that origin so startup/runtime registration does not retain stale site access state.
+
+## [2026-06-27 22:49] Scroll Velocity Reading Events
+- **Changes:** Added tested content-script scroll velocity sampling, batched `ScrollVelocityChanged` events, and attached `scrollSpeedWordsPerMinute` to exposure ticks for existing effective-reading scoring.
+- **Status:** Completed
+- **Next Steps:** Add idle/active state sampling so exposure ticks can distinguish unattended visible pages from active reading sessions.
+- **Context:** Scroll velocity is estimated locally from page scroll progress and detected page word count; no raw page text is persisted beyond existing local batch analysis.

@@ -18,12 +18,28 @@ interface VisibleBlockState {
   maxVisibleRatio: number;
 }
 
+interface ScrollVelocitySample {
+  scrollY: number;
+  sampledAt: number;
+}
+
+interface ScrollVelocityMeasurement extends ScrollVelocitySample {
+  scrollDeltaPx: number;
+  elapsedMs: number;
+  scrollSpeedWordsPerMinute: number;
+}
+
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
   const sessionId = createSessionId();
   const page = summarizeCurrentPage();
   const blocks = collectTextBlocks();
   const visibleBlocks = new Map<string, VisibleBlockState>();
+  let latestScrollSpeedWordsPerMinute = 0;
+  let lastScrollSample: ScrollVelocitySample = {
+    scrollY: getCurrentScrollY(),
+    sampledAt: Date.now(),
+  };
   const pendingEvents: ReadingEvent[] = [
     {
       id: createEventId('PageVisible'),
@@ -51,7 +67,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
       } else if (existingState) {
-        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now);
+        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now, latestScrollSpeedWordsPerMinute);
         visibleBlocks.delete(block.chunkId);
       }
 
@@ -76,7 +92,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   }
 
   const flushNow = async () => {
-    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks);
+    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute);
     await flushEvents(page, blocks, pendingEvents);
   };
 
@@ -86,7 +102,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
-      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks);
+      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute);
       visibleBlocks.clear();
     }
 
@@ -102,6 +118,32 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     if (document.visibilityState === 'hidden') {
       void flushNow();
     }
+  };
+
+  const onScroll = () => {
+    const measurement = measureScrollVelocity(lastScrollSample, page.totalWords);
+    if (!measurement) {
+      return;
+    }
+
+    lastScrollSample = {
+      scrollY: measurement.scrollY,
+      sampledAt: measurement.sampledAt,
+    };
+    latestScrollSpeedWordsPerMinute = measurement.scrollSpeedWordsPerMinute;
+    pendingEvents.push({
+      id: createEventId('ScrollVelocityChanged', measurement.sampledAt),
+      sessionId,
+      pageId: page.pageId,
+      kind: 'ScrollVelocityChanged',
+      occurredAt: measurement.sampledAt,
+      confidence: confidenceFromScrollSpeed(measurement.scrollSpeedWordsPerMinute),
+      value: {
+        scrollDeltaPx: measurement.scrollDeltaPx,
+        elapsedMs: measurement.elapsedMs,
+        scrollSpeedWordsPerMinute: measurement.scrollSpeedWordsPerMinute,
+      },
+    });
   };
 
   const onSelectionChange = () => {
@@ -123,6 +165,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('selectionchange', onSelectionChange);
 
   void flushNow();
@@ -131,6 +174,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     stop: () => {
       window.clearInterval(flushTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
       void flushNow();
@@ -143,10 +187,11 @@ function appendOpenExposureTicks(
   sessionId: string,
   pageId: string,
   visibleBlocks: Map<string, VisibleBlockState>,
+  scrollSpeedWordsPerMinute: number,
 ): void {
   const now = Date.now();
   for (const state of visibleBlocks.values()) {
-    appendExposureTick(pendingEvents, sessionId, pageId, state, now);
+    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute);
     state.visibleSince = now;
   }
 }
@@ -157,6 +202,7 @@ function appendExposureTick(
   pageId: string,
   state: VisibleBlockState,
   now: number,
+  scrollSpeedWordsPerMinute: number,
 ): void {
   const dwellMs = now - state.visibleSince;
   if (dwellMs < 250) {
@@ -176,8 +222,45 @@ function appendExposureTick(
       visibleRatio: state.maxVisibleRatio,
       wordCount: state.block.wordCount,
       activeTab: document.visibilityState === 'visible',
+      scrollSpeedWordsPerMinute,
     },
   });
+}
+
+function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: number): ScrollVelocityMeasurement | undefined {
+  const sampledAt = Date.now();
+  const scrollY = getCurrentScrollY();
+  const elapsedMs = sampledAt - previous.sampledAt;
+  const scrollDeltaPx = Math.abs(scrollY - previous.scrollY);
+
+  if (elapsedMs < 100 || scrollDeltaPx < 1) {
+    return undefined;
+  }
+
+  const scrollableHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+  const pageProgressPerMinute = (scrollDeltaPx / scrollableHeight) * (60_000 / elapsedMs);
+
+  return {
+    scrollY,
+    sampledAt,
+    scrollDeltaPx,
+    elapsedMs,
+    scrollSpeedWordsPerMinute: Math.round(Math.max(0, totalWords) * pageProgressPerMinute),
+  };
+}
+
+function getCurrentScrollY(): number {
+  return Math.max(0, window.scrollY || window.pageYOffset || 0);
+}
+
+function confidenceFromScrollSpeed(scrollSpeedWordsPerMinute: number): ReadingEvent['confidence'] {
+  if (scrollSpeedWordsPerMinute <= 400) {
+    return 'high';
+  }
+  if (scrollSpeedWordsPerMinute <= 1_200) {
+    return 'medium';
+  }
+  return 'low';
 }
 
 async function flushEvents(
