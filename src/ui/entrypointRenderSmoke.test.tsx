@@ -842,6 +842,58 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Effective words: 960');
   });
 
+  it('shows a refresh failure after local dashboard data is cleared', async () => {
+    const clearLocalReadingData = vi.fn(async () => undefined);
+    const getReadingDashboardDetails = vi
+      .fn()
+      .mockResolvedValueOnce({
+        summary: {
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: ['developer.mozilla.org'],
+          readPages: 2,
+          learningWords: 5,
+          hasData: true,
+        },
+        recentPages: [],
+        recentVocabulary: [],
+        recentSavedItems: [],
+        summaryCardText: 'Yuel Reading - 2026-06-27\nEffective words: 960',
+        hasData: true,
+      })
+      .mockRejectedValueOnce(new Error('refresh failed'));
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          getReadingDashboardDetails,
+          clearLocalReadingData,
+          confirmClearLocalReadingData: () => true,
+        }}
+      />,
+    );
+
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(clearLocalReadingData).toHaveBeenCalledOnce();
+    expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('Local data unavailable');
+    expect(container.textContent).toContain('Local data cleared, but dashboard refresh failed.');
+    expect(container.textContent).not.toContain('Clear failed; local data was not changed.');
+    expect(container.textContent).not.toContain('Effective words: 960');
+  });
+
   it('does not clear local dashboard data when confirmation is declined', async () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi.fn(async () => ({

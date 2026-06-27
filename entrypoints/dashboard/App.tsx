@@ -35,6 +35,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [loadFailed, setLoadFailed] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearFailed, setClearFailed] = useState(false);
+  const [clearRefreshFailed, setClearRefreshFailed] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloaded' | 'failed'>('idle');
   const shareCardRef = useRef<HTMLDivElement>(null);
@@ -75,13 +76,26 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
     setClearBusy(true);
     setClearFailed(false);
+    setClearRefreshFailed(false);
+    setLoadFailed(false);
 
     try {
       await dependencies.clearLocalReadingData();
-      setDetails(await dependencies.getReadingDashboardDetails());
     } catch (error) {
       console.error('Failed to clear Yuel local data', error);
       setClearFailed(true);
+      setClearBusy(false);
+      return;
+    }
+
+    setDetails(undefined);
+
+    try {
+      setDetails(await dependencies.getReadingDashboardDetails());
+    } catch (error) {
+      console.error('Failed to refresh Yuel dashboard details after clearing local data', error);
+      setLoadFailed(true);
+      setClearRefreshFailed(true);
     } finally {
       setClearBusy(false);
     }
@@ -144,6 +158,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             </div>
           </div>
           {clearFailed ? <p className="mt-3 text-sm font-medium text-red-700">Clear failed; local data was not changed.</p> : null}
+          {clearRefreshFailed ? <p className="mt-3 text-sm font-medium text-red-700">Local data cleared, but dashboard refresh failed.</p> : null}
         </div>
       </section>
 

@@ -399,3 +399,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening real-page capture and browser-level verification around user-enabled site startup.
 - **Context:** The popup now tells users to reload the current tab instead of implying that immediate collection is already active.
+
+## [2026-06-28 03:16] Dashboard Clear Refresh Failure
+- **Changes:** Split dashboard clear failures from post-clear refresh failures, cleared stale dashboard details after a successful clear, and added UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local-data recovery states across dashboard export, copy, and clear flows.
+- **Context:** If local data is cleared but the dashboard cannot reload, the UI no longer claims data was unchanged or shows the old summary card.
