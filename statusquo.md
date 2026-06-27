@@ -225,3 +225,9 @@
 - **Status:** Completed
 - **Next Steps:** Add a visual PNG card export when the summary-card layout stabilizes.
 - **Context:** This is a lightweight text export path; it does not yet render an image card.
+
+## [2026-06-28 00:38] PNG Summary Card Export
+- **Changes:** Added a tested `html-to-image` wrapper and Dashboard "Download PNG" action for the share card.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or iterate on the visual card layout after real usage.
+- **Context:** The PNG export captures the existing share-card DOM and downloads a local image without sending reading data off-device.

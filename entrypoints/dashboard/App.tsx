@@ -1,9 +1,10 @@
-import { Activity, BookOpen, Boxes, Clipboard, Database, Languages, LockKeyhole } from 'lucide-react';
+import { Activity, BookOpen, Boxes, Clipboard, Database, Download, Languages, LockKeyhole } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import { getReadingDashboardDetails, type ReadingDashboardDetails } from '../../src/storage/readingStats';
+import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
 
 const pillars = [
   { icon: Activity, title: 'Event driven', text: 'Content scripts emit reading behavior events instead of long-running background timers.' },
@@ -17,6 +18,7 @@ export interface DashboardAppDependencies {
   clearLocalReadingData: typeof clearLocalReadingData;
   confirmClearLocalReadingData: () => boolean;
   copyTextToClipboard?: (text: string) => Promise<void>;
+  exportSummaryCardPng?: (element: HTMLElement, filename: string) => Promise<unknown>;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -24,6 +26,7 @@ const defaultDependencies: DashboardAppDependencies = {
   confirmClearLocalReadingData: () =>
     window.confirm('Clear all local Yuel reading data? Enabled sites and browser permissions will stay unchanged.'),
   copyTextToClipboard,
+  exportSummaryCardPng: exportDashboardSummaryCardPng,
   getReadingDashboardDetails,
 };
 
@@ -33,6 +36,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [clearBusy, setClearBusy] = useState(false);
   const [clearFailed, setClearFailed] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloaded' | 'failed'>('idle');
+  const shareCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -56,6 +61,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const summary = details?.summary;
   const statusText = loadFailed || clearFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
+  const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
 
   const clearData = async () => {
     if (!dependencies.confirmClearLocalReadingData()) {
@@ -89,6 +95,22 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     } catch (error) {
       console.error('Failed to copy Yuel share card text', error);
       setCopyStatus('failed');
+    }
+  };
+
+  const downloadShareCard = async () => {
+    if (!details || !shareCardRef.current) {
+      return;
+    }
+
+    setDownloadStatus('idle');
+
+    try {
+      await exportCardPng(shareCardRef.current, `yuel-reading-${details.summary.date}.png`);
+      setDownloadStatus('downloaded');
+    } catch (error) {
+      console.error('Failed to export Yuel share card PNG', error);
+      setDownloadStatus('failed');
     }
   };
 
@@ -189,19 +211,33 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <section className="rounded-md border border-stone-200 bg-white p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold">Share card</h2>
-            <button
-              type="button"
-              disabled={!details}
-              onClick={() => void copyShareCard()}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <Clipboard className="h-4 w-4" aria-hidden="true" />
-              {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy card text'}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={!details}
+                onClick={() => void copyShareCard()}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Clipboard className="h-4 w-4" aria-hidden="true" />
+                {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy card text'}
+              </button>
+              <button
+                type="button"
+                disabled={!details}
+                onClick={() => void downloadShareCard()}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {downloadStatus === 'downloaded' ? 'Downloaded' : downloadStatus === 'failed' ? 'Export failed' : 'Download PNG'}
+              </button>
+            </div>
           </div>
-          <pre className="mt-4 whitespace-pre-wrap break-words rounded-md border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-700">
-            {details?.summaryCardText ?? 'Loading local data'}
-          </pre>
+          <div ref={shareCardRef} className="mt-4 rounded-md border border-stone-200 bg-stone-50 p-4">
+            <p className="text-xs font-semibold uppercase text-emerald-700">Yuel Reading</p>
+            <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-stone-700">
+              {details?.summaryCardText ?? 'Loading local data'}
+            </pre>
+          </div>
         </section>
       </section>
 
@@ -289,4 +325,8 @@ async function copyTextToClipboard(text: string): Promise<void> {
   }
 
   await navigator.clipboard.writeText(text);
+}
+
+async function exportDashboardSummaryCardPng(element: HTMLElement, filename: string): Promise<void> {
+  await exportSummaryCardImage(element, { filename });
 }

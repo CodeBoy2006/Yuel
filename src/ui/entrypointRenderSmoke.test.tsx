@@ -262,6 +262,51 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Copied');
   });
 
+  it('exports the dashboard share card as a PNG through injected renderer', async () => {
+    const exportSummaryCardPng = vi.fn(async () => undefined);
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          exportSummaryCardPng,
+          getReadingDashboardDetails: async () => ({
+            summary: {
+              date: '2026-06-27',
+              effectiveWords: 960,
+              minutes: 11,
+              advancedWords: 0,
+              expressions: 0,
+              streak: 0,
+              topDomains: ['developer.mozilla.org'],
+              readPages: 2,
+              learningWords: 5,
+              hasData: true,
+            },
+            recentPages: [],
+            recentVocabulary: [],
+            recentSavedItems: [],
+            summaryCardText: 'Yuel Reading - 2026-06-27\nEffective words: 960',
+            hasData: true,
+          }),
+        }}
+      />,
+    );
+
+    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Download PNG');
+    expect(downloadButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(exportSummaryCardPng).toHaveBeenCalledWith(expect.any(HTMLElement), 'yuel-reading-2026-06-27.png');
+    expect(container.textContent).toContain('Downloaded');
+  });
+
   it('clears local dashboard data through injected services', async () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
