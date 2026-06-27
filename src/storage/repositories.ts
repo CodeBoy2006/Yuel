@@ -89,6 +89,23 @@ export async function pruneExpiredReadingEvents(now = Date.now()): Promise<void>
   await db.readingEvents.where('occurredAt').below(now - READING_EVENT_RETENTION_MS).delete();
 }
 
+export async function clearLocalReadingData(): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.pages, db.textChunks, db.readingEvents, db.vocabExposures, db.savedItems, db.dailyStats],
+    async () => {
+      await Promise.all([
+        db.pages.clear(),
+        db.textChunks.clear(),
+        db.readingEvents.clear(),
+        db.vocabExposures.clear(),
+        db.savedItems.clear(),
+        db.dailyStats.clear(),
+      ]);
+    },
+  );
+}
+
 async function recordDailyStatIncrements(
   updates: ReturnType<typeof summarizeReadingEventBatch>['dailyUpdates'],
   effectiveWordsDelta: number,

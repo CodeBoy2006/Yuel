@@ -1,26 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
-import { pruneExpiredReadingEvents, recordReadingEventBatch } from './repositories';
+import { clearLocalReadingData, pruneExpiredReadingEvents, recordReadingEventBatch } from './repositories';
 
 const mocks = vi.hoisted(() => {
   const pages = {
+    clear: vi.fn(),
     get: vi.fn(),
     put: vi.fn(),
   };
   const textChunks = {
+    clear: vi.fn(),
     get: vi.fn(),
     bulkPut: vi.fn(),
   };
   const readingEvents = {
     bulkPut: vi.fn(),
+    clear: vi.fn(),
     where: vi.fn(),
   };
   const vocabExposures = {
+    clear: vi.fn(),
     get: vi.fn(),
     put: vi.fn(),
   };
+  const savedItems = {
+    clear: vi.fn(),
+  };
   const dailyStats = {
+    clear: vi.fn(),
     get: vi.fn(),
     put: vi.fn(),
   };
@@ -29,6 +37,7 @@ const mocks = vi.hoisted(() => {
     textChunks,
     readingEvents,
     vocabExposures,
+    savedItems,
     dailyStats,
     transaction: vi.fn(async (...args: unknown[]) => {
       const callback = args.at(-1);
@@ -38,7 +47,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { db, dailyStats, pages, readingEvents, textChunks, vocabExposures };
+  return { db, dailyStats, pages, readingEvents, savedItems, textChunks, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -188,5 +197,16 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.readingEvents.where).toHaveBeenCalledWith('occurredAt');
     expect(belowRetentionCutoff).toHaveBeenCalledWith(capturedAt + 120_000 - 7 * 24 * 60 * 60 * 1_000);
     expect(deleteOldEvents).toHaveBeenCalledOnce();
+  });
+
+  it('clears local reading data tables without touching extension settings', async () => {
+    await clearLocalReadingData();
+
+    expect(mocks.pages.clear).toHaveBeenCalledOnce();
+    expect(mocks.textChunks.clear).toHaveBeenCalledOnce();
+    expect(mocks.readingEvents.clear).toHaveBeenCalledOnce();
+    expect(mocks.vocabExposures.clear).toHaveBeenCalledOnce();
+    expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
+    expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();
   });
 });

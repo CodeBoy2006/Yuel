@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 
 import { DashboardApp } from '../../entrypoints/dashboard/App';
 import { PopupApp } from '../../entrypoints/popup/App';
@@ -50,6 +51,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <DashboardApp
         dependencies={{
+          clearLocalReadingData: vi.fn(),
           getReadingDashboardDetails: async () => ({
             summary: {
               date: '2026-06-27',
@@ -95,6 +97,68 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
     expect(container.textContent).toContain('architecture');
+  });
+
+  it('clears local dashboard data through injected services', async () => {
+    const clearLocalReadingData = vi.fn(async () => undefined);
+    const getReadingDashboardDetails = vi
+      .fn()
+      .mockResolvedValueOnce({
+        summary: {
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: ['developer.mozilla.org'],
+          readPages: 2,
+          learningWords: 5,
+          hasData: true,
+        },
+        recentPages: [],
+        recentVocabulary: [],
+        hasData: true,
+      })
+      .mockResolvedValueOnce({
+        summary: {
+          date: '2026-06-27',
+          effectiveWords: 0,
+          minutes: 0,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: [],
+          readPages: 0,
+          learningWords: 0,
+          hasData: false,
+        },
+        recentPages: [],
+        recentVocabulary: [],
+        hasData: false,
+      });
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          getReadingDashboardDetails,
+          clearLocalReadingData,
+        }}
+      />,
+    );
+
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(clearLocalReadingData).toHaveBeenCalledOnce();
+    expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('No reading data yet');
   });
 
   it('renders side panel companion metrics from injected local services', async () => {

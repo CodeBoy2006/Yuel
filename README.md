@@ -44,7 +44,7 @@ Once enabled, the content script emits local reading events as visible text bloc
 
 - Popup: today’s effective words, reading time, page count, learning words, current-site permission state, enabled-site management, and a dashboard link.
 - Side panel: compact reading companion summary with today’s metrics and top domain.
-- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure, and visible Pack tags such as `architecture` or `performance`.
+- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure, visible Pack tags such as `architecture` or `performance`, and a local data clear control.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
 
@@ -85,4 +85,4 @@ Key boundaries:
 
 The V0.1 manifest avoids mandatory `<all_urls>` access. Broad host access is optional, while the static starter content script covers MDN, GitHub, Medium, Wikipedia, and arXiv for early validation.
 
-By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates.
+By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. The dashboard can clear local reading data without changing enabled-site permissions.

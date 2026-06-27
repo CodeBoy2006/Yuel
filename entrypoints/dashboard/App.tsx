@@ -2,6 +2,7 @@ import { Activity, BookOpen, Boxes, Database, Languages, LockKeyhole } from 'luc
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { clearLocalReadingData } from '../../src/storage/repositories';
 import { getReadingDashboardDetails, type ReadingDashboardDetails } from '../../src/storage/readingStats';
 
 const pillars = [
@@ -13,15 +14,19 @@ const pillars = [
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
+  clearLocalReadingData: typeof clearLocalReadingData;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
+  clearLocalReadingData,
   getReadingDashboardDetails,
 };
 
 export function DashboardApp({ dependencies = defaultDependencies }: { dependencies?: DashboardAppDependencies }) {
   const [details, setDetails] = useState<ReadingDashboardDetails>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearFailed, setClearFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -43,7 +48,22 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   }, [dependencies]);
 
   const summary = details?.summary;
-  const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
+  const statusText = loadFailed || clearFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
+
+  const clearData = async () => {
+    setClearBusy(true);
+    setClearFailed(false);
+
+    try {
+      await dependencies.clearLocalReadingData();
+      setDetails(await dependencies.getReadingDashboardDetails());
+    } catch (error) {
+      console.error('Failed to clear Yuel local data', error);
+      setClearFailed(true);
+    } finally {
+      setClearBusy(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-stone-50 text-stone-950">
@@ -57,7 +77,17 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 Track effective words, reading time, recent pages, and vocabulary exposure from local browser data.
               </p>
             </div>
-            <p className="rounded-md border border-stone-200 px-3 py-2 text-sm text-stone-600">{statusText}</p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <p className="rounded-md border border-stone-200 px-3 py-2 text-sm text-stone-600">{statusText}</p>
+              <button
+                type="button"
+                disabled={clearBusy}
+                onClick={() => void clearData()}
+                className="rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {clearBusy ? 'Clearing...' : 'Clear local data'}
+              </button>
+            </div>
           </div>
         </div>
       </section>

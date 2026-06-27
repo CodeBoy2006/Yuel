@@ -135,3 +135,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or expose local data management controls for users.
 - **Context:** The existing hourly alarm now performs concrete local database maintenance instead of only being created on install.
+
+## [2026-06-27 23:15] Local Reading Data Clear
+- **Changes:** Added a tested local reading-data clear API, wired the dashboard to clear IndexedDB reading tables, refreshed dashboard metrics after clearing, and documented the control.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Clearing local reading data does not remove enabled-site permissions or optional host grants; it only resets the local reading database tables.
