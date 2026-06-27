@@ -95,6 +95,58 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(openSidePanel).toHaveBeenCalledOnce();
   });
 
+  it('shows a popup dashboard launch failure', async () => {
+    const openDashboard = vi.fn(async () => {
+      throw new Error('tab creation failed');
+    });
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites: async () => [],
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard,
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open dashboard');
+    expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      dashboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(openDashboard).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Dashboard unavailable');
+  });
+
   it('renders starter-site current access without asking for optional permission', async () => {
     const enableCurrentTabSite = vi.fn();
     const container = await renderForSmoke(

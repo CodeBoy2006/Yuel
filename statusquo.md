@@ -285,3 +285,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening user-visible recovery states around extension navigation and site enablement.
 - **Context:** The side panel now avoids a silent failure if `browser.tabs.create` or an injected dashboard opener rejects.
+
+## [2026-06-28 02:02] Popup Dashboard Error State
+- **Changes:** Added busy/error state handling when the popup cannot open the dashboard, with UI smoke coverage for the visible failure message.
+- **Status:** Completed
+- **Next Steps:** Continue tightening user-visible recovery states around site enablement and extension navigation.
+- **Context:** The popup dashboard action now mirrors the side-panel recovery path instead of leaving rejected tab creation invisible to the user.

@@ -45,6 +45,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
   const [sidePanelBusy, setSidePanelBusy] = useState(false);
   const [sidePanelFailed, setSidePanelFailed] = useState(false);
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [dashboardFailed, setDashboardFailed] = useState(false);
   const [removingOrigin, setRemovingOrigin] = useState<string>();
 
   useEffect(() => {
@@ -166,6 +168,20 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     }
   };
 
+  const openDashboard = async () => {
+    setDashboardBusy(true);
+    setDashboardFailed(false);
+
+    try {
+      await dependencies.openDashboard();
+    } catch (error) {
+      console.error('Failed to open Yuel dashboard from popup', error);
+      setDashboardFailed(true);
+    } finally {
+      setDashboardBusy(false);
+    }
+  };
+
   const hasLoaded = Boolean(summary) || loadFailed;
   const todayValue = summary ? formatWords(summary.effectiveWords) : 'Loading';
   const confidenceValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
@@ -257,13 +273,15 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         </button>
         <button
           type="button"
-          onClick={() => void dependencies.openDashboard()}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400"
+          disabled={dashboardBusy}
+          onClick={() => void openDashboard()}
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          Open dashboard
+          {dashboardBusy ? 'Opening dashboard' : 'Open dashboard'}
         </button>
         {sidePanelFailed ? <p className="text-center text-xs text-red-300">Side panel unavailable</p> : null}
+        {dashboardFailed ? <p className="text-center text-xs text-red-300">Dashboard unavailable</p> : null}
       </section>
     </main>
   );
