@@ -423,3 +423,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-flow recovery around startup registration and externally changed host permissions.
 - **Context:** A malformed stored origin such as `https://example.com:8443/*` no longer reaches Chrome dynamic script registration.
+
+## [2026-06-28 03:30] Popup Stats Load Failure Message
+- **Changes:** Added explicit popup feedback when local reading stats fail to load, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** Popup stats failures now show a clear local-data error instead of only unavailable metric values.

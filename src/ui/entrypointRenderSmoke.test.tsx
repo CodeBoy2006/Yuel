@@ -118,6 +118,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('TimeUnavailable');
     expect(container.textContent).toContain('PagesUnavailable');
     expect(container.textContent).toContain('LearningUnavailable');
+    expect(container.textContent).toContain('Local data unavailable');
   });
 
   it('opens the side panel companion from the popup action', async () => {

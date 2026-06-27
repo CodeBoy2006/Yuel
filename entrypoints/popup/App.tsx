@@ -257,6 +257,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         <Metric icon={<BookOpen className="h-4 w-4" />} label="Pages" value={pagesValue} />
         <Metric icon={<BarChart3 className="h-4 w-4" />} label="Learning" value={learningValue} />
       </section>
+      {loadFailed ? <p className="px-4 pb-3 text-xs font-medium text-red-300">Local data unavailable</p> : null}
 
       <section className="px-4 pb-3">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Starter sites</p>
