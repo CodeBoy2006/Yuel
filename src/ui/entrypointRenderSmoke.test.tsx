@@ -397,7 +397,7 @@ describe('extension UI entrypoint smoke rendering', () => {
                 seenCount: 4,
                 effectiveSeenCount: 3,
                 lookupCount: 0,
-                savedCount: 0,
+                savedCount: 2,
                 lastSeenAt: Date.UTC(2026, 5, 27, 10, 0, 0),
                 packTags: ['architecture'],
                 userStatus: 'learning',
@@ -425,6 +425,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
+    expect(container.textContent).toContain('Saved 2');
     expect(container.textContent).toContain('architecture');
     expect(container.textContent).toContain('fail gracefully under pressure');
     expect(container.textContent).toContain('Saved selections');

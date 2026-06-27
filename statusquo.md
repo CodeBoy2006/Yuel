@@ -327,3 +327,9 @@
 - **Status:** Completed
 - **Next Steps:** Surface saved vocabulary counts more clearly in dashboard vocabulary rows.
 - **Context:** Raw selected text is still only stored through the context-menu save action; ordinary selection telemetry remains hashed.
+
+## [2026-06-28 02:28] Dashboard Saved Vocabulary Counts
+- **Changes:** Surfaced vocabulary `savedCount` in dashboard vocabulary rows and added UI smoke coverage for saved vocabulary counts.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
+- **Context:** Explicitly saved words now show back up in the vocabulary exposure panel instead of only being stored in the local read model.

@@ -189,6 +189,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   </div>
                   <p className="mt-2 text-sm text-stone-600">
                     Seen {vocab.seenCount} times, effective {vocab.effectiveSeenCount}
+                    {vocab.savedCount > 0 ? `, Saved ${vocab.savedCount}` : ''}
                   </p>
                   {vocab.packTags.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
