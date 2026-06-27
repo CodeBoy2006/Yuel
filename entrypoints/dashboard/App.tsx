@@ -60,6 +60,11 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
   const summary = details?.summary;
   const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
+  const effectiveWordsValue = loadFailed ? 'Unavailable' : summary ? formatCount(summary.effectiveWords) : '...';
+  const readingTimeValue = loadFailed ? 'Unavailable' : summary ? formatMinutes(summary.minutes) : '...';
+  const pagesTodayValue = loadFailed ? 'Unavailable' : summary ? String(summary.readPages) : '...';
+  const learningWordsValue = loadFailed ? 'Unavailable' : summary ? String(summary.learningWords) : '...';
+  const shareCardText = loadFailed ? 'Local data unavailable' : details?.summaryCardText ?? 'Loading local data';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
 
@@ -143,10 +148,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       </section>
 
       <section className="mx-auto grid max-w-5xl gap-3 px-6 py-6 md:grid-cols-4">
-        <Metric label="Effective words" value={summary ? formatCount(summary.effectiveWords) : '...'} icon={BookOpen} />
-        <Metric label="Reading time" value={summary ? formatMinutes(summary.minutes) : '...'} icon={Activity} />
-        <Metric label="Pages today" value={summary ? String(summary.readPages) : '...'} icon={Database} />
-        <Metric label="Learning words" value={summary ? String(summary.learningWords) : '...'} icon={Languages} />
+        <Metric label="Effective words" value={effectiveWordsValue} icon={BookOpen} />
+        <Metric label="Reading time" value={readingTimeValue} icon={Activity} />
+        <Metric label="Pages today" value={pagesTodayValue} icon={Database} />
+        <Metric label="Learning words" value={learningWordsValue} icon={Languages} />
       </section>
 
       <section className="mx-auto grid max-w-5xl gap-4 px-6 pb-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -237,7 +242,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div ref={shareCardRef} className="mt-4 rounded-md border border-stone-200 bg-stone-50 p-4">
             <p className="text-xs font-semibold uppercase text-emerald-700">Yuel Reading</p>
             <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-stone-700">
-              {details?.summaryCardText ?? 'Loading local data'}
+              {shareCardText}
             </pre>
           </div>
         </section>

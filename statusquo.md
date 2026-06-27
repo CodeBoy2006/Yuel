@@ -381,3 +381,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** The compact companion now matches popup failure behavior instead of showing stale loading labels under a local-data error.
+
+## [2026-06-28 03:08] Dashboard Metrics Load Failure
+- **Changes:** Made dashboard summary metric cards and share-card preview show unavailable states when local reading details fail to load, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** Dashboard load failures now stop showing placeholder metrics or loading share-card text after the failure is known.

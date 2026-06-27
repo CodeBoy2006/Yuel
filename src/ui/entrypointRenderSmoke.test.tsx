@@ -504,6 +504,27 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Effective words: 960');
   });
 
+  it('shows unavailable dashboard metrics when local reading details fail to load', async () => {
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          getReadingDashboardDetails: async () => {
+            throw new Error('details unavailable');
+          },
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Local data unavailable');
+    expect(container.textContent).toContain('Effective wordsUnavailable');
+    expect(container.textContent).toContain('Reading timeUnavailable');
+    expect(container.textContent).toContain('Pages todayUnavailable');
+    expect(container.textContent).toContain('Learning wordsUnavailable');
+    expect(container.textContent).not.toContain('Loading local data');
+  });
+
   it('copies the dashboard share card text through injected clipboard service', async () => {
     const copyTextToClipboard = vi.fn(async () => undefined);
     const summaryCardText =
