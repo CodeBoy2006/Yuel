@@ -42,6 +42,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
+  const [siteAccessDenied, setSiteAccessDenied] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
   const [sidePanelBusy, setSidePanelBusy] = useState(false);
   const [sidePanelFailed, setSidePanelFailed] = useState(false);
@@ -107,10 +108,12 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
   const enableSite = async () => {
     setSiteAccessBusy(true);
+    setSiteAccessDenied(false);
     setSiteAccessFailed(false);
 
     try {
       const result = await dependencies.enableCurrentTabSite();
+      setSiteAccessDenied(result.supported && !result.granted && !result.enabled && !result.starterSite);
       setSiteAccess(
         result.supported
           ? {
@@ -128,6 +131,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       await refreshEnabledSites();
     } catch (error) {
       console.error('Failed to enable Yuel on current site', error);
+      setSiteAccessDenied(false);
       setSiteAccessFailed(true);
     } finally {
       setSiteAccessBusy(false);
@@ -136,6 +140,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
   const removeEnabledSite = async (origin: string) => {
     setRemovingOrigin(origin);
+    setSiteAccessDenied(false);
     setSiteAccessFailed(false);
 
     try {
@@ -249,7 +254,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         </div>
         <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
           <p className="text-sm font-semibold">{formatSiteAccessTitle(siteAccess, siteAccessFailed)}</p>
-          <p className="mt-1 text-xs text-neutral-500">{formatSiteAccessDetail(siteAccess, siteAccessBusy)}</p>
+          <p className="mt-1 text-xs text-neutral-500">{formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied)}</p>
           <button
             type="button"
             disabled={!canEnableCurrentSite}
@@ -316,8 +321,9 @@ function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: 
   return siteAccess.host;
 }
 
-function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: boolean): string {
+function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: boolean, denied = false): string {
   if (busy) return 'Requesting optional host permission';
+  if (denied) return 'Permission was not granted';
   if (!siteAccess) return 'Loading current tab';
   if (!siteAccess.supported) return 'Open an http or https page to enable tracking';
   if (siteAccess.starterSite) return 'Starter site tracked by default';

@@ -291,3 +291,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening user-visible recovery states around site enablement and extension navigation.
 - **Context:** The popup dashboard action now mirrors the side-panel recovery path instead of leaving rejected tab creation invisible to the user.
+
+## [2026-06-28 02:06] Popup Permission Denial Feedback
+- **Changes:** Added visible popup feedback when a current-site permission request is denied, plus UI smoke coverage for the denied optional-host flow.
+- **Status:** Completed
+- **Next Steps:** Continue tightening user-visible recovery states around enabled-site removal and browser-level permission flows.
+- **Context:** Denied optional host permission now leaves a clear "Permission was not granted" message instead of returning silently to the pre-request prompt.
