@@ -429,3 +429,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** Popup stats failures now show a clear local-data error instead of only unavailable metric values.
+
+## [2026-06-28 03:33] Side Panel Empty Time State
+- **Changes:** Made the side panel time metric show `No data` when local reading stats are loaded but empty, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** The side panel no longer presents an empty local-data state as `0 min read`.

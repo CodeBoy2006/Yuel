@@ -1051,6 +1051,32 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('docs.example.com');
   });
 
+  it('shows no-data side panel time metric when local reading stats are empty', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 0,
+            minutes: 0,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 0,
+            learningWords: 0,
+            hasData: false,
+          }),
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('No reading data yet');
+    expect(container.textContent).toContain('TimeNo data');
+    expect(container.textContent).not.toContain('Time0 min read');
+  });
+
   it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
