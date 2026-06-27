@@ -18,6 +18,7 @@ const TEXT_BLOCK_SELECTOR = [
   '[class*="docs"] li',
   'blockquote',
 ].join(',');
+const FALLBACK_TEXT_BLOCK_SELECTOR = 'body > p, body > ul > li, body > ol > li, body > blockquote';
 
 export function summarizeCurrentPage(doc: Document = document): PageSnapshot {
   const blocks = collectTextBlocks(doc);
@@ -36,9 +37,15 @@ export function summarizeCurrentPage(doc: Document = document): PageSnapshot {
 
 export function collectTextBlocks(doc: Document = document): TextBlockCandidate[] {
   const pageId = createPageId(doc.location.href);
+  const primaryCandidates = collectCandidates(doc, pageId, TEXT_BLOCK_SELECTOR);
+
+  return primaryCandidates.length > 0 ? primaryCandidates : collectCandidates(doc, pageId, FALLBACK_TEXT_BLOCK_SELECTOR);
+}
+
+function collectCandidates(doc: Document, pageId: string, selector: string): TextBlockCandidate[] {
   const seen = new Set<string>();
 
-  return Array.from(doc.querySelectorAll<HTMLElement>(TEXT_BLOCK_SELECTOR))
+  return Array.from(doc.querySelectorAll<HTMLElement>(selector))
     .map((element) => createCandidate(pageId, element))
     .filter((candidate): candidate is TextBlockCandidate => {
       if (!candidate) return false;

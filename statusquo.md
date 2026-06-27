@@ -93,3 +93,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Background routing now ignores malformed batch-shaped messages instead of passing incomplete payloads into the IndexedDB repository path.
+
+## [2026-06-27 22:28] Plain Page Text Extraction
+- **Changes:** Added text-block extraction coverage and a fallback that collects direct body paragraphs/list items when user-enabled pages lack article, main, section, markdown, or docs wrappers.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Targeted article/docs selectors still take precedence; fallback only runs when no structured reading blocks are found.
