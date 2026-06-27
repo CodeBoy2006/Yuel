@@ -15,10 +15,13 @@ const pillars = [
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
   clearLocalReadingData: typeof clearLocalReadingData;
+  confirmClearLocalReadingData: () => boolean;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
   clearLocalReadingData,
+  confirmClearLocalReadingData: () =>
+    window.confirm('Clear all local Yuel reading data? Enabled sites and browser permissions will stay unchanged.'),
   getReadingDashboardDetails,
 };
 
@@ -51,6 +54,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const statusText = loadFailed || clearFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
 
   const clearData = async () => {
+    if (!dependencies.confirmClearLocalReadingData()) {
+      return;
+    }
+
     setClearBusy(true);
     setClearFailed(false);
 

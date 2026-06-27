@@ -52,6 +52,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       <DashboardApp
         dependencies={{
           clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
           getReadingDashboardDetails: async () => ({
             summary: {
               date: '2026-06-27',
@@ -142,6 +143,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         dependencies={{
           getReadingDashboardDetails,
           clearLocalReadingData,
+          confirmClearLocalReadingData: () => true,
         }}
       />,
     );
@@ -159,6 +161,50 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('No reading data yet');
+  });
+
+  it('does not clear local dashboard data when confirmation is declined', async () => {
+    const clearLocalReadingData = vi.fn(async () => undefined);
+    const getReadingDashboardDetails = vi.fn(async () => ({
+      summary: {
+        date: '2026-06-27',
+        effectiveWords: 960,
+        minutes: 11,
+        advancedWords: 0,
+        expressions: 0,
+        streak: 0,
+        topDomains: ['developer.mozilla.org'],
+        readPages: 2,
+        learningWords: 5,
+        hasData: true,
+      },
+      recentPages: [],
+      recentVocabulary: [],
+      hasData: true,
+    }));
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          getReadingDashboardDetails,
+          clearLocalReadingData,
+          confirmClearLocalReadingData: () => false,
+        }}
+      />,
+    );
+
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(clearLocalReadingData).not.toHaveBeenCalled();
+    expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Reading data loaded');
   });
 
   it('renders side panel companion metrics from injected local services', async () => {

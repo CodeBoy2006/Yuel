@@ -141,3 +141,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Clearing local reading data does not remove enabled-site permissions or optional host grants; it only resets the local reading database tables.
+
+## [2026-06-27 23:18] Confirmed Data Clear
+- **Changes:** Added tested confirmation handling before dashboard local-data clearing, including a cancel path that leaves IndexedDB untouched, and updated documentation.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** The default confirmation explains that enabled sites and browser permissions remain unchanged.
