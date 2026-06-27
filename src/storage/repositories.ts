@@ -85,7 +85,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
   });
 }
 
-async function pruneExpiredReadingEvents(now: number): Promise<void> {
+export async function pruneExpiredReadingEvents(now = Date.now()): Promise<void> {
   await db.readingEvents.where('occurredAt').below(now - READING_EVENT_RETENTION_MS).delete();
 }
 

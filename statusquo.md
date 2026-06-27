@@ -129,3 +129,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or expose local data management controls for users.
 - **Context:** This keeps the local event-sourcing table short-lived as intended by the architecture while leaving report-facing summaries intact.
+
+## [2026-06-27 23:10] Scheduled Event Maintenance
+- **Changes:** Added a tested maintenance alarm handler, exported reading-event pruning for reuse, and wired the background hourly alarm to prune expired raw events even when no new reading batches arrive.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or expose local data management controls for users.
+- **Context:** The existing hourly alarm now performs concrete local database maintenance instead of only being created on install.

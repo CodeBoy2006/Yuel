@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
-import { recordReadingEventBatch } from './repositories';
+import { pruneExpiredReadingEvents, recordReadingEventBatch } from './repositories';
 
 const mocks = vi.hoisted(() => {
   const pages = {
@@ -171,6 +171,22 @@ describe('recordReadingEventBatch', () => {
 
     expect(mocks.readingEvents.where).toHaveBeenCalledWith('occurredAt');
     expect(belowRetentionCutoff).toHaveBeenCalledWith(capturedAt + 60_000 - 7 * 24 * 60 * 60 * 1_000);
+    expect(deleteOldEvents).toHaveBeenCalledOnce();
+  });
+
+  it('exposes reading event pruning for scheduled maintenance', async () => {
+    const deleteOldEvents = vi.fn();
+    const belowRetentionCutoff = vi.fn(() => ({
+      delete: deleteOldEvents,
+    }));
+    mocks.readingEvents.where.mockReturnValue({
+      below: belowRetentionCutoff,
+    });
+
+    await pruneExpiredReadingEvents(capturedAt + 120_000);
+
+    expect(mocks.readingEvents.where).toHaveBeenCalledWith('occurredAt');
+    expect(belowRetentionCutoff).toHaveBeenCalledWith(capturedAt + 120_000 - 7 * 24 * 60 * 60 * 1_000);
     expect(deleteOldEvents).toHaveBeenCalledOnce();
   });
 });

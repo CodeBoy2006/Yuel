@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 
+import { handleMaintenanceAlarm, YUEL_MAINTENANCE_ALARM } from '../src/background/maintenance';
 import { isReadingEventBatchMessage } from '../src/messaging/contracts';
 import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
 import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
@@ -9,9 +10,13 @@ export default defineBackground({
   type: 'module',
   main() {
     browser.runtime.onInstalled.addListener(() => {
-      void browser.alarms.create('yuel.rollup.hourly', { periodInMinutes: 60 });
+      void browser.alarms.create(YUEL_MAINTENANCE_ALARM, { periodInMinutes: 60 });
       void enableSidePanelOnActionClick();
       void rehydrateEnabledSiteContentScripts();
+    });
+
+    browser.alarms.onAlarm.addListener((alarm) => {
+      void runMaintenanceAlarm(alarm);
     });
 
     browser.runtime.onStartup.addListener(() => {
@@ -55,6 +60,14 @@ async function rehydrateEnabledSiteContentScripts(): Promise<void> {
     await registerEnabledSiteContentScripts();
   } catch (error) {
     console.error('Failed to register Yuel enabled-site content scripts', error);
+  }
+}
+
+async function runMaintenanceAlarm(alarm: { name: string }): Promise<void> {
+  try {
+    await handleMaintenanceAlarm(alarm);
+  } catch (error) {
+    console.error('Failed to run Yuel maintenance alarm', error);
   }
 }
 
