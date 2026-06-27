@@ -183,3 +183,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
 - **Context:** Runtime batch messages still tolerate optional event value details, but persisted record/index fields now must be finite and nonnegative.
+
+## [2026-06-27 23:48] Effective Vocabulary Exposure
+- **Changes:** Limited vocabulary exposure writes to chunks that produced positive effective reading words, with repository coverage for ineffective exposure ticks.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
+- **Context:** Low-quality or idle exposure can still update raw event/chunk telemetry, but it no longer creates dashboard vocabulary memory without effective reading.

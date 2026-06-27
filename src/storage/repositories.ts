@@ -13,10 +13,12 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
   const now = Date.now();
   const summary = summarizeReadingEventBatch(payload);
   const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
-  const exposedChunkIds = new Set(chunkUpdatesById.keys());
+  const effectivelyReadChunkIds = new Set(
+    summary.chunkUpdates.filter((update) => update.effectiveWords > 0).map((update) => update.chunkId),
+  );
 
   const vocabUpdates = payload.chunks.flatMap((chunk) => {
-    if (!chunk.text || !exposedChunkIds.has(chunk.chunkId)) return [];
+    if (!chunk.text || !effectivelyReadChunkIds.has(chunk.chunkId)) return [];
     return extractVocabExposureUpdates(chunk.text, now);
   });
 

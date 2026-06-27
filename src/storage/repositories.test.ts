@@ -167,6 +167,25 @@ describe('recordReadingEventBatch', () => {
     });
   });
 
+  it('does not record vocabulary exposure when measured reading is ineffective', async () => {
+    const payload = createPayload();
+    payload.events = [
+      {
+        ...payload.events[0],
+        value: {
+          ...payload.events[0].value,
+          activeTab: false,
+          idle: true,
+          scrollSpeedWordsPerMinute: 1_500,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+  });
+
   it('prunes raw reading events older than the local retention window after recording a batch', async () => {
     const deleteOldEvents = vi.fn();
     const belowRetentionCutoff = vi.fn(() => ({
