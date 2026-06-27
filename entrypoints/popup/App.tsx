@@ -115,6 +115,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
               host: result.host,
               granted: result.granted,
               enabled: result.enabled,
+              starterSite: result.starterSite,
             }
           : result,
       );
@@ -136,7 +137,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       await refreshEnabledSites();
       setSiteAccess((currentAccess) =>
         currentAccess?.supported && currentAccess.origin === origin
-          ? { ...currentAccess, granted: false, enabled: false }
+          ? { ...currentAccess, granted: false, enabled: currentAccess.starterSite }
           : currentAccess,
       );
     } catch (error) {
@@ -273,6 +274,7 @@ function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: b
   if (busy) return 'Requesting optional host permission';
   if (!siteAccess) return 'Loading current tab';
   if (!siteAccess.supported) return 'Open an http or https page to enable tracking';
+  if (siteAccess.starterSite) return 'Starter site tracked by default';
   if (siteAccess.enabled) return 'Yuel can collect reading events on this site';
   if (siteAccess.granted) return 'Permission is granted; click to enable tracking';
   return 'Grant permission only for this site';

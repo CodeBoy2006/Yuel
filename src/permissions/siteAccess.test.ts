@@ -28,6 +28,7 @@ function createRuntime({
   removeResult?: boolean;
   enabledOrigins?: string[];
 } = {}): SiteAccessRuntime & {
+  containedOrigins: string[][];
   requestedOrigins: string[][];
   removedOrigins: string[][];
   executedFiles: string[];
@@ -38,6 +39,7 @@ function createRuntime({
   storedValues: Record<string, unknown>[];
 } {
   let currentEnabledOrigins = enabledOrigins;
+  const containedOrigins: string[][] = [];
   const requestedOrigins: string[][] = [];
   const removedOrigins: string[][] = [];
   const executedFiles: string[] = [];
@@ -48,6 +50,7 @@ function createRuntime({
   const storedValues: Record<string, unknown>[] = [];
 
   return {
+    containedOrigins,
     requestedOrigins,
     removedOrigins,
     executedFiles,
@@ -63,7 +66,7 @@ function createRuntime({
     },
     permissions: {
       async contains({ origins }) {
-        expect(origins).toEqual(['https://example.com/*']);
+        containedOrigins.push(origins);
         return permissionGranted;
       },
       async request({ origins }) {
@@ -139,6 +142,28 @@ describe('getCurrentTabSiteAccess', () => {
       host: 'example.com',
       granted: true,
       enabled: true,
+      starterSite: false,
+    });
+  });
+
+  it('marks starter static sites as enabled without optional host permission', async () => {
+    const runtime = createRuntime({
+      tabUrl: 'https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserver',
+      permissionGranted: false,
+    });
+
+    const access = await getCurrentTabSiteAccess(runtime);
+
+    expect(runtime.containedOrigins).toEqual([['https://developer.mozilla.org/*']]);
+    expect(access).toEqual({
+      supported: true,
+      tabId: 42,
+      url: 'https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserver',
+      origin: 'https://developer.mozilla.org/*',
+      host: 'developer.mozilla.org',
+      granted: false,
+      enabled: true,
+      starterSite: true,
     });
   });
 
@@ -195,7 +220,32 @@ describe('enableCurrentTabSite', () => {
       host: 'example.com',
       granted: true,
       enabled: true,
+      starterSite: false,
       injected: true,
+    });
+  });
+
+  it('does not request optional host permission for starter static sites', async () => {
+    const runtime = createRuntime({
+      tabUrl: 'https://en.wikipedia.org/wiki/Readability',
+      permissionGranted: false,
+    });
+
+    const result = await enableCurrentTabSite(runtime);
+
+    expect(runtime.requestedOrigins).toEqual([]);
+    expect(runtime.storedValues).toEqual([]);
+    expect(runtime.executedFiles).toEqual([]);
+    expect(result).toEqual({
+      supported: true,
+      tabId: 42,
+      url: 'https://en.wikipedia.org/wiki/Readability',
+      origin: 'https://en.wikipedia.org/*',
+      host: 'en.wikipedia.org',
+      granted: false,
+      enabled: true,
+      starterSite: true,
+      injected: false,
     });
   });
 

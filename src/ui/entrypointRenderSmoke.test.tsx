@@ -31,6 +31,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             host: 'example.com',
             granted: true,
             enabled: true,
+            starterSite: false,
           }),
           listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
           enableCurrentTabSite: vi.fn(),
@@ -45,6 +46,104 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('14 min read');
     expect(container.textContent).toContain('example.com');
     expect(container.textContent).toContain('Enabled');
+  });
+
+  it('renders starter-site current access without asking for optional permission', async () => {
+    const enableCurrentTabSite = vi.fn();
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 0,
+            minutes: 0,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 0,
+            learningWords: 0,
+            hasData: false,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://developer.mozilla.org/en-US/docs/Web/API',
+            origin: 'https://developer.mozilla.org/*',
+            host: 'developer.mozilla.org',
+            granted: false,
+            enabled: true,
+            starterSite: true,
+          }),
+          listEnabledSites: async () => [],
+          enableCurrentTabSite,
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('developer.mozilla.org');
+    expect(container.textContent).toContain('Starter site tracked by default');
+    expect(container.textContent).toContain('Enabled');
+    expect(enableCurrentTabSite).not.toHaveBeenCalled();
+  });
+
+  it('keeps starter-site current access enabled after removing a redundant custom grant', async () => {
+    const disableEnabledSite = vi.fn(async () => ({ removed: true, remainingOrigins: [] }));
+    const listEnabledSites = vi
+      .fn()
+      .mockResolvedValueOnce([{ origin: 'https://developer.mozilla.org/*', host: 'developer.mozilla.org' }])
+      .mockResolvedValueOnce([]);
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 0,
+            minutes: 0,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 0,
+            learningWords: 0,
+            hasData: false,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://developer.mozilla.org/en-US/docs/Web/API',
+            origin: 'https://developer.mozilla.org/*',
+            host: 'developer.mozilla.org',
+            granted: true,
+            enabled: true,
+            starterSite: true,
+          }),
+          listEnabledSites,
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite,
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Remove');
+    expect(removeButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const currentSiteButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Enabled' || button.textContent === 'Enable current site',
+    );
+    expect(disableEnabledSite).toHaveBeenCalledWith('https://developer.mozilla.org/*');
+    expect(currentSiteButton?.textContent).toBe('Enabled');
+    expect(container.textContent).toContain('Starter site tracked by default');
   });
 
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {

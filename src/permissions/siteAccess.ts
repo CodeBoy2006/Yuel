@@ -7,6 +7,7 @@ import {
   registerEnabledSiteContentScripts,
   type ContentScriptRegistrationRuntime,
 } from './contentScriptRegistration';
+import { isStarterSiteUrl } from './starterSites';
 
 export { CONTENT_SCRIPT_FILE, ENABLED_SITE_ORIGINS_KEY } from './contentScriptRegistration';
 
@@ -47,6 +48,7 @@ export interface SupportedSiteAccessState {
   host: string;
   granted: boolean;
   enabled: boolean;
+  starterSite: boolean;
 }
 
 export interface UnsupportedSiteAccessState {
@@ -119,6 +121,7 @@ export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = brows
     runtime.permissions.contains({ origins: [origin] }),
     getEnabledOrigins(runtime),
   ]);
+  const starterSite = isStarterSiteUrl(url);
 
   return {
     supported: true,
@@ -127,7 +130,8 @@ export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = brows
     origin,
     host: new URL(url).hostname,
     granted,
-    enabled: enabledOrigins.includes(origin),
+    enabled: starterSite || enabledOrigins.includes(origin),
+    starterSite,
   };
 }
 
@@ -139,6 +143,13 @@ export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser 
       ...access,
       granted: false,
       enabled: false,
+      injected: false,
+    };
+  }
+
+  if (access.starterSite) {
+    return {
+      ...access,
       injected: false,
     };
   }

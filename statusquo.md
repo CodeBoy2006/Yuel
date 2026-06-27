@@ -165,3 +165,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening runtime enable/disable behavior.
 - **Context:** Dynamic content-script unregistration prevents future injections, but already-running collectors need an explicit stop path on the current tab.
+
+## [2026-06-27 23:37] Starter Site Access State
+- **Changes:** Centralized starter content-script match definitions, marked starter sites as already enabled in current-site access checks, avoided optional permission requests for them, and updated popup smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening runtime enable/disable behavior.
+- **Context:** Default starter sites now show as tracked by default in the popup instead of asking users for redundant host permission.
