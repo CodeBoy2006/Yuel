@@ -339,3 +339,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
 - **Context:** A word saved through the context menu can now appear in the vocabulary panel even before it has effective reading exposure.
+
+## [2026-06-28 02:37] Saved Vocabulary Reactivation
+- **Changes:** Made explicit saved-word actions reactivate ignored vocabulary memories as learning, with storage test coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
+- **Context:** Explicit saves now override prior ignored status because the user has intentionally saved the word again.

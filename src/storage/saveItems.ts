@@ -53,7 +53,10 @@ function createSavedVocabularyRecord(
         ...existing,
         savedCount: existing.savedCount + 1,
         lastSeenAt: savedAt,
-        userStatus: existing.userStatus === 'new' ? 'learning' : existing.userStatus,
+        userStatus:
+          existing.userStatus === 'new' || existing.userStatus === 'ignored'
+            ? 'learning'
+            : existing.userStatus,
       }
     : {
         lemma,

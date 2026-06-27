@@ -73,6 +73,37 @@ describe('saveSelectedTextItem', () => {
     });
   });
 
+  it('re-activates ignored vocabulary when the user explicitly saves it', async () => {
+    mocks.vocabExposures.get.mockResolvedValueOnce({
+      lemma: 'resilience',
+      language: 'en',
+      seenCount: 3,
+      effectiveSeenCount: 0,
+      lookupCount: 0,
+      savedCount: 1,
+      lastSeenAt: savedAt - 1_000,
+      packTags: [],
+      userStatus: 'ignored',
+    });
+
+    await saveSelectedTextItem('Resilience', {
+      sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+      createdAt: savedAt,
+    });
+
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith({
+      lemma: 'resilience',
+      language: 'en',
+      seenCount: 3,
+      effectiveSeenCount: 0,
+      lookupCount: 0,
+      savedCount: 2,
+      lastSeenAt: savedAt,
+      packTags: [],
+      userStatus: 'learning',
+    });
+  });
+
   it('ignores empty selected text', async () => {
     const record = await saveSelectedTextItem('   ', {
       sourceUrl: 'https://example.com/article',
