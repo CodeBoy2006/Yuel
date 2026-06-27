@@ -189,3 +189,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
 - **Context:** Low-quality or idle exposure can still update raw event/chunk telemetry, but it no longer creates dashboard vocabulary memory without effective reading.
+
+## [2026-06-27 23:52] Duplicate Event Aggregation Guard
+- **Changes:** Filtered already-stored reading event IDs before local aggregation writes, with repository coverage to prevent duplicate batches from re-counting pages, chunks, daily stats, or vocabulary.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
+- **Context:** Raw event `bulkPut` already overwrote duplicate IDs, but aggregate calculations now also ignore those duplicates before they affect user-facing stats.

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     bulkPut: vi.fn(),
   };
   const readingEvents = {
+    bulkGet: vi.fn(),
     bulkPut: vi.fn(),
     clear: vi.fn(),
     where: vi.fn(),
@@ -106,6 +107,7 @@ describe('recordReadingEventBatch', () => {
     mocks.textChunks.get.mockResolvedValue(undefined);
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
+    mocks.readingEvents.bulkGet.mockResolvedValue([]);
     mocks.readingEvents.where.mockReturnValue({
       below: vi.fn(() => ({
         delete: vi.fn(),
@@ -183,6 +185,20 @@ describe('recordReadingEventBatch', () => {
 
     await recordReadingEventBatch(payload);
 
+    expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+  });
+
+  it('does not aggregate duplicate reading events that are already stored locally', async () => {
+    const payload = createPayload();
+    mocks.readingEvents.bulkGet.mockResolvedValueOnce([payload.events[0]]);
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingEvents.bulkGet).toHaveBeenCalledWith(['event-1']);
+    expect(mocks.pages.put).not.toHaveBeenCalled();
+    expect(mocks.textChunks.bulkPut).not.toHaveBeenCalled();
+    expect(mocks.readingEvents.bulkPut).not.toHaveBeenCalled();
+    expect(mocks.dailyStats.put).not.toHaveBeenCalled();
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
   });
 

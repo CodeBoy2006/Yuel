@@ -1,4 +1,5 @@
 import { analyzeEnglishText } from '../analysis/english';
+import type { ReadingEvent } from '../domain/events';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import techEnglishPack from '../packs/tech-english.pack.json';
@@ -11,18 +12,25 @@ const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
-  const summary = summarizeReadingEventBatch(payload);
-  const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
-  const effectivelyReadChunkIds = new Set(
-    summary.chunkUpdates.filter((update) => update.effectiveWords > 0).map((update) => update.chunkId),
-  );
-
-  const vocabUpdates = payload.chunks.flatMap((chunk) => {
-    if (!chunk.text || !effectivelyReadChunkIds.has(chunk.chunkId)) return [];
-    return extractVocabExposureUpdates(chunk.text, now);
-  });
 
   await db.transaction('rw', db.pages, db.textChunks, db.readingEvents, db.vocabExposures, db.dailyStats, async () => {
+    const newEvents = await getNewReadingEvents(payload.events);
+    if (payload.events.length > 0 && newEvents.length === 0) {
+      await pruneExpiredReadingEvents(now);
+      return;
+    }
+
+    const batchPayload = newEvents.length === payload.events.length ? payload : { ...payload, events: newEvents };
+    const summary = summarizeReadingEventBatch(batchPayload);
+    const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
+    const effectivelyReadChunkIds = new Set(
+      summary.chunkUpdates.filter((update) => update.effectiveWords > 0).map((update) => update.chunkId),
+    );
+    const vocabUpdates = payload.chunks.flatMap((chunk) => {
+      if (!chunk.text || !effectivelyReadChunkIds.has(chunk.chunkId)) return [];
+      return extractVocabExposureUpdates(chunk.text, now);
+    });
+
     const existingPage = await db.pages.get(payload.page.pageId);
     let effectiveWordsDelta = 0;
 
@@ -63,8 +71,8 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     if (chunkRecords.length > 0) {
       await db.textChunks.bulkPut(chunkRecords);
     }
-    if (payload.events.length > 0) {
-      await db.readingEvents.bulkPut(payload.events);
+    if (newEvents.length > 0) {
+      await db.readingEvents.bulkPut(newEvents);
     }
     await recordDailyStatIncrements(summary.dailyUpdates, effectiveWordsDelta, payload.page.domain);
 
@@ -84,6 +92,27 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     }
 
     await pruneExpiredReadingEvents(now);
+  });
+}
+
+async function getNewReadingEvents(events: ReadingEvent[]): Promise<ReadingEvent[]> {
+  if (events.length === 0) {
+    return [];
+  }
+
+  const existingEvents = await db.readingEvents.bulkGet(events.map((event) => event.id));
+  const existingEventIds = new Set(
+    existingEvents.filter((event): event is NonNullable<typeof event> => Boolean(event)).map((event) => event.id),
+  );
+  const seenIncomingEventIds = new Set<string>();
+
+  return events.filter((event) => {
+    if (existingEventIds.has(event.id) || seenIncomingEventIds.has(event.id)) {
+      return false;
+    }
+
+    seenIncomingEventIds.add(event.id);
+    return true;
   });
 }
 
