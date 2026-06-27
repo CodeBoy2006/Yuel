@@ -147,3 +147,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** The default confirmation explains that enabled sites and browser permissions remain unchanged.
+
+## [2026-06-27 23:23] Recent Measured Page Scan
+- **Changes:** Updated dashboard detail queries to scan more recent page records before filtering out opened-only pages, then cap the visible recent measured pages at five.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Recently opened pages without effective reading no longer hide slightly older pages that have actual measured reading exposure.

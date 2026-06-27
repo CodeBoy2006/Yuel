@@ -79,6 +79,9 @@ export interface ReadingStatsStore {
   };
 }
 
+const RECENT_MEASURED_PAGE_LIMIT = 5;
+const RECENT_PAGE_SCAN_LIMIT = 20;
+
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
   now = Date.now(),
@@ -123,12 +126,13 @@ export async function getReadingDashboardDetails(
 ): Promise<ReadingDashboardDetails> {
   const [summary, recentPageRecords, recentVocabularyRecords] = await Promise.all([
     getTodayReadingSummary(store, now),
-    store.pages.orderBy('lastReadAt').reverse().limit(5).toArray(),
+    store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(8).toArray(),
   ]);
 
   const recentPages = recentPageRecords
     .filter(hasMeasuredReading)
+    .slice(0, RECENT_MEASURED_PAGE_LIMIT)
     .map((page): RecentPageSummary => ({
       pageId: page.pageId,
       domain: page.domain,

@@ -9,6 +9,7 @@ function createStore({
   dailyStat,
   todayPages = [],
   learningWords = 0,
+  expectedRecentPageQueryLimit = 20,
   recentPages = [],
   recentVocabulary = [],
 }: {
@@ -22,6 +23,7 @@ function createStore({
   };
   todayPages?: PageRecord[];
   learningWords?: number;
+  expectedRecentPageQueryLimit?: number;
   recentPages?: PageRecord[];
   recentVocabulary?: Array<{
     lemma: string;
@@ -65,10 +67,10 @@ function createStore({
           reverse() {
             return {
               limit(count: number) {
-                expect(count).toBe(5);
+                expect(count).toBe(expectedRecentPageQueryLimit);
                 return {
                   async toArray() {
-                    return recentPages;
+                    return recentPages.slice(0, count);
                   },
                 };
               },
@@ -260,6 +262,57 @@ describe('getReadingDashboardDetails', () => {
         effectiveWords: 120,
         lastReadAt: morningOnJune27,
       },
+    ]);
+  });
+
+  it('scans past recently opened-only pages to show recent measured reading history', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        expectedRecentPageQueryLimit: 20,
+        recentPages: [
+          createPageRecord({ pageId: 'opened-only-page-1', domain: 'example.com', effectiveWords: 0, lastReadAt: morningOnJune27 + 5_000 }),
+          createPageRecord({ pageId: 'opened-only-page-2', domain: 'example.com', effectiveWords: 0, lastReadAt: morningOnJune27 + 4_000 }),
+          createPageRecord({ pageId: 'opened-only-page-3', domain: 'example.com', effectiveWords: 0, lastReadAt: morningOnJune27 + 3_000 }),
+          createPageRecord({ pageId: 'opened-only-page-4', domain: 'example.com', effectiveWords: 0, lastReadAt: morningOnJune27 + 2_000 }),
+          createPageRecord({ pageId: 'opened-only-page-5', domain: 'example.com', effectiveWords: 0, lastReadAt: morningOnJune27 + 1_000 }),
+          createPageRecord({ pageId: 'read-page', domain: 'developer.mozilla.org', effectiveWords: 120, lastReadAt: morningOnJune27 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentPages).toEqual([
+      {
+        pageId: 'read-page',
+        domain: 'developer.mozilla.org',
+        totalWords: 400,
+        effectiveWords: 120,
+        lastReadAt: morningOnJune27,
+      },
+    ]);
+  });
+
+  it('limits dashboard recent pages to five measured reading records after scanning', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentPages: [
+          createPageRecord({ pageId: 'read-page-1', domain: 'docs1.example.com', effectiveWords: 101, lastReadAt: morningOnJune27 + 5_000 }),
+          createPageRecord({ pageId: 'read-page-2', domain: 'docs2.example.com', effectiveWords: 102, lastReadAt: morningOnJune27 + 4_000 }),
+          createPageRecord({ pageId: 'read-page-3', domain: 'docs3.example.com', effectiveWords: 103, lastReadAt: morningOnJune27 + 3_000 }),
+          createPageRecord({ pageId: 'read-page-4', domain: 'docs4.example.com', effectiveWords: 104, lastReadAt: morningOnJune27 + 2_000 }),
+          createPageRecord({ pageId: 'read-page-5', domain: 'docs5.example.com', effectiveWords: 105, lastReadAt: morningOnJune27 + 1_000 }),
+          createPageRecord({ pageId: 'read-page-6', domain: 'docs6.example.com', effectiveWords: 106, lastReadAt: morningOnJune27 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentPages.map((page) => page.pageId)).toEqual([
+      'read-page-1',
+      'read-page-2',
+      'read-page-3',
+      'read-page-4',
+      'read-page-5',
     ]);
   });
 });
