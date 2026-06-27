@@ -53,6 +53,21 @@ describe('saveSelectedTextItem', () => {
     expect(record?.id).toMatch(/^saved_/);
   });
 
+  it('generates unique records for repeated saves of the same text in the same millisecond', async () => {
+    const first = await saveSelectedTextItem('resilience', {
+      sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+      createdAt: savedAt,
+    });
+    const second = await saveSelectedTextItem('resilience', {
+      sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+      createdAt: savedAt,
+    });
+
+    expect(first?.id).not.toBe(second?.id);
+    expect(mocks.savedItems.put).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: first?.id }));
+    expect(mocks.savedItems.put).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: second?.id }));
+  });
+
   it('creates vocabulary memory for intentionally saved trackable words', async () => {
     await saveSelectedTextItem('  Resilience  ', {
       sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',

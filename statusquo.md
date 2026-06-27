@@ -471,3 +471,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
 - **Context:** Calling `stop()` twice no longer creates a second final batch after visible reading exposure has already been flushed.
+
+## [2026-06-28 04:03] Saved Selection Unique IDs
+- **Changes:** Added a sequence component to saved selection IDs so repeated saves of the same text in the same millisecond do not overwrite each other, with storage coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
+- **Context:** Intentional repeated saves now remain separate local saved-item records even when text and timestamp match.

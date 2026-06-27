@@ -2,6 +2,8 @@ import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english
 import { getDomain, hashText } from '../domain/events';
 import { db, type SavedItemRecord, type VocabExposureRecord } from './schema';
 
+let savedItemSequence = 0;
+
 export interface SaveSelectedTextOptions {
   sourceUrl?: string;
   createdAt?: number;
@@ -18,7 +20,7 @@ export async function saveSelectedTextItem(
 
   const createdAt = options.createdAt ?? Date.now();
   const record: SavedItemRecord = {
-    id: `saved_${createdAt.toString(36)}_${hashText(text)}`,
+    id: createSavedItemId(text, createdAt),
     text,
     type: classifySavedText(text),
     sourceDomain: getDomain(options.sourceUrl ?? ''),
@@ -32,6 +34,11 @@ export async function saveSelectedTextItem(
   });
 
   return record;
+}
+
+function createSavedItemId(text: string, createdAt: number): string {
+  savedItemSequence = (savedItemSequence + 1) % Number.MAX_SAFE_INTEGER;
+  return `saved_${createdAt.toString(36)}_${hashText(text)}_${savedItemSequence.toString(36)}`;
 }
 
 async function recordSavedVocabulary(text: string, savedAt: number): Promise<void> {
