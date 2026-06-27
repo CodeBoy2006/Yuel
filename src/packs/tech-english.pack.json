@@ -1,0 +1,21 @@
+{
+  "manifest": {
+    "id": "tech-english",
+    "name": "Tech English",
+    "version": "0.1.0",
+    "schemaVersion": 1,
+    "language": "en",
+    "kind": "professional",
+    "verified": false
+  },
+  "lexicon": [
+    { "term": "mitigate", "weight": 0.82, "tags": ["architecture", "risk"] },
+    { "term": "overhead", "weight": 0.72, "tags": ["performance"] },
+    { "term": "resilience", "weight": 0.78, "tags": ["architecture"] }
+  ],
+  "phrases": [
+    { "text": "fail gracefully", "weight": 0.9, "tags": ["resilience"] },
+    { "text": "backward compatible", "weight": 0.84, "tags": ["release"] },
+    { "text": "memory overhead", "weight": 0.76, "tags": ["performance"] }
+  ]
+}

@@ -1,0 +1,91 @@
+export type ReadingConfidence = 'low' | 'medium' | 'high';
+
+export type ReadingEventKind =
+  | 'PageVisible'
+  | 'PageHidden'
+  | 'TextBlockVisible'
+  | 'TextBlockHidden'
+  | 'ScrollVelocityChanged'
+  | 'UserIdle'
+  | 'UserActive'
+  | 'TextSelected'
+  | 'LookupTriggered'
+  | 'ChunkSaved'
+  | 'PageExcluded';
+
+export interface PageSnapshot {
+  pageId: string;
+  domain: string;
+  titleHash: string;
+  urlHash: string;
+  language: string;
+  totalWords: number;
+  capturedAt: number;
+}
+
+export interface TextChunkSnapshot {
+  chunkId: string;
+  pageId: string;
+  textHash: string;
+  text?: string;
+  wordCount: number;
+  sentenceCount: number;
+  selector: string;
+}
+
+export interface ReadingEvent {
+  id: string;
+  sessionId: string;
+  pageId: string;
+  chunkId?: string;
+  kind: ReadingEventKind;
+  occurredAt: number;
+  confidence: ReadingConfidence;
+  value?: Record<string, unknown>;
+}
+
+export function createSessionId(now = Date.now(), random = Math.random()): string {
+  return `session_${now.toString(36)}_${Math.floor(random * 1_000_000).toString(36)}`;
+}
+
+export function createEventId(kind: ReadingEventKind, now = Date.now(), random = Math.random()): string {
+  return `${kind}_${now.toString(36)}_${Math.floor(random * 1_000_000).toString(36)}`;
+}
+
+export function createPageId(url: string): string {
+  const domain = getDomain(url);
+  return `${domain}_${hashText(normalizeUrlForHashing(url))}`;
+}
+
+export function createChunkId(pageId: string, text: string): string {
+  return `${pageId}_${hashText(text)}`;
+}
+
+export function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'unknown';
+  }
+}
+
+export function hashText(value: string): string {
+  let hash = 2_166_136_261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function normalizeUrlForHashing(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}

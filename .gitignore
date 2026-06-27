@@ -1,0 +1,7 @@
+node_modules/
+.wxt/
+.output/
+dist/
+coverage/
+*.log
+.DS_Store
