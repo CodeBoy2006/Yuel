@@ -59,7 +59,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   }, [dependencies]);
 
   const summary = details?.summary;
-  const statusText = loadFailed || clearFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
+  const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
 
@@ -138,6 +138,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               </button>
             </div>
           </div>
+          {clearFailed ? <p className="mt-3 text-sm font-medium text-red-700">Clear failed; local data was not changed.</p> : null}
         </div>
       </section>
 

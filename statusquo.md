@@ -297,3 +297,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening user-visible recovery states around enabled-site removal and browser-level permission flows.
 - **Context:** Denied optional host permission now leaves a clear "Permission was not granted" message instead of returning silently to the pre-request prompt.
+
+## [2026-06-28 02:10] Dashboard Clear Error State
+- **Changes:** Added explicit dashboard feedback when clearing local reading data fails, plus UI smoke coverage that preserves the current data after a failed clear.
+- **Status:** Completed
+- **Next Steps:** Continue tightening recovery states around enabled-site removal and browser-level permission flows.
+- **Context:** Clear failures now report "Clear failed; local data was not changed." without marking successfully loaded dashboard data as unavailable.
