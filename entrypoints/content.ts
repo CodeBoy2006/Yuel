@@ -1,4 +1,4 @@
-import { startReadingCollector } from '../src/content/collector';
+import { startReadingCollectorOnce } from '../src/content/startOnce';
 
 export default defineContentScript({
   matches: [
@@ -12,6 +12,6 @@ export default defineContentScript({
   ],
   runAt: 'document_idle',
   main() {
-    startReadingCollector();
+    startReadingCollectorOnce();
   },
 });

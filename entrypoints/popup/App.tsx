@@ -1,7 +1,12 @@
-import { BarChart3, BookOpen, ExternalLink, ShieldCheck } from 'lucide-react';
+import { BarChart3, BookOpen, ExternalLink, ShieldCheck, ToggleRight } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 
+import {
+  enableCurrentTabSite,
+  getCurrentTabSiteAccess,
+  type SiteAccessState,
+} from '../../src/permissions/siteAccess';
 import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
 
 const trackedHosts = ['MDN', 'GitHub', 'Medium', 'Wikipedia', 'arXiv'];
@@ -9,6 +14,9 @@ const trackedHosts = ['MDN', 'GitHub', 'Medium', 'Wikipedia', 'arXiv'];
 export function PopupApp() {
   const [summary, setSummary] = useState<TodayReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
+  const [siteAccessBusy, setSiteAccessBusy] = useState(false);
+  const [siteAccessFailed, setSiteAccessFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -29,8 +37,54 @@ export function PopupApp() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    void getCurrentTabSiteAccess()
+      .then((nextAccess) => {
+        if (!mounted) return;
+        setSiteAccess(nextAccess);
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel site access state', error);
+        if (!mounted) return;
+        setSiteAccessFailed(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const openDashboard = async () => {
     await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
+  };
+
+  const enableSite = async () => {
+    setSiteAccessBusy(true);
+    setSiteAccessFailed(false);
+
+    try {
+      const result = await enableCurrentTabSite();
+      setSiteAccess(
+        result.supported
+          ? {
+              supported: true,
+              tabId: result.tabId,
+              url: result.url,
+              origin: result.origin,
+              host: result.host,
+              granted: result.granted,
+              enabled: result.enabled,
+            }
+          : result,
+      );
+    } catch (error) {
+      console.error('Failed to enable Yuel on current site', error);
+      setSiteAccessFailed(true);
+    } finally {
+      setSiteAccessBusy(false);
+    }
   };
 
   const hasLoaded = Boolean(summary) || loadFailed;
@@ -38,6 +92,8 @@ export function PopupApp() {
   const confidenceValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
   const pagesValue = summary ? `${summary.readPages} pages` : 'Loading';
   const learningValue = summary ? `${summary.learningWords} words` : 'Loading';
+  const currentSiteEnabled = siteAccess?.supported ? siteAccess.enabled : false;
+  const canEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled && !siteAccessBusy);
 
   return (
     <main className="w-[360px] bg-neutral-950 text-neutral-100">
@@ -66,6 +122,25 @@ export function PopupApp() {
               {host}
             </span>
           ))}
+        </div>
+      </section>
+
+      <section className="border-t border-neutral-800 px-4 py-3">
+        <div className="mb-2 flex items-center gap-2">
+          <ToggleRight className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Current site</p>
+        </div>
+        <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
+          <p className="text-sm font-semibold">{formatSiteAccessTitle(siteAccess, siteAccessFailed)}</p>
+          <p className="mt-1 text-xs text-neutral-500">{formatSiteAccessDetail(siteAccess, siteAccessBusy)}</p>
+          <button
+            type="button"
+            disabled={!canEnableCurrentSite}
+            onClick={() => void enableSite()}
+            className="mt-3 flex w-full items-center justify-center rounded-md border border-neutral-700 px-3 py-2 text-sm font-semibold text-neutral-100 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {siteAccessBusy ? 'Enabling...' : currentSiteEnabled ? 'Enabled' : 'Enable current site'}
+          </button>
         </div>
       </section>
 
@@ -103,4 +178,20 @@ function formatMinutes(minutes: number): string {
   }
 
   return `${Math.round(minutes)} min`;
+}
+
+function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: boolean): string {
+  if (failed) return 'Permission status unavailable';
+  if (!siteAccess) return 'Checking page';
+  if (!siteAccess.supported) return siteAccess.reason;
+  return siteAccess.host;
+}
+
+function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: boolean): string {
+  if (busy) return 'Requesting optional host permission';
+  if (!siteAccess) return 'Loading current tab';
+  if (!siteAccess.supported) return 'Open an http or https page to enable tracking';
+  if (siteAccess.enabled) return 'Yuel can collect reading events on this site';
+  if (siteAccess.granted) return 'Permission is granted; click to enable tracking';
+  return 'Grant permission only for this site';
 }
