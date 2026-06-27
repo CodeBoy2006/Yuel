@@ -45,3 +45,9 @@
 - **Status:** Completed
 - **Next Steps:** Add an actual browser-loaded extension smoke test for popup and dashboard rendering once a stable browser automation harness is available.
 - **Context:** The smoke test runs `pnpm build` first and validates `.output/chrome-mv3`; regular `pnpm test` remains focused on unit tests under `src/`.
+
+## [2026-06-27 21:53] UI Runtime Smoke Tests
+- **Changes:** Added jsdom render smoke coverage for popup and dashboard entrypoint components with injectable service dependencies.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Component dependencies default to production services; tests inject local stubs to avoid real IndexedDB and extension APIs.

@@ -11,14 +11,22 @@ const pillars = [
   { icon: LockKeyhole, title: 'Privacy first', text: 'The scaffold stores hashes by default and keeps raw text only for user-saved items.' },
 ];
 
-export function DashboardApp() {
+export interface DashboardAppDependencies {
+  getReadingDashboardDetails: typeof getReadingDashboardDetails;
+}
+
+const defaultDependencies: DashboardAppDependencies = {
+  getReadingDashboardDetails,
+};
+
+export function DashboardApp({ dependencies = defaultDependencies }: { dependencies?: DashboardAppDependencies }) {
   const [details, setDetails] = useState<ReadingDashboardDetails>();
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    void getReadingDashboardDetails()
+    void dependencies.getReadingDashboardDetails()
       .then((nextDetails) => {
         if (!mounted) return;
         setDetails(nextDetails);
@@ -32,7 +40,7 @@ export function DashboardApp() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [dependencies]);
 
   const summary = details?.summary;
   const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';

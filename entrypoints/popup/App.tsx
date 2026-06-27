@@ -14,7 +14,27 @@ import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/stor
 
 const trackedHosts = ['MDN', 'GitHub', 'Medium', 'Wikipedia', 'arXiv'];
 
-export function PopupApp() {
+export interface PopupAppDependencies {
+  getTodayReadingSummary: typeof getTodayReadingSummary;
+  getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
+  listEnabledSites: typeof listEnabledSites;
+  enableCurrentTabSite: typeof enableCurrentTabSite;
+  disableEnabledSite: typeof disableEnabledSite;
+  openDashboard: () => Promise<void>;
+}
+
+const defaultDependencies: PopupAppDependencies = {
+  getTodayReadingSummary,
+  getCurrentTabSiteAccess,
+  listEnabledSites,
+  enableCurrentTabSite,
+  disableEnabledSite,
+  openDashboard: async () => {
+    await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
+  },
+};
+
+export function PopupApp({ dependencies = defaultDependencies }: { dependencies?: PopupAppDependencies }) {
   const [summary, setSummary] = useState<TodayReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
@@ -26,7 +46,7 @@ export function PopupApp() {
   useEffect(() => {
     let mounted = true;
 
-    void getTodayReadingSummary()
+    void dependencies.getTodayReadingSummary()
       .then((nextSummary) => {
         if (!mounted) return;
         setSummary(nextSummary);
@@ -40,12 +60,12 @@ export function PopupApp() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [dependencies]);
 
   useEffect(() => {
     let mounted = true;
 
-    void getCurrentTabSiteAccess()
+    void dependencies.getCurrentTabSiteAccess()
       .then((nextAccess) => {
         if (!mounted) return;
         setSiteAccess(nextAccess);
@@ -59,7 +79,7 @@ export function PopupApp() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [dependencies]);
 
   useEffect(() => {
     let mounted = true;
@@ -75,12 +95,8 @@ export function PopupApp() {
     };
   }, []);
 
-  const openDashboard = async () => {
-    await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
-  };
-
   const refreshEnabledSites = async () => {
-    setEnabledSites(await listEnabledSites());
+    setEnabledSites(await dependencies.listEnabledSites());
   };
 
   const enableSite = async () => {
@@ -88,7 +104,7 @@ export function PopupApp() {
     setSiteAccessFailed(false);
 
     try {
-      const result = await enableCurrentTabSite();
+      const result = await dependencies.enableCurrentTabSite();
       setSiteAccess(
         result.supported
           ? {
@@ -116,7 +132,7 @@ export function PopupApp() {
     setSiteAccessFailed(false);
 
     try {
-      await disableEnabledSite(origin);
+      await dependencies.disableEnabledSite(origin);
       await refreshEnabledSites();
       setSiteAccess((currentAccess) =>
         currentAccess?.supported && currentAccess.origin === origin
@@ -213,7 +229,7 @@ export function PopupApp() {
       <section className="border-t border-neutral-800 px-4 py-3">
         <button
           type="button"
-          onClick={() => void openDashboard()}
+          onClick={() => void dependencies.openDashboard()}
           className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400"
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
