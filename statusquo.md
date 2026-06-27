@@ -309,3 +309,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level verification around optional host permission flows where automation is stable.
 - **Context:** Remove failures now report "Remove failed; site is still enabled." without marking the current site's permission status as unavailable.
+
+## [2026-06-28 02:16] Host Permission Removal Guard
+- **Changes:** Made enabled-site removal preserve local enablement when the browser refuses to remove the host permission, with permission-service test coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level verification around optional host permission flows where automation is stable.
+- **Context:** `disableEnabledSite` now treats a `permissions.remove()` false result as a failure instead of silently unregistering local collection state.

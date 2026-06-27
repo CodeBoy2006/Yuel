@@ -189,10 +189,14 @@ export async function disableEnabledSite(
 
   const remainingOrigins = enabledOrigins.filter((enabledOrigin) => enabledOrigin !== origin);
   await stopCurrentTabCollectorForOrigin(runtime, origin);
+  const removedHostPermission = await runtime.permissions.remove({ origins: [origin] });
+  if (!removedHostPermission) {
+    throw new Error(`Failed to remove host permission for ${origin}`);
+  }
+
   await runtime.storage.local.set({
     [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
   });
-  await runtime.permissions.remove({ origins: [origin] });
   await registerEnabledSiteContentScripts(runtime);
 
   return {

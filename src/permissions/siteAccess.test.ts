@@ -355,6 +355,21 @@ describe('disableEnabledSite', () => {
     }
   });
 
+  it('does not update local enablement when host permission removal is refused', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+      removeResult: false,
+    });
+
+    await expect(disableEnabledSite('https://example.com/*', runtime)).rejects.toThrow(
+      'Failed to remove host permission for https://example.com/*',
+    );
+
+    expect(runtime.removedOrigins).toEqual([['https://example.com/*']]);
+    expect(runtime.storedValues).toEqual([]);
+    expect(runtime.registeredScripts).toEqual([]);
+  });
+
   it('does not update storage or permissions for an unknown origin', async () => {
     const runtime = createRuntime({
       enabledOrigins: ['https://old.example/*'],
