@@ -46,12 +46,26 @@ function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBa
     return false;
   }
 
+  const { page, chunks, events } = payload;
+  if (
+    !isPageSnapshot(page) ||
+    !Array.isArray(chunks) ||
+    !chunks.every(isTextChunkSnapshot) ||
+    !Array.isArray(events) ||
+    !events.every(isReadingEvent)
+  ) {
+    return false;
+  }
+
+  return hasConsistentBatchLinks(page, chunks, events);
+}
+
+function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[], events: ReadingEvent[]): boolean {
+  const chunkIds = new Set(chunks.map((chunk) => chunk.chunkId));
+
   return (
-    isPageSnapshot(payload.page) &&
-    Array.isArray(payload.chunks) &&
-    payload.chunks.every(isTextChunkSnapshot) &&
-    Array.isArray(payload.events) &&
-    payload.events.every(isReadingEvent)
+    chunks.every((chunk) => chunk.pageId === page.pageId) &&
+    events.every((event) => event.pageId === page.pageId && (event.chunkId === undefined || chunkIds.has(event.chunkId)))
   );
 }
 

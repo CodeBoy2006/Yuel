@@ -96,4 +96,40 @@ describe('isReadingEventBatchMessage', () => {
       }),
     ).toBe(false);
   });
+
+  it('rejects chunks linked to a different page', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], pageId: 'page-2' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects events linked to a different page', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [{ ...validMessage.payload.events[0], pageId: 'page-2' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects events linked to an unknown chunk', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [{ ...validMessage.payload.events[0], chunkId: 'chunk-2' }],
+        },
+      }),
+    ).toBe(false);
+  });
 });

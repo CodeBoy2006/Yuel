@@ -153,3 +153,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Recently opened pages without effective reading no longer hide slightly older pages that have actual measured reading exposure.
+
+## [2026-06-27 23:27] Batch Link Validation
+- **Changes:** Tightened reading batch contract validation so chunks must belong to the batch page and events must reference the batch page plus known chunks.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
+- **Context:** Malformed runtime messages with cross-page records or unknown chunk references are now rejected before they reach IndexedDB writes.
