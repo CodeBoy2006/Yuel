@@ -186,6 +186,16 @@ describe('extension UI entrypoint smoke rendering', () => {
                 userStatus: 'learning',
               },
             ],
+            recentSavedItems: [
+              {
+                id: 'saved-1',
+                text: 'fail gracefully under pressure',
+                type: 'phrase',
+                sourceDomain: 'developer.mozilla.org',
+                tags: ['selection'],
+                createdAt: Date.UTC(2026, 5, 27, 10, 5, 0),
+              },
+            ],
             hasData: true,
           }),
         }}
@@ -197,6 +207,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
     expect(container.textContent).toContain('architecture');
+    expect(container.textContent).toContain('fail gracefully under pressure');
+    expect(container.textContent).toContain('Saved selections');
   });
 
   it('clears local dashboard data through injected services', async () => {
@@ -218,6 +230,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         },
         recentPages: [],
         recentVocabulary: [],
+        recentSavedItems: [],
         hasData: true,
       })
       .mockResolvedValueOnce({
@@ -235,6 +248,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         },
         recentPages: [],
         recentVocabulary: [],
+        recentSavedItems: [],
         hasData: false,
       });
     const container = await renderForSmoke(
@@ -279,6 +293,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       },
       recentPages: [],
       recentVocabulary: [],
+      recentSavedItems: [],
       hasData: true,
     }));
     const container = await renderForSmoke(

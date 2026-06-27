@@ -2,6 +2,7 @@ import {
   db,
   type DailyStatRecord,
   type PageRecord,
+  type SavedItemRecord,
   type VocabExposureRecord,
 } from './schema';
 
@@ -37,10 +38,20 @@ export interface RecentVocabularySummary {
   userStatus: VocabExposureRecord['userStatus'];
 }
 
+export interface RecentSavedItemSummary {
+  id: string;
+  text: string;
+  type: SavedItemRecord['type'];
+  sourceDomain: string;
+  tags: string[];
+  createdAt: number;
+}
+
 export interface ReadingDashboardDetails {
   summary: TodayReadingSummary;
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
+  recentSavedItems: RecentSavedItemSummary[];
   hasData: boolean;
 }
 
@@ -77,12 +88,22 @@ export interface ReadingStatsStore {
       };
     };
   };
+  savedItems: {
+    orderBy: (index: string) => {
+      reverse: () => {
+        limit: (count: number) => {
+          toArray: () => Promise<SavedItemRecord[]>;
+        };
+      };
+    };
+  };
 }
 
 const RECENT_MEASURED_PAGE_LIMIT = 5;
 const RECENT_PAGE_SCAN_LIMIT = 20;
 const RECENT_VOCABULARY_LIMIT = 8;
 const RECENT_VOCABULARY_SCAN_LIMIT = 20;
+const RECENT_SAVED_ITEM_LIMIT = 5;
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -126,10 +147,11 @@ export async function getReadingDashboardDetails(
   store: ReadingStatsStore = db,
   now = Date.now(),
 ): Promise<ReadingDashboardDetails> {
-  const [summary, recentPageRecords, recentVocabularyRecords] = await Promise.all([
+  const [summary, recentPageRecords, recentVocabularyRecords, recentSavedItemRecords] = await Promise.all([
     getTodayReadingSummary(store, now),
     store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
+    store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_LIMIT).toArray(),
   ]);
 
   const recentPages = recentPageRecords
@@ -155,12 +177,21 @@ export async function getReadingDashboardDetails(
       packTags: vocab.packTags,
       userStatus: vocab.userStatus,
     }));
+  const recentSavedItems = recentSavedItemRecords.map((item): RecentSavedItemSummary => ({
+    id: item.id,
+    text: item.text,
+    type: item.type,
+    sourceDomain: item.sourceDomain,
+    tags: item.tags,
+    createdAt: item.createdAt,
+  }));
 
   return {
     summary,
     recentPages,
     recentVocabulary,
-    hasData: summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0,
+    recentSavedItems,
+    hasData: summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0,
   };
 }
 

@@ -165,6 +165,40 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         </section>
       </section>
 
+      <section className="mx-auto max-w-5xl px-6 pb-6">
+        <section className="rounded-md border border-stone-200 bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Saved selections</h2>
+            <span className="text-sm text-stone-500">{details?.recentSavedItems.length ?? 0} saved</span>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {details?.recentSavedItems.length ? (
+              details.recentSavedItems.map((item) => (
+                <div key={item.id} className="rounded-md border border-stone-200 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase text-emerald-700">{item.type}</p>
+                    <p className="text-xs text-stone-500">{formatDateTime(item.createdAt)}</p>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-700">{item.text}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                    <span>{item.sourceDomain}</span>
+                    {item.tags.map((tag) => (
+                      <span key={tag} className="rounded border border-stone-200 px-2 py-0.5">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">
+                No saved selections yet.
+              </p>
+            )}
+          </div>
+        </section>
+      </section>
+
       <section className="mx-auto grid max-w-5xl gap-4 px-6 py-6 md:grid-cols-2">
         {pillars.map(({ icon: Icon, title, text }) => (
           <article key={title} className="rounded-md border border-stone-200 bg-white p-5">

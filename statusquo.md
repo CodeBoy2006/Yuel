@@ -213,3 +213,9 @@
 - **Status:** Completed
 - **Next Steps:** Surface saved items in the dashboard or card/export flow so the intentional save path is visible after capture.
 - **Context:** Ordinary selection telemetry still stores only hashes; raw selected text is written only through the explicit context-menu action.
+
+## [2026-06-28 00:30] Saved Selections Dashboard
+- **Changes:** Added recent saved selections to the dashboard read model and UI, with coverage for saved-only local data and render smoke output.
+- **Status:** Completed
+- **Next Steps:** Add a lightweight card/export surface that can reuse reading stats, vocabulary exposure, and saved selections.
+- **Context:** The explicit context-menu save path is now visible in the dashboard instead of only writing to IndexedDB.

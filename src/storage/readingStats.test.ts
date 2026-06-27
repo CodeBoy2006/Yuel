@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
-import type { PageRecord, VocabExposureRecord } from './schema';
+import type { PageRecord, SavedItemRecord, VocabExposureRecord } from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
@@ -11,8 +11,10 @@ function createStore({
   learningWords = 0,
   expectedRecentPageQueryLimit = 20,
   expectedRecentVocabularyQueryLimit = 20,
+  expectedRecentSavedItemQueryLimit = 5,
   recentPages = [],
   recentVocabulary = [],
+  recentSavedItems = [],
 }: {
   dailyStat?: {
     effectiveWords: number;
@@ -26,8 +28,10 @@ function createStore({
   learningWords?: number;
   expectedRecentPageQueryLimit?: number;
   expectedRecentVocabularyQueryLimit?: number;
+  expectedRecentSavedItemQueryLimit?: number;
   recentPages?: PageRecord[];
   recentVocabulary?: VocabExposureRecord[];
+  recentSavedItems?: SavedItemRecord[];
 }): ReadingStatsStore {
   return {
     dailyStats: {
@@ -95,6 +99,25 @@ function createStore({
                 return {
                   async toArray() {
                     return recentVocabulary;
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    },
+    savedItems: {
+      orderBy(index: string) {
+        expect(index).toBe('createdAt');
+        return {
+          reverse() {
+            return {
+              limit(count: number) {
+                expect(count).toBe(expectedRecentSavedItemQueryLimit);
+                return {
+                  async toArray() {
+                    return recentSavedItems.slice(0, count);
                   },
                 };
               },
@@ -194,6 +217,13 @@ describe('getReadingDashboardDetails', () => {
           createPageRecord({ pageId: 'page-2', domain: 'github.com', totalWords: 400, effectiveWords: 220 }),
         ],
         recentVocabulary: [createVocabRecord({ lemma: 'resilience', effectiveSeenCount: 3, packTags: ['architecture'] })],
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-1',
+            text: 'fail gracefully under pressure',
+            sourceDomain: 'developer.mozilla.org',
+          }),
+        ],
       }),
       morningOnJune27,
     );
@@ -218,6 +248,16 @@ describe('getReadingDashboardDetails', () => {
         lastSeenAt: morningOnJune27,
         packTags: ['architecture'],
         userStatus: 'learning',
+      },
+    ]);
+    expect(details.recentSavedItems).toEqual([
+      {
+        id: 'saved-1',
+        text: 'fail gracefully under pressure',
+        type: 'phrase',
+        sourceDomain: 'developer.mozilla.org',
+        tags: ['selection'],
+        createdAt: morningOnJune27,
       },
     ]);
     expect(details.hasData).toBe(true);
@@ -324,6 +364,32 @@ describe('getReadingDashboardDetails', () => {
     expect(details.recentVocabulary).toEqual([]);
     expect(details.hasData).toBe(false);
   });
+
+  it('loads recent saved selections as dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-new',
+            text: 'mitigate memory overhead',
+            sourceDomain: 'github.com',
+            createdAt: morningOnJune27 + 2_000,
+          }),
+          createSavedItemRecord({
+            id: 'saved-old',
+            text: 'resilience',
+            type: 'word',
+            sourceDomain: 'developer.mozilla.org',
+            createdAt: morningOnJune27,
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems.map((item) => item.id)).toEqual(['saved-new', 'saved-old']);
+    expect(details.hasData).toBe(true);
+  });
 });
 
 function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
@@ -353,6 +419,18 @@ function createVocabRecord(overrides: Partial<VocabExposureRecord> = {}): VocabE
     lastSeenAt: morningOnJune27,
     packTags: ['architecture'],
     userStatus: 'learning',
+    ...overrides,
+  };
+}
+
+function createSavedItemRecord(overrides: Partial<SavedItemRecord> = {}): SavedItemRecord {
+  return {
+    id: 'saved-1',
+    text: 'fail gracefully under pressure',
+    type: 'phrase',
+    sourceDomain: 'developer.mozilla.org',
+    tags: ['selection'],
+    createdAt: morningOnJune27,
     ...overrides,
   };
 }

@@ -1,6 +1,6 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, recent pages, vocabulary exposure, and Pack tags in extension UI pages.
+Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, recent pages, vocabulary exposure, saved selections, and Pack tags in extension UI pages.
 
 ## Stack
 
@@ -46,7 +46,7 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: today’s effective words, reading time, page count, learning words, current-site permission state, enabled-site management, and a dashboard link.
 - Side panel: compact reading companion summary with today’s metrics and top domain.
-- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
+- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure, explicit saved selections, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
