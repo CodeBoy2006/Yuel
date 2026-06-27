@@ -507,3 +507,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** New malformed reading batches no longer create empty-domain page records or daily top-domain entries.
+
+## [2026-06-28 04:33] Existing Top Domain Merge Cleanup
+- **Changes:** Cleaned existing daily top-domain aggregates while recording new reading events, with storage coverage for trimming, blank filtering, and deduplication.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Recording a new batch now repairs malformed stored top-domain arrays instead of preserving stale blank or duplicated entries.

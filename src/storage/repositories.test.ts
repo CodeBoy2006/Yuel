@@ -192,6 +192,27 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
+  it('normalizes existing daily top domains when recording new aggregates', async () => {
+    mocks.dailyStats.get.mockResolvedValueOnce({
+      date: '2026-06-27',
+      effectiveWords: 10,
+      minutes: 1,
+      advancedWords: 0,
+      expressions: 0,
+      streak: 0,
+      topDomains: ['  docs.example.com  ', '', 'github.com', 'docs.example.com', '   '],
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-06-27',
+        topDomains: ['docs.example.com', 'github.com'],
+      }),
+    );
+  });
+
   it('does not record vocabulary exposure when measured reading is ineffective', async () => {
     const payload = createPayload();
     payload.events = [

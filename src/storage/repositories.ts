@@ -170,12 +170,18 @@ async function recordDailyStatIncrements(
 }
 
 function mergeTopDomains(existing: string[], domain: string): string[] {
-  return Array.from(new Set([...existing, domain])).slice(0, 8);
+  const normalizedExisting = existing.map(normalizeExistingTopDomain).filter((value): value is string => Boolean(value));
+  return Array.from(new Set([...normalizedExisting, domain])).slice(0, 8);
 }
 
 function normalizeStoredDomain(domain: string): string {
   const normalized = domain.trim();
   return normalized || 'unknown';
+}
+
+function normalizeExistingTopDomain(domain: string): string | undefined {
+  const normalized = domain.trim();
+  return normalized || undefined;
 }
 
 function extractVocabExposureUpdates(text: string, now: number): VocabExposureRecord[] {
