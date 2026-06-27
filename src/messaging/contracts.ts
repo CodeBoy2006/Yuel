@@ -77,8 +77,8 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
     isString(value.titleHash) &&
     isString(value.urlHash) &&
     isString(value.language) &&
-    isFiniteNumber(value.totalWords) &&
-    isFiniteNumber(value.capturedAt)
+    isNonNegativeFiniteNumber(value.totalWords) &&
+    isNonNegativeFiniteNumber(value.capturedAt)
   );
 }
 
@@ -89,8 +89,8 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isString(value.pageId) &&
     isString(value.textHash) &&
     (value.text === undefined || isString(value.text)) &&
-    isFiniteNumber(value.wordCount) &&
-    isFiniteNumber(value.sentenceCount) &&
+    isNonNegativeFiniteNumber(value.wordCount) &&
+    isNonNegativeFiniteNumber(value.sentenceCount) &&
     isString(value.selector)
   );
 }
@@ -104,7 +104,7 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
     (value.chunkId === undefined || isString(value.chunkId)) &&
     isString(value.kind) &&
     READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
-    isFiniteNumber(value.occurredAt) &&
+    isNonNegativeFiniteNumber(value.occurredAt) &&
     isString(value.confidence) &&
     READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&
     (value.value === undefined || isObject(value.value))
@@ -121,4 +121,8 @@ function isString(value: unknown): value is string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0;
 }

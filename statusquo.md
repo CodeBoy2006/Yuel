@@ -177,3 +177,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening content-script signal quality.
 - **Context:** The collector still clears open exposure when a tab hides; this slice restarts timing for currently visible blocks on return to the tab.
+
+## [2026-06-27 23:44] Nonnegative Batch Numbers
+- **Changes:** Tightened reading batch contract validation to reject negative page totals, chunk counts, and event timestamps before background storage writes.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
+- **Context:** Runtime batch messages still tolerate optional event value details, but persisted record/index fields now must be finite and nonnegative.

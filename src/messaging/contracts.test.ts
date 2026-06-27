@@ -97,6 +97,41 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects batches containing negative page, chunk, or event numeric fields', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            totalWords: -1,
+          },
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: -1 }],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [{ ...validMessage.payload.events[0], occurredAt: -1 }],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects chunks linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({
