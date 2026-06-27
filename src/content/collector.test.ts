@@ -416,4 +416,36 @@ describe('startReadingCollector', () => {
       }),
     ]);
   });
+
+  it('does not flush again when the collector is stopped twice', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Repeated collector stops should not duplicate visible reading exposure after cleanup completes.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    controller.stop();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(500);
+    controller.stop();
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+  });
 });

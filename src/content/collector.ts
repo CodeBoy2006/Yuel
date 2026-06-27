@@ -40,6 +40,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   let latestScrollSpeedWordsPerMinute = 0;
   let userIdle = false;
   let pageHidden = document.visibilityState === 'hidden';
+  let stopped = false;
   let lastInteractionAt = Date.now();
   let idleStartedAt: number | undefined;
   let lastScrollSample: ScrollVelocitySample = {
@@ -270,6 +271,11 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
   return {
     stop: () => {
+      if (stopped) {
+        return;
+      }
+
+      stopped = true;
       window.clearInterval(flushTimer);
       window.clearTimeout(idleTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);

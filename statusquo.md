@@ -465,3 +465,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
 - **Context:** Disabling or externally stopping a collector now closes the local reading session instead of only flushing exposure ticks.
+
+## [2026-06-28 03:56] Collector Stop Idempotency
+- **Changes:** Made collector `stop()` idempotent so repeated cleanup paths do not duplicate final exposure flushes, with content collector coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
+- **Context:** Calling `stop()` twice no longer creates a second final batch after visible reading exposure has already been flushed.
