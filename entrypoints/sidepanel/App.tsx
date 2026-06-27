@@ -26,6 +26,8 @@ const defaultDependencies: SidePanelAppDependencies = {
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
   const [summary, setSummary] = useState<TodayReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [dashboardFailed, setDashboardFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +51,20 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const hasLoaded = Boolean(summary) || loadFailed;
   const statusText = loadFailed ? 'Local data unavailable' : summary?.hasData ? 'Reading data loaded' : hasLoaded ? 'No reading data yet' : 'Loading local data';
   const topDomain = summary?.topDomains[0] ?? 'No top domain yet';
+
+  const openDashboard = async () => {
+    setDashboardBusy(true);
+    setDashboardFailed(false);
+
+    try {
+      await dependencies.openDashboard();
+    } catch (error) {
+      console.error('Failed to open Yuel dashboard from side panel', error);
+      setDashboardFailed(true);
+    } finally {
+      setDashboardBusy(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -77,12 +93,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       <section className="px-4 pb-4">
         <button
           type="button"
-          onClick={() => void dependencies.openDashboard()}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+          disabled={dashboardBusy}
+          onClick={() => void openDashboard()}
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          Open dashboard
+          {dashboardBusy ? 'Opening dashboard' : 'Open dashboard'}
         </button>
+        {dashboardFailed ? <p className="mt-2 text-center text-xs text-red-600">Dashboard unavailable</p> : null}
       </section>
 
       <section className="grid gap-3 px-4 py-4">

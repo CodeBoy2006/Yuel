@@ -279,3 +279,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening manual and browser-level checks for the user-enabled-site permission path.
 - **Context:** The side panel now provides a path from compact live stats into the detailed dashboard without relying on the popup.
+
+## [2026-06-28 01:57] Side Panel Dashboard Error State
+- **Changes:** Added busy/error state handling when the side panel cannot open the dashboard, with UI smoke coverage for the visible failure message.
+- **Status:** Completed
+- **Next Steps:** Continue tightening user-visible recovery states around extension navigation and site enablement.
+- **Context:** The side panel now avoids a silent failure if `browser.tabs.create` or an injected dashboard opener rejects.
