@@ -255,3 +255,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening the user-enabled-site path, especially optional permission registration and popup-driven enable flows.
 - **Context:** The smoke generates a temporary self-signed certificate with `openssl` and uses Chrome host resolver rules so the test remains local while matching the production starter-site manifest pattern.
+
+## [2026-06-28 01:31] Enabled Site Access Hardening
+- **Changes:** Normalized optional host permission origins without URL ports and made current-tab lookup prefer the last focused window before falling back to the current window.
+- **Status:** Completed
+- **Next Steps:** Continue investigating reliable automation or manual QA for the Chrome optional-host permission confirmation path.
+- **Context:** Browser smoke can drive the popup to Chrome's permission confirmation boundary, but the local CDP Extensions API does not expose a stable way to accept the browser confirmation prompt.

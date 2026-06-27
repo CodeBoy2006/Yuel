@@ -14,6 +14,10 @@ import {
 } from './siteAccess';
 
 function createRuntime({
+  currentWindowTabId,
+  currentWindowTabUrl,
+  lastFocusedTabId,
+  lastFocusedTabUrl,
   tabUrl = 'https://example.com/article?utm=1',
   tabId = 42,
   permissionGranted = false,
@@ -21,6 +25,10 @@ function createRuntime({
   removeResult = true,
   enabledOrigins = [],
 }: {
+  currentWindowTabId?: number;
+  currentWindowTabUrl?: string;
+  lastFocusedTabId?: number;
+  lastFocusedTabUrl?: string;
   tabUrl?: string;
   tabId?: number;
   permissionGranted?: boolean;
@@ -35,6 +43,7 @@ function createRuntime({
   executedFunctions: Array<() => unknown>;
   operationOrder: string[];
   registeredScripts: unknown[];
+  tabQueries: Array<{ active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }>;
   unregisteredFilters: Array<{ ids: string[] }>;
   storedValues: Record<string, unknown>[];
 } {
@@ -46,6 +55,7 @@ function createRuntime({
   const executedFunctions: Array<() => unknown> = [];
   const operationOrder: string[] = [];
   const registeredScripts: unknown[] = [];
+  const tabQueries: Array<{ active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }> = [];
   const unregisteredFilters: Array<{ ids: string[] }> = [];
   const storedValues: Record<string, unknown>[] = [];
 
@@ -57,10 +67,19 @@ function createRuntime({
     executedFunctions,
     operationOrder,
     registeredScripts,
+    tabQueries,
     unregisteredFilters,
     storedValues,
     tabs: {
-      async query() {
+      async query(queryInfo) {
+        tabQueries.push(queryInfo);
+        if (queryInfo.lastFocusedWindow) {
+          return [{ id: lastFocusedTabId ?? tabId, url: lastFocusedTabUrl ?? tabUrl }];
+        }
+        if (queryInfo.currentWindow) {
+          return [{ id: currentWindowTabId ?? tabId, url: currentWindowTabUrl ?? tabUrl }];
+        }
+
         return [{ id: tabId, url: tabUrl }];
       },
     },
@@ -117,6 +136,7 @@ describe('toOptionalHostOrigin', () => {
   it('normalizes http and https page URLs into optional host permission origins', () => {
     expect(toOptionalHostOrigin('https://developer.mozilla.org/en-US/docs/Web/API')).toBe('https://developer.mozilla.org/*');
     expect(toOptionalHostOrigin('http://example.com/path#section')).toBe('http://example.com/*');
+    expect(toOptionalHostOrigin('https://example.com:8443/path#section')).toBe('https://example.com/*');
   });
 
   it('rejects browser-internal and unsupported URLs', () => {
@@ -176,6 +196,26 @@ describe('getCurrentTabSiteAccess', () => {
       reason: 'Unsupported page',
     });
     expect(runtime.requestedOrigins).toEqual([]);
+  });
+
+  it('falls back to the current window tab when the last focused tab is unsupported', async () => {
+    const runtime = createRuntime({
+      lastFocusedTabUrl: 'chrome://extensions',
+      currentWindowTabUrl: 'https://example.com/article?utm=1',
+    });
+
+    const access = await getCurrentTabSiteAccess(runtime);
+
+    expect(runtime.tabQueries).toEqual([
+      { active: true, lastFocusedWindow: true },
+      { active: true, currentWindow: true },
+    ]);
+    expect(access).toMatchObject({
+      supported: true,
+      tabId: 42,
+      origin: 'https://example.com/*',
+      host: 'example.com',
+    });
   });
 });
 

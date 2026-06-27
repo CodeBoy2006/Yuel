@@ -18,7 +18,7 @@ export interface SiteAccessTab {
 
 export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
   tabs: {
-    query: (queryInfo: { active: boolean; currentWindow: boolean }) => Promise<SiteAccessTab[]>;
+    query: (queryInfo: { active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }) => Promise<SiteAccessTab[]>;
   };
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
@@ -94,7 +94,7 @@ export function toOptionalHostOrigin(url: string): string | undefined {
       return undefined;
     }
 
-    return `${parsed.origin}/*`;
+    return `${parsed.protocol}//${parsed.hostname}/*`;
   } catch {
     return undefined;
   }
@@ -236,8 +236,13 @@ export async function handleHostPermissionsRemoved(
 }
 
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {
-  const [tab] = await runtime.tabs.query({ active: true, currentWindow: true });
-  return tab;
+  const [lastFocusedTab] = await runtime.tabs.query({ active: true, lastFocusedWindow: true });
+  if (lastFocusedTab?.url && toOptionalHostOrigin(lastFocusedTab.url)) {
+    return lastFocusedTab;
+  }
+
+  const [currentWindowTab] = await runtime.tabs.query({ active: true, currentWindow: true });
+  return currentWindowTab;
 }
 
 async function getEnabledOrigins(runtime: SiteAccessRuntime): Promise<string[]> {
