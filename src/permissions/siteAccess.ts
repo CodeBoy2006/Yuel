@@ -210,9 +210,8 @@ export async function removeEnabledSitesForOrigins(
   runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
 ): Promise<RemovedEnabledSitesResult> {
   const enabledOrigins = await getEnabledOrigins(runtime);
-  const removedOriginSet = new Set(origins);
-  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => !removedOriginSet.has(enabledOrigin));
-  const removedOrigins = enabledOrigins.filter((enabledOrigin) => removedOriginSet.has(enabledOrigin));
+  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => !isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
+  const removedOrigins = enabledOrigins.filter((enabledOrigin) => isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
 
   if (removedOrigins.length === 0) {
     return {
@@ -237,6 +236,24 @@ export async function handleHostPermissionsRemoved(
   runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
 ): Promise<RemovedEnabledSitesResult> {
   return removeEnabledSitesForOrigins(permissions.origins ?? [], runtime);
+}
+
+function isEnabledOriginCoveredByRemovedPermissions(enabledOrigin: string, removedOrigins: string[]): boolean {
+  return removedOrigins.some((removedOrigin) => {
+    if (removedOrigin === enabledOrigin || removedOrigin === '<all_urls>') {
+      return true;
+    }
+
+    if (removedOrigin === 'http://*/*') {
+      return enabledOrigin.startsWith('http://');
+    }
+
+    if (removedOrigin === 'https://*/*') {
+      return enabledOrigin.startsWith('https://');
+    }
+
+    return false;
+  });
 }
 
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {

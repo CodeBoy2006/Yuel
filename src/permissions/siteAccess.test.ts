@@ -430,4 +430,28 @@ describe('handleHostPermissionsRemoved', () => {
       remainingOrigins: ['https://old.example/*'],
     });
   });
+
+  it('cleans enabled sites covered by broad browser permission removal events', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*', 'http://docs.example/*'],
+    });
+
+    const result = await handleHostPermissionsRemoved({ origins: ['https://*/*'] }, runtime);
+
+    expect(runtime.storedValues).toEqual([
+      {
+        [ENABLED_SITE_ORIGINS_KEY]: ['http://docs.example/*'],
+      },
+    ]);
+    expect(runtime.registeredScripts).toEqual([
+      expect.objectContaining({
+        matches: ['http://docs.example/*'],
+        js: [CONTENT_SCRIPT_FILE],
+      }),
+    ]);
+    expect(result).toEqual({
+      removedOrigins: ['https://old.example/*', 'https://example.com/*'],
+      remainingOrigins: ['http://docs.example/*'],
+    });
+  });
 });

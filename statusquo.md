@@ -435,3 +435,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** The side panel no longer presents an empty local-data state as `0 min read`.
+
+## [2026-06-28 03:36] Broad Host Permission Removal Sync
+- **Changes:** Cleaned enabled-site records covered by broad browser host-permission removal events, with permission-service coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-flow recovery around externally changed host permissions and currently injected tabs.
+- **Context:** A browser event such as `https://*/*` now removes all locally enabled HTTPS sites while preserving unrelated HTTP sites.
