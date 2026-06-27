@@ -489,3 +489,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening explicit saved-selection storage and dashboard presentation edge cases.
 - **Context:** Older or malformed saved-item records no longer render an empty source field in dashboard consumers.
+
+## [2026-06-28 04:14] Reading Summary Top Domain Cleanup
+- **Changes:** Normalized stored top-domain summaries before exposing read models, with storage coverage for trimming, blank filtering, and deduplication.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local summary read models and dashboard presentation edge cases.
+- **Context:** Historical or malformed daily stats no longer leak blank or duplicate top domains into popup, side panel, dashboard, or share-card consumers.

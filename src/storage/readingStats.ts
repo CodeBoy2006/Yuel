@@ -126,7 +126,7 @@ export async function getTodayReadingSummary(
     advancedWords: dailyStat?.advancedWords ?? 0,
     expressions: dailyStat?.expressions ?? 0,
     streak: dailyStat?.streak ?? 0,
-    topDomains: dailyStat?.topDomains ?? [],
+    topDomains: normalizeTopDomains(dailyStat?.topDomains ?? []),
     readPages,
     learningWords,
     hasData: false,
@@ -205,6 +205,10 @@ function hasMeasuredReading(page: PageRecord): boolean {
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
   return vocab.effectiveSeenCount > 0 || vocab.savedCount > 0;
+}
+
+function normalizeTopDomains(topDomains: string[]): string[] {
+  return Array.from(new Set(topDomains.map((domain) => domain.trim()).filter(Boolean)));
 }
 
 function normalizeSavedSourceDomain(sourceDomain: string): string {

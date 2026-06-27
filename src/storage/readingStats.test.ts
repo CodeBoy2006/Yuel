@@ -194,6 +194,24 @@ describe('getTodayReadingSummary', () => {
       hasData: false,
     });
   });
+
+  it('normalizes stored top domains before exposing reading summaries', async () => {
+    const summary = await getTodayReadingSummary(
+      createStore({
+        dailyStat: {
+          effectiveWords: 842,
+          minutes: 12.5,
+          advancedWords: 18,
+          expressions: 6,
+          streak: 3,
+          topDomains: ['  developer.mozilla.org  ', '', 'github.com', 'developer.mozilla.org', '   '],
+        },
+      }),
+      morningOnJune27,
+    );
+
+    expect(summary.topDomains).toEqual(['developer.mozilla.org', 'github.com']);
+  });
 });
 
 describe('getReadingDashboardDetails', () => {
