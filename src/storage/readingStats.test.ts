@@ -307,6 +307,24 @@ describe('getReadingDashboardDetails', () => {
     ]);
   });
 
+  it('normalizes blank recent page domains for dashboard display', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentPages: [
+          createPageRecord({ pageId: 'read-page', domain: '   ', effectiveWords: 120 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentPages).toEqual([
+      expect.objectContaining({
+        pageId: 'read-page',
+        domain: 'unknown',
+      }),
+    ]);
+  });
+
   it('scans past recently opened-only pages to show recent measured reading history', async () => {
     const details = await getReadingDashboardDetails(
       createStore({

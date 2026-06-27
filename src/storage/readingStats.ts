@@ -160,7 +160,7 @@ export async function getReadingDashboardDetails(
     .slice(0, RECENT_MEASURED_PAGE_LIMIT)
     .map((page): RecentPageSummary => ({
       pageId: page.pageId,
-      domain: page.domain,
+      domain: normalizeDisplayDomain(page.domain),
       totalWords: page.totalWords,
       effectiveWords: page.effectiveWords,
       lastReadAt: page.lastReadAt,
@@ -182,7 +182,7 @@ export async function getReadingDashboardDetails(
     id: item.id,
     text: item.text,
     type: item.type,
-    sourceDomain: normalizeSavedSourceDomain(item.sourceDomain),
+    sourceDomain: normalizeDisplayDomain(item.sourceDomain),
     tags: item.tags,
     createdAt: item.createdAt,
   }));
@@ -211,8 +211,8 @@ function normalizeTopDomains(topDomains: string[]): string[] {
   return Array.from(new Set(topDomains.map((domain) => domain.trim()).filter(Boolean)));
 }
 
-function normalizeSavedSourceDomain(sourceDomain: string): string {
-  const normalized = sourceDomain.trim();
+function normalizeDisplayDomain(domain: string): string {
+  const normalized = domain.trim();
   return normalized || 'unknown';
 }
 

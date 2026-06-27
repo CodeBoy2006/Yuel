@@ -495,3 +495,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local summary read models and dashboard presentation edge cases.
 - **Context:** Historical or malformed daily stats no longer leak blank or duplicate top domains into popup, side panel, dashboard, or share-card consumers.
+
+## [2026-06-28 04:17] Recent Page Domain Fallback
+- **Changes:** Normalized blank recent-page domains to `unknown` in dashboard read models, sharing the existing display-domain fallback with saved selections.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local summary read models and dashboard presentation edge cases.
+- **Context:** Historical or malformed page records no longer render an empty domain in the recent reading history.
