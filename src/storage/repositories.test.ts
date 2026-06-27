@@ -188,6 +188,23 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
   });
 
+  it('does not record vocabulary exposure when a chunk has no new effective words to count', async () => {
+    mocks.textChunks.get.mockResolvedValueOnce({
+      chunkId: 'chunk-1',
+      pageId: 'page-1',
+      textHash: 'chunk-text',
+      wordCount: 8,
+      sentenceCount: 1,
+      difficulty: 0,
+      exposureSeconds: 30,
+      effectiveWords: 8,
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+  });
+
   it('does not aggregate duplicate reading events that are already stored locally', async () => {
     const payload = createPayload();
     mocks.readingEvents.bulkGet.mockResolvedValueOnce([payload.events[0]]);

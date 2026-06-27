@@ -22,13 +22,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     const batchPayload = newEvents.length === payload.events.length ? payload : { ...payload, events: newEvents };
     const summary = summarizeReadingEventBatch(batchPayload);
     const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
-    const effectivelyReadChunkIds = new Set(
-      summary.chunkUpdates.filter((update) => update.effectiveWords > 0).map((update) => update.chunkId),
-    );
-    const vocabUpdates = payload.chunks.flatMap((chunk) => {
-      if (!chunk.text || !effectivelyReadChunkIds.has(chunk.chunkId)) return [];
-      return extractVocabExposureUpdates(chunk.text, now);
-    });
+    const newlyEffectiveReadChunkIds = new Set<string>();
 
     const existingPage = await db.pages.get(payload.page.pageId);
     let effectiveWordsDelta = 0;
@@ -39,8 +33,12 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       const update = chunkUpdatesById.get(chunk.chunkId);
       const priorEffectiveWords = existingChunk?.effectiveWords ?? 0;
       const nextEffectiveWords = Math.min(chunk.wordCount, priorEffectiveWords + (update?.effectiveWords ?? 0));
+      const newEffectiveWords = nextEffectiveWords - priorEffectiveWords;
 
-      effectiveWordsDelta += nextEffectiveWords - priorEffectiveWords;
+      effectiveWordsDelta += newEffectiveWords;
+      if (newEffectiveWords > 0) {
+        newlyEffectiveReadChunkIds.add(chunk.chunkId);
+      }
       chunkRecords.push({
         chunkId: chunk.chunkId,
         pageId: chunk.pageId,
@@ -52,6 +50,10 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
         effectiveWords: nextEffectiveWords,
       });
     }
+    const vocabUpdates = payload.chunks.flatMap((chunk) => {
+      if (!chunk.text || !newlyEffectiveReadChunkIds.has(chunk.chunkId)) return [];
+      return extractVocabExposureUpdates(chunk.text, now);
+    });
 
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,

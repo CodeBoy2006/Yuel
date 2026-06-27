@@ -345,3 +345,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
 - **Context:** Explicit saves now override prior ignored status because the user has intentionally saved the word again.
+
+## [2026-06-28 02:41] Vocabulary Exposure Deduping
+- **Changes:** Prevented already-counted chunks from writing duplicate vocabulary exposure when later reading ticks add no new effective words, with storage repository coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening real-page capture and dashboard data quality around repeated page visits.
+- **Context:** Vocabulary memory now follows newly credited effective reading instead of every effective-looking tick on a fully counted chunk.
