@@ -31,7 +31,9 @@ export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
     };
   };
   scripting: {
-    executeScript: (injection: { target: { tabId: number }; files: string[] }) => Promise<unknown>;
+    executeScript: (
+      injection: { target: { tabId: number }; files: string[] } | { target: { tabId: number }; func: () => unknown },
+    ) => Promise<unknown>;
     unregisterContentScripts: (filter: { ids: string[] }) => Promise<void>;
     registerContentScripts: ContentScriptRegistrationRuntime['scripting']['registerContentScripts'];
   };
@@ -175,6 +177,7 @@ export async function disableEnabledSite(
   }
 
   const remainingOrigins = enabledOrigins.filter((enabledOrigin) => enabledOrigin !== origin);
+  await stopCurrentTabCollectorForOrigin(runtime, origin);
   await runtime.storage.local.set({
     [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
   });
@@ -243,6 +246,35 @@ async function persistEnabledOrigin(runtime: SiteAccessRuntime, origin: string):
 
 function originToHost(origin: string): string {
   return new URL(origin.slice(0, -2)).hostname;
+}
+
+async function stopCurrentTabCollectorForOrigin(runtime: SiteAccessRuntime, origin: string): Promise<void> {
+  const tab = await getActiveTab(runtime);
+  if (typeof tab?.id !== 'number' || !tab.url || toOptionalHostOrigin(tab.url) !== origin) {
+    return;
+  }
+
+  try {
+    await runtime.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: stopReadingCollectorInPage,
+    });
+  } catch (error) {
+    console.error('Failed to stop Yuel collector on disabled site', error);
+  }
+}
+
+export function stopReadingCollectorInPage(): boolean {
+  const collectorKey = '__yuelReadingCollector';
+  const pageContext = globalThis as Record<string, unknown>;
+  const controller = pageContext[collectorKey] as { stop?: unknown } | undefined;
+  if (!controller || typeof controller.stop !== 'function') {
+    return false;
+  }
+
+  controller.stop();
+  delete pageContext[collectorKey];
+  return true;
 }
 
 async function injectCollector(runtime: SiteAccessRuntime, tabId: number | undefined): Promise<boolean> {

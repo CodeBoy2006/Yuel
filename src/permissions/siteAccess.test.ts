@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   CONTENT_SCRIPT_FILE,
@@ -31,6 +31,8 @@ function createRuntime({
   requestedOrigins: string[][];
   removedOrigins: string[][];
   executedFiles: string[];
+  executedFunctions: Array<() => unknown>;
+  operationOrder: string[];
   registeredScripts: unknown[];
   unregisteredFilters: Array<{ ids: string[] }>;
   storedValues: Record<string, unknown>[];
@@ -39,6 +41,8 @@ function createRuntime({
   const requestedOrigins: string[][] = [];
   const removedOrigins: string[][] = [];
   const executedFiles: string[] = [];
+  const executedFunctions: Array<() => unknown> = [];
+  const operationOrder: string[] = [];
   const registeredScripts: unknown[] = [];
   const unregisteredFilters: Array<{ ids: string[] }> = [];
   const storedValues: Record<string, unknown>[] = [];
@@ -47,6 +51,8 @@ function createRuntime({
     requestedOrigins,
     removedOrigins,
     executedFiles,
+    executedFunctions,
+    operationOrder,
     registeredScripts,
     unregisteredFilters,
     storedValues,
@@ -65,6 +71,7 @@ function createRuntime({
         return requestResult;
       },
       async remove({ origins }) {
+        operationOrder.push('permissions.remove');
         removedOrigins.push(origins);
         return removeResult;
       },
@@ -82,9 +89,16 @@ function createRuntime({
       },
     },
     scripting: {
-      async executeScript({ target, files }) {
-        expect(target).toEqual({ tabId });
-        executedFiles.push(...files);
+      async executeScript(injection: { target: { tabId: number }; files?: string[]; func?: () => unknown }) {
+        expect(injection.target).toEqual({ tabId });
+        if (injection.files) {
+          operationOrder.push('scripting.executeScript.files');
+          executedFiles.push(...injection.files);
+        }
+        if (injection.func) {
+          operationOrder.push('scripting.executeScript.func');
+          executedFunctions.push(injection.func);
+        }
       },
       async unregisterContentScripts(filter) {
         unregisteredFilters.push(filter);
@@ -224,6 +238,31 @@ describe('disableEnabledSite', () => {
       removed: true,
       remainingOrigins: ['https://old.example/*'],
     });
+  });
+
+  it('stops the collector in the current tab before removing a matching enabled origin', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+    });
+
+    await disableEnabledSite('https://example.com/*', runtime);
+
+    expect(runtime.executedFunctions).toHaveLength(1);
+    expect(runtime.operationOrder).toContain('scripting.executeScript.func');
+    expect(runtime.operationOrder.indexOf('scripting.executeScript.func')).toBeLessThan(
+      runtime.operationOrder.indexOf('permissions.remove'),
+    );
+
+    const stop = vi.fn();
+    const pageContext = globalThis as { __yuelReadingCollector?: { stop: () => void } };
+    pageContext.__yuelReadingCollector = { stop };
+    try {
+      expect(runtime.executedFunctions[0]()).toBe(true);
+      expect(stop).toHaveBeenCalledOnce();
+      expect(pageContext.__yuelReadingCollector).toBeUndefined();
+    } finally {
+      delete pageContext.__yuelReadingCollector;
+    }
   });
 
   it('does not update storage or permissions for an unknown origin', async () => {

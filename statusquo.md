@@ -159,3 +159,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue hardening local data integrity checks.
 - **Context:** Malformed runtime messages with cross-page records or unknown chunk references are now rejected before they reach IndexedDB writes.
+
+## [2026-06-27 23:32] Disabled Site Collector Stop
+- **Changes:** Stopped the active tab's existing reading collector before removing a matching enabled-site host permission, and covered the injected stop function with permission-service tests.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening runtime enable/disable behavior.
+- **Context:** Dynamic content-script unregistration prevents future injections, but already-running collectors need an explicit stop path on the current tab.
