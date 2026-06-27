@@ -278,6 +278,70 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Permission was not granted');
   });
 
+  it('tells the user to reload when enabling succeeds but current-tab injection fails', async () => {
+    const enableCurrentTabSite = vi.fn(async () => ({
+      supported: true as const,
+      tabId: 1,
+      url: 'https://example.com/article',
+      origin: 'https://example.com/*',
+      host: 'example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+      injected: false,
+    }));
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: false,
+            enabled: false,
+            starterSite: false,
+          }),
+          listEnabledSites: vi
+            .fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }]),
+          enableCurrentTabSite,
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Enable current site');
+    expect(enableButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      enableButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Enabled for future pages; reload this tab to start tracking');
+    expect(container.textContent).not.toContain('Yuel can collect reading events on this site');
+  });
+
   it('renders starter-site current access without asking for optional permission', async () => {
     const enableCurrentTabSite = vi.fn();
     const container = await renderForSmoke(

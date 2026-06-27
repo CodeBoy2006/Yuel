@@ -393,3 +393,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-flow recovery around enabling, disabling, and external host-permission changes.
 - **Context:** A failed enabled-site list query no longer hides a valid current-site access state or blocks the user from seeing whether the active page is tracked.
+
+## [2026-06-28 03:14] Popup Current Tab Injection Failure
+- **Changes:** Added popup feedback when enabling a custom site succeeds but the current tab collector injection does not, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening real-page capture and browser-level verification around user-enabled site startup.
+- **Context:** The popup now tells users to reload the current tab instead of implying that immediate collection is already active.

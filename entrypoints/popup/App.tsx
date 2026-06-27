@@ -45,6 +45,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessDenied, setSiteAccessDenied] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
+  const [currentTabInjectionMissed, setCurrentTabInjectionMissed] = useState(false);
   const [sidePanelBusy, setSidePanelBusy] = useState(false);
   const [sidePanelFailed, setSidePanelFailed] = useState(false);
   const [dashboardBusy, setDashboardBusy] = useState(false);
@@ -123,6 +124,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
     setEnabledSitesFailed(false);
+    setCurrentTabInjectionMissed(false);
     setRemoveFailed(false);
 
     try {
@@ -142,6 +144,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             }
           : result,
       );
+      setCurrentTabInjectionMissed(result.supported && result.enabled && !result.starterSite && !result.injected);
       await refreshEnabledSitesAfterAction();
     } catch (error) {
       console.error('Failed to enable Yuel on current site', error);
@@ -157,6 +160,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
     setEnabledSitesFailed(false);
+    setCurrentTabInjectionMissed(false);
     setRemoveFailed(false);
 
     try {
@@ -272,7 +276,11 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         </div>
         <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
           <p className="text-sm font-semibold">{formatSiteAccessTitle(siteAccess, siteAccessFailed)}</p>
-          <p className="mt-1 text-xs text-neutral-500">{formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {currentTabInjectionMissed
+              ? 'Enabled for future pages; reload this tab to start tracking'
+              : formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied)}
+          </p>
           <button
             type="button"
             disabled={!canEnableCurrentSite}
