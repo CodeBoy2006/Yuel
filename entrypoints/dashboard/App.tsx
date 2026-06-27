@@ -110,6 +110,15 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   <p className="mt-2 text-sm text-stone-600">
                     Seen {vocab.seenCount} times, effective {vocab.effectiveSeenCount}
                   </p>
+                  {vocab.packTags.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {vocab.packTags.map((tag) => (
+                        <span key={tag} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))
             ) : (

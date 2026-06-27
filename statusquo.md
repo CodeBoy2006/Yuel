@@ -75,3 +75,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Pack matching remains local and data-only; exposure records now surface Pack context through existing dashboard vocabulary fields.
+
+## [2026-06-27 22:12] Dashboard Pack Tags
+- **Changes:** Displayed vocabulary Pack tags in the dashboard vocabulary list and extended UI render smoke coverage to assert Pack context is visible.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Dashboard vocabulary entries already receive `packTags` from the local query layer; this slice makes that Pack signal visible to users.

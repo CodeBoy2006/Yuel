@@ -94,6 +94,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
+    expect(container.textContent).toContain('architecture');
   });
 
   it('renders side panel companion metrics from injected local services', async () => {
