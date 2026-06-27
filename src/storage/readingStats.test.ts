@@ -369,6 +369,38 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(false);
   });
 
+  it('shows saved-only vocabulary memory as dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({
+            lemma: 'resilience',
+            seenCount: 0,
+            effectiveSeenCount: 0,
+            savedCount: 2,
+            userStatus: 'learning',
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([
+      {
+        lemma: 'resilience',
+        seenCount: 0,
+        effectiveSeenCount: 0,
+        lookupCount: 1,
+        savedCount: 2,
+        lastSeenAt: morningOnJune27,
+        packTags: ['architecture'],
+        userStatus: 'learning',
+      },
+    ]);
+    expect(details.summaryCardText).toContain('Vocabulary: resilience');
+    expect(details.hasData).toBe(true);
+  });
+
   it('loads recent saved selections as dashboard data', async () => {
     const details = await getReadingDashboardDetails(
       createStore({

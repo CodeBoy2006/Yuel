@@ -333,3 +333,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
 - **Context:** Explicitly saved words now show back up in the vocabulary exposure panel instead of only being stored in the local read model.
+
+## [2026-06-28 02:32] Saved-Only Vocabulary Dashboard Data
+- **Changes:** Included saved-only vocabulary memories in dashboard details and summary-card vocabulary text, with read-model coverage and README surface notes.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level verification around user-enabled site capture where automation is stable.
+- **Context:** A word saved through the context menu can now appear in the vocabulary panel even before it has effective reading exposure.

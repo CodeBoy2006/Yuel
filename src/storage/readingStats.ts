@@ -166,7 +166,7 @@ export async function getReadingDashboardDetails(
       lastReadAt: page.lastReadAt,
     }));
   const recentVocabulary = recentVocabularyRecords
-    .filter(hasEffectiveVocabularyExposure)
+    .filter(hasVisibleVocabularyMemory)
     .slice(0, RECENT_VOCABULARY_LIMIT)
     .map((vocab): RecentVocabularySummary => ({
       lemma: vocab.lemma,
@@ -203,8 +203,8 @@ function hasMeasuredReading(page: PageRecord): boolean {
   return page.effectiveWords > 0;
 }
 
-function hasEffectiveVocabularyExposure(vocab: VocabExposureRecord): boolean {
-  return vocab.effectiveSeenCount > 0;
+function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
+  return vocab.effectiveSeenCount > 0 || vocab.savedCount > 0;
 }
 
 function buildSummaryCardText(
