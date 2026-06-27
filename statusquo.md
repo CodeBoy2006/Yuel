@@ -303,3 +303,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening recovery states around enabled-site removal and browser-level permission flows.
 - **Context:** Clear failures now report "Clear failed; local data was not changed." without marking successfully loaded dashboard data as unavailable.
+
+## [2026-06-28 02:13] Popup Enabled Site Remove Error
+- **Changes:** Added explicit popup feedback when removing an enabled site fails, plus UI smoke coverage that keeps current-site access visible.
+- **Status:** Completed
+- **Next Steps:** Continue tightening browser-level verification around optional host permission flows where automation is stable.
+- **Context:** Remove failures now report "Remove failed; site is still enabled." without marking the current site's permission status as unavailable.

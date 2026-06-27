@@ -49,6 +49,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [dashboardFailed, setDashboardFailed] = useState(false);
   const [removingOrigin, setRemovingOrigin] = useState<string>();
+  const [removeFailed, setRemoveFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +111,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     setSiteAccessBusy(true);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
+    setRemoveFailed(false);
 
     try {
       const result = await dependencies.enableCurrentTabSite();
@@ -142,6 +144,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     setRemovingOrigin(origin);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
+    setRemoveFailed(false);
 
     try {
       await dependencies.disableEnabledSite(origin);
@@ -153,7 +156,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       );
     } catch (error) {
       console.error('Failed to remove Yuel enabled site', error);
-      setSiteAccessFailed(true);
+      setRemoveFailed(true);
     } finally {
       setRemovingOrigin(undefined);
     }
@@ -226,6 +229,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           ) : (
             <p className="text-sm text-neutral-500">No custom sites enabled</p>
           )}
+          {removeFailed ? <p className="mt-2 text-xs font-medium text-red-300">Remove failed; site is still enabled.</p> : null}
         </div>
       </section>
 

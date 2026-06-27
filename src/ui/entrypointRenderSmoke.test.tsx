@@ -307,6 +307,62 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Starter site tracked by default');
   });
 
+  it('shows when enabled-site removal fails without hiding current-site access', async () => {
+    const disableEnabledSite = vi.fn(async () => {
+      throw new Error('permission removal failed');
+    });
+    const listEnabledSites = vi.fn(async () => [{ origin: 'https://example.com/*', host: 'example.com' }]);
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites,
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite,
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Remove');
+    expect(removeButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(disableEnabledSite).toHaveBeenCalledWith('https://example.com/*');
+    expect(listEnabledSites).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Remove failed; site is still enabled.');
+    expect(container.textContent).toContain('Yuel can collect reading events on this site');
+    expect(container.textContent).not.toContain('Permission status unavailable');
+  });
+
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
     const container = await renderForSmoke(
       <DashboardApp
