@@ -231,3 +231,15 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or iterate on the visual card layout after real usage.
 - **Context:** The PNG export captures the existing share-card DOM and downloads a local image without sending reading data off-device.
+
+## [2026-06-28 00:52] Browser Loaded Smoke
+- **Changes:** Added a Chrome DevTools Protocol smoke test that builds the MV3 output, loads it into a temporary Chrome profile, and verifies dashboard/popup rendering; documented the command and ignored local pnpm store cache.
+- **Status:** Completed
+- **Next Steps:** Continue tightening the minimal extension loop around real page capture and dashboard export behavior.
+- **Context:** Current Chrome did not register unpacked extensions through the CLI load flag in this environment, so the smoke uses `Extensions.loadUnpacked` via CDP for a stable local browser verification path.
+
+## [2026-06-28 00:54] Smoke Config Split
+- **Changes:** Narrowed the static extension smoke Vitest config to `extensionBuildSmoke.test.ts` so browser-loaded Chrome verification runs only through its dedicated config.
+- **Status:** Completed
+- **Next Steps:** Re-run the full verification set before committing.
+- **Context:** The browser smoke needs Chrome process access and should not be included in the sandbox-friendly static smoke command.
