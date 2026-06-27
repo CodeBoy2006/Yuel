@@ -485,6 +485,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             learningWords: 7,
             hasData: true,
           }),
+          openDashboard: vi.fn(),
         }}
       />,
     );
@@ -494,5 +495,37 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('18 min read');
     expect(container.textContent).toContain('4 pages');
     expect(container.textContent).toContain('docs.example.com');
+  });
+
+  it('opens the dashboard from the side panel companion action', async () => {
+    const openDashboard = vi.fn(async () => undefined);
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1540,
+            minutes: 18,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: ['docs.example.com'],
+            readPages: 4,
+            learningWords: 7,
+            hasData: true,
+          }),
+          openDashboard,
+        }}
+      />,
+    );
+
+    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open dashboard');
+    expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      dashboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(openDashboard).toHaveBeenCalledOnce();
   });
 });

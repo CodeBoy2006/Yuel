@@ -273,3 +273,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level coverage around user-enabled site permission flows where automation is stable.
 - **Context:** The smoke still loads side panel content as an extension page; direct Chrome side-panel panel opening remains bound to user gesture constraints.
+
+## [2026-06-28 01:54] Side Panel Dashboard Launch
+- **Changes:** Added an "Open dashboard" action to the reading companion side panel with injected-service UI smoke coverage and README surface notes.
+- **Status:** Completed
+- **Next Steps:** Continue tightening manual and browser-level checks for the user-enabled-site permission path.
+- **Context:** The side panel now provides a path from compact live stats into the detailed dashboard without relying on the popup.

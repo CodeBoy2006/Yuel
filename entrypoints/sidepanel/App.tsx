@@ -1,6 +1,7 @@
-import { Activity, BookMarked, BookOpen, Database, Languages, Layers3 } from 'lucide-react';
+import { Activity, BookMarked, BookOpen, Database, ExternalLink, Languages, Layers3 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
 
 import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
 
@@ -12,10 +13,14 @@ const pipeline = [
 
 export interface SidePanelAppDependencies {
   getTodayReadingSummary: typeof getTodayReadingSummary;
+  openDashboard: () => Promise<void>;
 }
 
 const defaultDependencies: SidePanelAppDependencies = {
   getTodayReadingSummary,
+  openDashboard: async () => {
+    await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
+  },
 };
 
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
@@ -67,6 +72,17 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Top domain</p>
           <p className="mt-1 truncate text-sm font-semibold">{topDomain}</p>
         </div>
+      </section>
+
+      <section className="px-4 pb-4">
+        <button
+          type="button"
+          onClick={() => void dependencies.openDashboard()}
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          Open dashboard
+        </button>
       </section>
 
       <section className="grid gap-3 px-4 py-4">
