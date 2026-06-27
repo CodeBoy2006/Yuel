@@ -1,4 +1,8 @@
-import { BookMarked, Database, Layers3 } from 'lucide-react';
+import { Activity, BookMarked, BookOpen, Database, Languages, Layers3 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
 
 const pipeline = [
   { label: 'Observe', detail: 'Visible text blocks' },
@@ -6,7 +10,41 @@ const pipeline = [
   { label: 'Remember', detail: 'IndexedDB exposure data' },
 ];
 
-export function SidePanelApp() {
+export interface SidePanelAppDependencies {
+  getTodayReadingSummary: typeof getTodayReadingSummary;
+}
+
+const defaultDependencies: SidePanelAppDependencies = {
+  getTodayReadingSummary,
+};
+
+export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
+  const [summary, setSummary] = useState<TodayReadingSummary>();
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void dependencies.getTodayReadingSummary()
+      .then((nextSummary) => {
+        if (!mounted) return;
+        setSummary(nextSummary);
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel side panel stats', error);
+        if (!mounted) return;
+        setLoadFailed(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [dependencies]);
+
+  const hasLoaded = Boolean(summary) || loadFailed;
+  const statusText = loadFailed ? 'Local data unavailable' : summary?.hasData ? 'Reading data loaded' : hasLoaded ? 'No reading data yet' : 'Loading local data';
+  const topDomain = summary?.topDomains[0] ?? 'No top domain yet';
+
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
       <header className="border-b border-zinc-200 px-4 py-4">
@@ -14,8 +52,22 @@ export function SidePanelApp() {
           <BookMarked className="h-5 w-5 text-emerald-600" aria-hidden="true" />
           <h1 className="text-base font-semibold">Reading companion</h1>
         </div>
-        <p className="mt-1 text-sm text-zinc-600">The first scaffold tracks supported English reading sites locally.</p>
+        <p className="mt-1 text-sm text-zinc-600">{statusText}</p>
       </header>
+
+      <section className="grid grid-cols-2 gap-3 px-4 py-4">
+        <Metric label="Today" value={summary ? formatWords(summary.effectiveWords) : 'Loading'} icon={BookOpen} />
+        <Metric label="Time" value={summary ? `${formatMinutes(summary.minutes)} read` : 'Loading'} icon={Activity} />
+        <Metric label="Pages" value={summary ? `${summary.readPages} pages` : 'Loading'} icon={Database} />
+        <Metric label="Learning" value={summary ? `${summary.learningWords} words` : 'Loading'} icon={Languages} />
+      </section>
+
+      <section className="px-4 pb-4">
+        <div className="rounded-md border border-zinc-200 bg-white p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Top domain</p>
+          <p className="mt-1 truncate text-sm font-semibold">{topDomain}</p>
+        </div>
+      </section>
 
       <section className="grid gap-3 px-4 py-4">
         {pipeline.map((item, index) => (
@@ -30,4 +82,26 @@ export function SidePanelApp() {
       </section>
     </main>
   );
+}
+
+function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+  return (
+    <div className="rounded-md border border-zinc-200 bg-white p-3">
+      <Icon className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+      <p className="mt-2 text-xs text-zinc-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function formatWords(words: number): string {
+  return `${Math.round(words).toLocaleString()} words`;
+}
+
+function formatMinutes(minutes: number): string {
+  if (minutes < 1 && minutes > 0) {
+    return '<1 min';
+  }
+
+  return `${Math.round(minutes)} min`;
 }

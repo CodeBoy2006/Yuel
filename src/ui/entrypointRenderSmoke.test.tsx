@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { DashboardApp } from '../../entrypoints/dashboard/App';
 import { PopupApp } from '../../entrypoints/popup/App';
+import { SidePanelApp } from '../../entrypoints/sidepanel/App';
 import { renderForSmoke } from './renderTest';
 
 describe('extension UI entrypoint smoke rendering', () => {
@@ -93,5 +94,32 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
+  });
+
+  it('renders side panel companion metrics from injected local services', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1540,
+            minutes: 18,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: ['docs.example.com'],
+            readPages: 4,
+            learningWords: 7,
+            hasData: true,
+          }),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Reading companion');
+    expect(container.textContent).toContain('1,540 words');
+    expect(container.textContent).toContain('18 min read');
+    expect(container.textContent).toContain('4 pages');
+    expect(container.textContent).toContain('docs.example.com');
   });
 });

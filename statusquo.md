@@ -63,3 +63,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Page records with zero effective words can still exist locally, but user-facing reading summaries no longer treat them as completed reading activity.
+
+## [2026-06-27 22:03] Side Panel Reading Summary
+- **Changes:** Wired the side panel companion to the local reading summary query and extended UI render smoke coverage for side-panel metrics and top-domain display.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Side panel dependencies default to production IndexedDB-backed stats while tests inject local stubs.
