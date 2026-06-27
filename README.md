@@ -15,6 +15,7 @@ Yuel Reading is a local-first MV3 browser extension scaffold for English reading
 ```bash
 pnpm install
 CI=true pnpm test
+CI=true pnpm test:extension-smoke
 CI=true pnpm typecheck
 CI=true pnpm build
 pnpm dev

@@ -39,3 +39,9 @@
 - **Status:** Completed
 - **Next Steps:** Add a browser runtime smoke test for the enable/remove flow against the built extension.
 - **Context:** Removing a site updates `yuel.enabledSiteOrigins`, calls `permissions.remove`, and refreshes dynamic content scripts while keeping starter static matches unchanged.
+
+## [2026-06-27 21:46] Extension Build Smoke Test
+- **Changes:** Added a dedicated `test:extension-smoke` script, smoke Vitest config, and build artifact validator that checks the Chrome MV3 manifest, permission boundary, core extension pages, background worker, and content script output.
+- **Status:** Completed
+- **Next Steps:** Add an actual browser-loaded extension smoke test for popup and dashboard rendering once a stable browser automation harness is available.
+- **Context:** The smoke test runs `pnpm build` first and validates `.output/chrome-mv3`; regular `pnpm test` remains focused on unit tests under `src/`.

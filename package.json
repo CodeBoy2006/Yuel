@@ -10,6 +10,7 @@
     "zip": "wxt zip",
     "prepare": "wxt prepare",
     "test": "vitest run",
+    "test:extension-smoke": "pnpm build && vitest run --config vitest.smoke.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
