@@ -513,3 +513,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Recording a new batch now repairs malformed stored top-domain arrays instead of preserving stale blank or duplicated entries.
+
+## [2026-06-28 04:40] Reading Message Blank Field Guard
+- **Changes:** Rejected blank required page, chunk, and event strings at the reading batch message boundary, with contract coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Malformed content-to-background batches with empty IDs, domains, selectors, or required metadata no longer enter the storage pipeline.

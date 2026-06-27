@@ -72,11 +72,11 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
 function isPageSnapshot(value: unknown): value is PageSnapshot {
   return (
     isObject(value) &&
-    isString(value.pageId) &&
-    isString(value.domain) &&
-    isString(value.titleHash) &&
-    isString(value.urlHash) &&
-    isString(value.language) &&
+    isNonBlankString(value.pageId) &&
+    isNonBlankString(value.domain) &&
+    isNonBlankString(value.titleHash) &&
+    isNonBlankString(value.urlHash) &&
+    isNonBlankString(value.language) &&
     isNonNegativeFiniteNumber(value.totalWords) &&
     isNonNegativeFiniteNumber(value.capturedAt)
   );
@@ -85,27 +85,27 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
 function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
   return (
     isObject(value) &&
-    isString(value.chunkId) &&
-    isString(value.pageId) &&
-    isString(value.textHash) &&
+    isNonBlankString(value.chunkId) &&
+    isNonBlankString(value.pageId) &&
+    isNonBlankString(value.textHash) &&
     (value.text === undefined || isString(value.text)) &&
     isNonNegativeFiniteNumber(value.wordCount) &&
     isNonNegativeFiniteNumber(value.sentenceCount) &&
-    isString(value.selector)
+    isNonBlankString(value.selector)
   );
 }
 
 function isReadingEvent(value: unknown): value is ReadingEvent {
   return (
     isObject(value) &&
-    isString(value.id) &&
-    isString(value.sessionId) &&
-    isString(value.pageId) &&
-    (value.chunkId === undefined || isString(value.chunkId)) &&
-    isString(value.kind) &&
+    isNonBlankString(value.id) &&
+    isNonBlankString(value.sessionId) &&
+    isNonBlankString(value.pageId) &&
+    (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
+    isNonBlankString(value.kind) &&
     READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
     isNonNegativeFiniteNumber(value.occurredAt) &&
-    isString(value.confidence) &&
+    isNonBlankString(value.confidence) &&
     READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&
     (value.value === undefined || isObject(value.value))
   );
@@ -117,6 +117,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
+}
+
+function isNonBlankString(value: unknown): value is string {
+  return isString(value) && value.trim().length > 0;
 }
 
 function isFiniteNumber(value: unknown): value is number {

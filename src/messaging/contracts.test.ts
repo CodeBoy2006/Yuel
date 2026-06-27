@@ -132,6 +132,41 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects blank required page, chunk, and event strings', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            domain: '   ',
+          },
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], selector: '' }],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [{ ...validMessage.payload.events[0], id: '   ' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects chunks linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({
