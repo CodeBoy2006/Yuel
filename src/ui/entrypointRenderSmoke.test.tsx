@@ -434,6 +434,51 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('Permission status unavailable');
   });
 
+  it('keeps current-site access visible when the enabled-site list fails to load', async () => {
+    const listEnabledSites = vi.fn(async () => {
+      throw new Error('enabled sites unavailable');
+    });
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites,
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(listEnabledSites).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Enabled sites unavailable');
+    expect(container.textContent).toContain('example.com');
+    expect(container.textContent).toContain('Yuel can collect reading events on this site');
+    expect(container.textContent).not.toContain('Permission status unavailable');
+  });
+
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
     const container = await renderForSmoke(
       <DashboardApp

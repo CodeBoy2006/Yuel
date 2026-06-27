@@ -387,3 +387,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** Dashboard load failures now stop showing placeholder metrics or loading share-card text after the failure is known.
+
+## [2026-06-28 03:11] Popup Enabled Sites Load Failure
+- **Changes:** Split popup enabled-site list failures from current-site permission failures, added an explicit enabled-sites unavailable message, and covered the behavior with UI smoke tests.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-flow recovery around enabling, disabling, and external host-permission changes.
+- **Context:** A failed enabled-site list query no longer hides a valid current-site access state or blocks the user from seeing whether the active page is tracked.

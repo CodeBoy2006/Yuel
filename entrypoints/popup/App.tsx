@@ -41,6 +41,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [loadFailed, setLoadFailed] = useState(false);
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
+  const [enabledSitesFailed, setEnabledSitesFailed] = useState(false);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessDenied, setSiteAccessDenied] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
@@ -95,7 +96,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     void refreshEnabledSites().catch((error) => {
       console.error('Failed to load Yuel enabled sites', error);
       if (!mounted) return;
-      setSiteAccessFailed(true);
+      setEnabledSitesFailed(true);
     });
 
     return () => {
@@ -105,12 +106,23 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
   const refreshEnabledSites = async () => {
     setEnabledSites(await dependencies.listEnabledSites());
+    setEnabledSitesFailed(false);
+  };
+
+  const refreshEnabledSitesAfterAction = async () => {
+    try {
+      await refreshEnabledSites();
+    } catch (error) {
+      console.error('Failed to refresh Yuel enabled sites', error);
+      setEnabledSitesFailed(true);
+    }
   };
 
   const enableSite = async () => {
     setSiteAccessBusy(true);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
+    setEnabledSitesFailed(false);
     setRemoveFailed(false);
 
     try {
@@ -130,7 +142,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             }
           : result,
       );
-      await refreshEnabledSites();
+      await refreshEnabledSitesAfterAction();
     } catch (error) {
       console.error('Failed to enable Yuel on current site', error);
       setSiteAccessDenied(false);
@@ -144,11 +156,12 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     setRemovingOrigin(origin);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
+    setEnabledSitesFailed(false);
     setRemoveFailed(false);
 
     try {
       await dependencies.disableEnabledSite(origin);
-      await refreshEnabledSites();
+      await refreshEnabledSitesAfterAction();
       setSiteAccess((currentAccess) =>
         currentAccess?.supported && currentAccess.origin === origin
           ? { ...currentAccess, granted: false, enabled: currentAccess.starterSite }
@@ -229,6 +242,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           ) : (
             <p className="text-sm text-neutral-500">No custom sites enabled</p>
           )}
+          {enabledSitesFailed ? <p className="mt-2 text-xs font-medium text-red-300">Enabled sites unavailable</p> : null}
           {removeFailed ? <p className="mt-2 text-xs font-medium text-red-300">Remove failed; site is still enabled.</p> : null}
         </div>
       </section>
