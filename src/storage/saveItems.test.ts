@@ -6,14 +6,26 @@ const mocks = vi.hoisted(() => {
   const savedItems = {
     put: vi.fn(),
   };
+  const vocabExposures = {
+    get: vi.fn(),
+    put: vi.fn(),
+  };
+  const db = {
+    savedItems,
+    vocabExposures,
+    transaction: vi.fn(async (...args: unknown[]) => {
+      const callback = args.at(-1);
+      if (typeof callback === 'function') {
+        await callback();
+      }
+    }),
+  };
 
-  return { savedItems };
+  return { db, savedItems, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
-  db: {
-    savedItems: mocks.savedItems,
-  },
+  db: mocks.db,
 }));
 
 const savedAt = Date.UTC(2026, 5, 28, 0, 20, 0);
@@ -21,6 +33,7 @@ const savedAt = Date.UTC(2026, 5, 28, 0, 20, 0);
 describe('saveSelectedTextItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.vocabExposures.get.mockResolvedValue(undefined);
   });
 
   it('stores intentionally selected text as a local saved item', async () => {
@@ -38,6 +51,26 @@ describe('saveSelectedTextItem', () => {
       createdAt: savedAt,
     });
     expect(record?.id).toMatch(/^saved_/);
+  });
+
+  it('creates vocabulary memory for intentionally saved trackable words', async () => {
+    await saveSelectedTextItem('  Resilience  ', {
+      sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+      createdAt: savedAt,
+    });
+
+    expect(mocks.vocabExposures.get).toHaveBeenCalledWith('resilience');
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith({
+      lemma: 'resilience',
+      language: 'en',
+      seenCount: 0,
+      effectiveSeenCount: 0,
+      lookupCount: 0,
+      savedCount: 1,
+      lastSeenAt: savedAt,
+      packTags: [],
+      userStatus: 'learning',
+    });
   });
 
   it('ignores empty selected text', async () => {

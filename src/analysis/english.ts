@@ -6,6 +6,7 @@ export interface EnglishAnalysis {
 }
 
 const WORD_PATTERN = /[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g;
+const BASIC_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'be', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to']);
 
 export function analyzeEnglishText(text: string): EnglishAnalysis {
   const normalizedText = text.replace(/[‐-‒–—―]/g, ' ');
@@ -21,6 +22,10 @@ export function analyzeEnglishText(text: string): EnglishAnalysis {
 
 export function normalizeToken(token: string): string {
   return token.toLowerCase().replace(/^'+|'+$/g, '');
+}
+
+export function isTrackableEnglishToken(token: string): boolean {
+  return token.length >= 4 && !BASIC_STOP_WORDS.has(token) && !/^\d+$/.test(token);
 }
 
 function countSentences(text: string): number {

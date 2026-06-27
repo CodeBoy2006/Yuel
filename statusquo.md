@@ -321,3 +321,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening real-page capture and browser-level verification around user-enabled sites.
 - **Context:** The collector now preserves final visible exposure even when navigation happens before the next interval or a reliable `visibilitychange` flush.
+
+## [2026-06-28 02:25] Saved Vocabulary Counts
+- **Changes:** Made explicit selected-text saves increment local vocabulary saved counts for trackable English words, shared the token filter with reading-event aggregation, and updated README behavior notes.
+- **Status:** Completed
+- **Next Steps:** Surface saved vocabulary counts more clearly in dashboard vocabulary rows.
+- **Context:** Raw selected text is still only stored through the context-menu save action; ordinary selection telemetry remains hashed.

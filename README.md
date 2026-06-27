@@ -41,7 +41,7 @@ The extension can collect reading activity in two ways:
 
 Once enabled, the content script emits local reading events as visible text blocks enter and leave view. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, aggregates effective words and reading minutes, and tags matched vocabulary with the bundled Tech English Pack.
 
-Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag; ordinary text selection events remain hashed telemetry and do not store raw text.
+Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag, and increments local vocabulary saved counts for trackable English words; ordinary text selection events remain hashed telemetry and do not store raw text.
 
 ## MVP Surfaces
 

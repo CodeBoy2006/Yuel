@@ -1,4 +1,4 @@
-import { analyzeEnglishText } from '../analysis/english';
+import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
 import type { ReadingEvent } from '../domain/events';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
@@ -6,7 +6,6 @@ import techEnglishPack from '../packs/tech-english.pack.json';
 import { db, type PageRecord, type TextChunkRecord, type VocabExposureRecord } from './schema';
 import { summarizeReadingEventBatch } from './aggregateReading';
 
-const BASIC_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'be', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to']);
 const ACTIVE_PACKS: YuelPack[] = [techEnglishPack as YuelPack];
 const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -176,7 +175,7 @@ function extractVocabExposureUpdates(text: string, now: number): VocabExposureRe
   const analysis = analyzeEnglishText(text);
 
   for (const token of analysis.tokens) {
-    if (!isTrackableToken(token)) {
+    if (!isTrackableEnglishToken(token)) {
       continue;
     }
 
@@ -202,7 +201,7 @@ function collectPackTagsByLemma(text: string): Map<string, string[]> {
   for (const pack of ACTIVE_PACKS) {
     for (const match of matchPackRules(pack, text)) {
       for (const lemma of analyzeEnglishText(match.text).tokens) {
-        if (!isTrackableToken(lemma)) {
+        if (!isTrackableEnglishToken(lemma)) {
           continue;
         }
 
@@ -220,8 +219,4 @@ function collectPackTagsByLemma(text: string): Map<string, string[]> {
 
 function mergeTags(existing: string[], next: string[]): string[] {
   return Array.from(new Set([...existing, ...next]));
-}
-
-function isTrackableToken(token: string): boolean {
-  return token.length >= 4 && !BASIC_STOP_WORDS.has(token) && !/^\d+$/.test(token);
 }
