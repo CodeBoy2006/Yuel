@@ -398,4 +398,22 @@ describe('startReadingCollector', () => {
       ]),
     );
   });
+
+  it('emits PageHidden when stopping a visible page collector', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    controller.stop();
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual([
+      expect.objectContaining({
+        kind: 'PageHidden',
+      }),
+    ]);
+  });
 });

@@ -459,3 +459,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
 - **Context:** Content collectors can now observe background storage failures through `sendMessage` and keep their retry path meaningful.
+
+## [2026-06-28 03:52] Collector Stop PageHidden Event
+- **Changes:** Emitted a `PageHidden` event when stopping a visible page collector, with content collector coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
+- **Context:** Disabling or externally stopping a collector now closes the local reading session instead of only flushing exposure ticks.

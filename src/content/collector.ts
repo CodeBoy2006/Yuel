@@ -159,22 +159,27 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     resetIdleTimer();
   };
 
-  const flushHiddenPage = () => {
+  const appendPageHiddenOnce = () => {
+    if (pageHidden) {
+      return;
+    }
+
     const now = Date.now();
+    pendingEvents.push({
+      id: createEventId('PageHidden', now),
+      sessionId,
+      pageId: page.pageId,
+      kind: 'PageHidden',
+      occurredAt: now,
+      confidence: 'medium',
+    });
+    pageHidden = true;
+  };
+
+  const flushHiddenPage = () => {
     appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
     visibleBlocks.clear();
-
-    if (!pageHidden) {
-      pendingEvents.push({
-        id: createEventId('PageHidden', now),
-        sessionId,
-        pageId: page.pageId,
-        kind: 'PageHidden',
-        occurredAt: now,
-        confidence: 'medium',
-      });
-      pageHidden = true;
-    }
+    appendPageHiddenOnce();
 
     void flushNow();
   };
@@ -274,6 +279,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
+      appendPageHiddenOnce();
       void flushNow().then((delivered) => {
         if (!delivered && pendingEvents.length > 0) {
           void flushNow();
