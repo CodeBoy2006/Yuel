@@ -120,7 +120,7 @@ function isString(value: unknown): value is string {
 }
 
 function isNonBlankString(value: unknown): value is string {
-  return isString(value) && value.trim().length > 0;
+  return isString(value) && value.trim().length > 0 && value.trim() === value;
 }
 
 function isFiniteNumber(value: unknown): value is number {

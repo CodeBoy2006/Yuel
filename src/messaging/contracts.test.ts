@@ -167,6 +167,35 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects required strings with surrounding whitespace before they become local keys', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            pageId: ' page-1 ',
+          },
+          chunks: [
+            {
+              ...validMessage.payload.chunks[0],
+              chunkId: ' chunk-1 ',
+              pageId: ' page-1 ',
+            },
+          ],
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              pageId: ' page-1 ',
+              chunkId: ' chunk-1 ',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects chunks linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({

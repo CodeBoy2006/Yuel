@@ -519,3 +519,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Malformed content-to-background batches with empty IDs, domains, selectors, or required metadata no longer enter the storage pipeline.
+
+## [2026-06-28 04:45] Reading Message Trimmed Field Guard
+- **Changes:** Rejected required reading batch strings with leading or trailing whitespace before they become local IDs or metadata keys, with contract coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Content-to-background batches now need canonical trimmed IDs, hashes, domains, language codes, selectors, and event metadata.
