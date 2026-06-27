@@ -405,3 +405,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local-data recovery states across dashboard export, copy, and clear flows.
 - **Context:** If local data is cleared but the dashboard cannot reload, the UI no longer claims data was unchanged or shows the old summary card.
+
+## [2026-06-28 03:19] Dashboard Share State Reset
+- **Changes:** Reset dashboard share-card copy/download action states when local data clearing starts, with UI smoke coverage for stale copied state.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local-data recovery states across dashboard export, copy, and clear flows.
+- **Context:** Clearing local data no longer leaves a previous `Copied` status attached to the newly empty share card.

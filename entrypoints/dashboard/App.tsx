@@ -78,6 +78,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setClearFailed(false);
     setClearRefreshFailed(false);
     setLoadFailed(false);
+    setCopyStatus('idle');
+    setDownloadStatus('idle');
 
     try {
       await dependencies.clearLocalReadingData();
