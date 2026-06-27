@@ -55,10 +55,11 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       return extractVocabExposureUpdates(chunk.text, now);
     });
     const lastReadAt = summary.dailyUpdates.length > 0 ? now : (existingPage?.lastReadAt ?? now);
+    const pageDomain = normalizeStoredDomain(payload.page.domain);
 
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,
-      domain: payload.page.domain,
+      domain: pageDomain,
       titleHash: payload.page.titleHash,
       urlHash: payload.page.urlHash,
       language: payload.page.language,
@@ -76,7 +77,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     if (newEvents.length > 0) {
       await db.readingEvents.bulkPut(newEvents);
     }
-    await recordDailyStatIncrements(summary.dailyUpdates, effectiveWordsDelta, payload.page.domain);
+    await recordDailyStatIncrements(summary.dailyUpdates, effectiveWordsDelta, pageDomain);
 
     for (const update of vocabUpdates) {
       const existing = await db.vocabExposures.get(update.lemma);
@@ -170,6 +171,11 @@ async function recordDailyStatIncrements(
 
 function mergeTopDomains(existing: string[], domain: string): string[] {
   return Array.from(new Set([...existing, domain])).slice(0, 8);
+}
+
+function normalizeStoredDomain(domain: string): string {
+  const normalized = domain.trim();
+  return normalized || 'unknown';
 }
 
 function extractVocabExposureUpdates(text: string, now: number): VocabExposureRecord[] {

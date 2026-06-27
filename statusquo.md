@@ -501,3 +501,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local summary read models and dashboard presentation edge cases.
 - **Context:** Historical or malformed page records no longer render an empty domain in the recent reading history.
+
+## [2026-06-28 04:21] Stored Page Domain Cleanup
+- **Changes:** Normalized blank page domains before writing page records and daily top-domain aggregates, with storage coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** New malformed reading batches no longer create empty-domain page records or daily top-domain entries.

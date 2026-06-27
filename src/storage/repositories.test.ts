@@ -169,6 +169,29 @@ describe('recordReadingEventBatch', () => {
     });
   });
 
+  it('normalizes blank page domains before storing page and daily aggregates', async () => {
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      domain: '   ',
+    };
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: 'page-1',
+        domain: 'unknown',
+      }),
+    );
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-06-27',
+        topDomains: ['unknown'],
+      }),
+    );
+  });
+
   it('does not record vocabulary exposure when measured reading is ineffective', async () => {
     const payload = createPayload();
     payload.events = [
