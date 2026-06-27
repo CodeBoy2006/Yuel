@@ -201,3 +201,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening content-script signal quality.
 - **Context:** Chunk-level exposure seconds are still retained for telemetry, but user-facing daily minutes now track effective reading instead of idle or low-quality exposure.
+
+## [2026-06-28 00:11] Effective Vocabulary History
+- **Changes:** Updated dashboard recent vocabulary details to scan a wider history window, show only records with positive effective exposure, and ignore ineffective vocabulary-only history when deciding whether dashboard data exists.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening dashboard data quality around old local records.
+- **Context:** This keeps old opened-only vocabulary telemetry from appearing as learning history while still allowing slightly older effective records to surface.

@@ -81,6 +81,8 @@ export interface ReadingStatsStore {
 
 const RECENT_MEASURED_PAGE_LIMIT = 5;
 const RECENT_PAGE_SCAN_LIMIT = 20;
+const RECENT_VOCABULARY_LIMIT = 8;
+const RECENT_VOCABULARY_SCAN_LIMIT = 20;
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -127,7 +129,7 @@ export async function getReadingDashboardDetails(
   const [summary, recentPageRecords, recentVocabularyRecords] = await Promise.all([
     getTodayReadingSummary(store, now),
     store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
-    store.vocabExposures.orderBy('lastSeenAt').reverse().limit(8).toArray(),
+    store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
   ]);
 
   const recentPages = recentPageRecords
@@ -140,16 +142,19 @@ export async function getReadingDashboardDetails(
       effectiveWords: page.effectiveWords,
       lastReadAt: page.lastReadAt,
     }));
-  const recentVocabulary = recentVocabularyRecords.map((vocab): RecentVocabularySummary => ({
-    lemma: vocab.lemma,
-    seenCount: vocab.seenCount,
-    effectiveSeenCount: vocab.effectiveSeenCount,
-    lookupCount: vocab.lookupCount,
-    savedCount: vocab.savedCount,
-    lastSeenAt: vocab.lastSeenAt,
-    packTags: vocab.packTags,
-    userStatus: vocab.userStatus,
-  }));
+  const recentVocabulary = recentVocabularyRecords
+    .filter(hasEffectiveVocabularyExposure)
+    .slice(0, RECENT_VOCABULARY_LIMIT)
+    .map((vocab): RecentVocabularySummary => ({
+      lemma: vocab.lemma,
+      seenCount: vocab.seenCount,
+      effectiveSeenCount: vocab.effectiveSeenCount,
+      lookupCount: vocab.lookupCount,
+      savedCount: vocab.savedCount,
+      lastSeenAt: vocab.lastSeenAt,
+      packTags: vocab.packTags,
+      userStatus: vocab.userStatus,
+    }));
 
   return {
     summary,
@@ -161,6 +166,10 @@ export async function getReadingDashboardDetails(
 
 function hasMeasuredReading(page: PageRecord): boolean {
   return page.effectiveWords > 0;
+}
+
+function hasEffectiveVocabularyExposure(vocab: VocabExposureRecord): boolean {
+  return vocab.effectiveSeenCount > 0;
 }
 
 function formatLocalDate(timestamp: number): string {

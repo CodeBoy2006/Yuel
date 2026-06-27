@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
-import type { PageRecord } from './schema';
+import type { PageRecord, VocabExposureRecord } from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
@@ -10,6 +10,7 @@ function createStore({
   todayPages = [],
   learningWords = 0,
   expectedRecentPageQueryLimit = 20,
+  expectedRecentVocabularyQueryLimit = 20,
   recentPages = [],
   recentVocabulary = [],
 }: {
@@ -24,18 +25,9 @@ function createStore({
   todayPages?: PageRecord[];
   learningWords?: number;
   expectedRecentPageQueryLimit?: number;
+  expectedRecentVocabularyQueryLimit?: number;
   recentPages?: PageRecord[];
-  recentVocabulary?: Array<{
-    lemma: string;
-    language: string;
-    seenCount: number;
-    effectiveSeenCount: number;
-    lookupCount: number;
-    savedCount: number;
-    lastSeenAt: number;
-    packTags: string[];
-    userStatus: 'new' | 'known' | 'learning' | 'ignored';
-  }>;
+  recentVocabulary?: VocabExposureRecord[];
 }): ReadingStatsStore {
   return {
     dailyStats: {
@@ -99,7 +91,7 @@ function createStore({
           reverse() {
             return {
               limit(count: number) {
-                expect(count).toBe(8);
+                expect(count).toBe(expectedRecentVocabularyQueryLimit);
                 return {
                   async toArray() {
                     return recentVocabulary;
@@ -201,19 +193,7 @@ describe('getReadingDashboardDetails', () => {
         recentPages: [
           createPageRecord({ pageId: 'page-2', domain: 'github.com', totalWords: 400, effectiveWords: 220 }),
         ],
-        recentVocabulary: [
-          {
-            lemma: 'resilience',
-            language: 'en',
-            seenCount: 4,
-            effectiveSeenCount: 3,
-            lookupCount: 1,
-            savedCount: 0,
-            lastSeenAt: morningOnJune27,
-            packTags: ['architecture'],
-            userStatus: 'learning',
-          },
-        ],
+        recentVocabulary: [createVocabRecord({ lemma: 'resilience', effectiveSeenCount: 3, packTags: ['architecture'] })],
       }),
       morningOnJune27,
     );
@@ -315,6 +295,35 @@ describe('getReadingDashboardDetails', () => {
       'read-page-5',
     ]);
   });
+
+  it('scans past ineffective vocabulary records to show recent effective vocabulary history', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({ lemma: 'opened', seenCount: 3, effectiveSeenCount: 0, lastSeenAt: morningOnJune27 + 1_000 }),
+          createVocabRecord({ lemma: 'resilience', seenCount: 4, effectiveSeenCount: 2, lastSeenAt: morningOnJune27 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary.map((vocab) => vocab.lemma)).toEqual(['resilience']);
+    expect(details.hasData).toBe(true);
+  });
+
+  it('does not treat ineffective vocabulary-only history as dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({ lemma: 'opened', seenCount: 3, effectiveSeenCount: 0 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([]);
+    expect(details.hasData).toBe(false);
+  });
 });
 
 function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
@@ -329,6 +338,21 @@ function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
     difficultyScore: 0,
     firstSeenAt: morningOnJune27 - 2_000,
     lastReadAt: morningOnJune27,
+    ...overrides,
+  };
+}
+
+function createVocabRecord(overrides: Partial<VocabExposureRecord> = {}): VocabExposureRecord {
+  return {
+    lemma: 'resilience',
+    language: 'en',
+    seenCount: 4,
+    effectiveSeenCount: 1,
+    lookupCount: 1,
+    savedCount: 0,
+    lastSeenAt: morningOnJune27,
+    packTags: ['architecture'],
+    userStatus: 'learning',
     ...overrides,
   };
 }
