@@ -249,3 +249,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue closing the real-page capture path by exercising content-script startup on an enabled or starter site.
 - **Context:** The background message listener is intentionally fire-and-forget, so the smoke treats Chrome's no-response port closure as successful delivery and uses dashboard data as the proof of persistence.
+
+## [2026-06-28 01:07] Starter Site Content Script Smoke
+- **Changes:** Extended the browser smoke with a local HTTPS page mapped to `developer.mozilla.org`, proving the packaged starter-site content script can auto-capture reading data and surface it on the dashboard.
+- **Status:** Completed
+- **Next Steps:** Continue tightening the user-enabled-site path, especially optional permission registration and popup-driven enable flows.
+- **Context:** The smoke generates a temporary self-signed certificate with `openssl` and uses Chrome host resolver rules so the test remains local while matching the production starter-site manifest pattern.

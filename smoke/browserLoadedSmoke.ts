@@ -1,7 +1,9 @@
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createServer, type Server } from 'node:https';
+import type { AddressInfo } from 'node:net';
 
 import { hashText } from '../src/domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchMessage, type ReadingEventBatchPayload } from '../src/messaging/contracts';
@@ -17,7 +19,14 @@ export interface BrowserRuntimeReadingLoopSmokeResult {
   dashboardText: string;
 }
 
+export interface BrowserStarterSiteContentScriptLoopSmokeResult {
+  extensionId: string;
+  pageText: string;
+  dashboardText: string;
+}
+
 interface BrowserLoadedSmokeOptions {
+  chromeArgs?: string[];
   chromePath?: string;
   headless?: boolean;
   timeoutMs?: number;
@@ -40,6 +49,7 @@ interface ExtensionInfo {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAC_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const RUNTIME_LOOP_DOMAIN = 'runtime-loop.example';
+const STARTER_SITE_HOST = 'developer.mozilla.org';
 
 export async function validateBrowserLoadedExtension(
   outputDir: string,
@@ -74,9 +84,48 @@ export async function validateBrowserRuntimeReadingLoop(
   });
 }
 
+export async function validateBrowserStarterSiteContentScriptLoop(
+  outputDir: string,
+  options: BrowserLoadedSmokeOptions = {},
+): Promise<BrowserStarterSiteContentScriptLoopSmokeResult> {
+  return withLocalStarterSite(async (starterSiteUrl) =>
+    withLoadedExtension(
+      outputDir,
+      {
+        ...options,
+        chromeArgs: [
+          ...(options.chromeArgs ?? []),
+          '--allow-insecure-localhost',
+          '--ignore-certificate-errors',
+          `--host-resolver-rules=MAP ${STARTER_SITE_HOST} 127.0.0.1`,
+        ],
+        timeoutMs: Math.max(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, 25_000),
+      },
+      async ({ client, extensionId, timeoutMs }) => {
+        const dashboardUrl = `chrome-extension://${extensionId}/dashboard.html`;
+
+        return client.withOpenPage(starterSiteUrl, timeoutMs, async (sessionId) => {
+          const pageText = await client.readAttachedPageText(sessionId, timeoutMs);
+          const dashboardText = await waitFor(async () => {
+            const text = await client.readPageText(dashboardUrl, timeoutMs);
+            if (text.includes(STARTER_SITE_HOST) && !text.includes('No reading data yet')) {
+              return text;
+            }
+
+            throw new Error(`Dashboard did not show starter-site reading data yet:\n${text.slice(0, 1_000)}`);
+          }, timeoutMs, 1_000);
+
+          return { extensionId, pageText, dashboardText };
+        });
+      },
+    ),
+  );
+}
+
 async function withLoadedExtension<T>(
   outputDir: string,
   {
+    chromeArgs = [],
     chromePath = process.env.CHROME_PATH ?? MAC_CHROME_PATH,
     headless = process.env.YUEL_BROWSER_SMOKE_HEADLESS === 'true',
     timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -88,7 +137,7 @@ async function withLoadedExtension<T>(
   await access(chromePath);
 
   const userDataDir = await mkdtemp(path.join(tmpdir(), 'yuel-extension-smoke-'));
-  const chrome = launchChrome(chromePath, userDataDir, headless);
+  const chrome = launchChrome(chromePath, userDataDir, headless, chromeArgs);
   const chromeLogs = collectProcessLogs(chrome);
 
   try {
@@ -113,6 +162,126 @@ async function withLoadedExtension<T>(
     await stopChrome(chrome);
     await rm(userDataDir, { force: true, recursive: true });
   }
+}
+
+async function withLocalStarterSite<T>(runSmoke: (url: string) => Promise<T>): Promise<T> {
+  const certificateDir = await mkdtemp(path.join(tmpdir(), 'yuel-starter-site-cert-'));
+  const keyPath = path.join(certificateDir, 'key.pem');
+  const certPath = path.join(certificateDir, 'cert.pem');
+
+  await createSelfSignedStarterSiteCertificate(keyPath, certPath);
+  const [key, cert] = await Promise.all([readFile(keyPath), readFile(certPath)]);
+  const server = createServer({ cert, key }, (_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end(createStarterSiteHtml());
+  });
+
+  try {
+    const port = await listenOnLocalhost(server);
+    return await runSmoke(`https://${STARTER_SITE_HOST}:${port}/en-US/docs/Yuel`);
+  } finally {
+    await closeServer(server);
+    await rm(certificateDir, { force: true, recursive: true });
+  }
+}
+
+async function createSelfSignedStarterSiteCertificate(keyPath: string, certPath: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    execFile(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        keyPath,
+        '-out',
+        certPath,
+        '-days',
+        '1',
+        '-subj',
+        `/CN=${STARTER_SITE_HOST}`,
+        '-addext',
+        `subjectAltName=DNS:${STARTER_SITE_HOST}`,
+      ],
+      (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createStarterSiteHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Starter content script reading loop</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 40px; max-width: 760px; line-height: 1.7; }
+      article { min-height: 1400px; }
+      p { font-size: 18px; margin: 0 0 24px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article>
+        <h1>Starter content script reading loop</h1>
+        <p>
+          Local first browser extensions can measure careful reading behavior on documentation pages while keeping
+          vocabulary exposure, architecture notes, and performance signals inside the user's browser database.
+        </p>
+        <p>
+          This starter site page gives the packaged content script a visible article block long enough to emit
+          exposure ticks, persist local reading events, and update the dashboard without manual runtime messages.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>`;
+}
+
+async function listenOnLocalhost(server: Server): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => {
+      reject(error);
+    };
+
+    server.once('error', onError);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', onError);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('Local starter site did not expose a TCP address');
+  }
+
+  return (address as AddressInfo).port;
+}
+
+async function closeServer(server: Server): Promise<void> {
+  if (!server.listening) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
 }
 
 function createRuntimeReadingBatchMessage(now = Date.now()): ReadingEventBatchMessage {
@@ -209,7 +378,12 @@ function collectProcessLogs(chrome: ChildProcessWithoutNullStreams): () => strin
   return () => chunks.join('').trim();
 }
 
-function launchChrome(chromePath: string, userDataDir: string, headless: boolean): ChildProcessWithoutNullStreams {
+function launchChrome(
+  chromePath: string,
+  userDataDir: string,
+  headless: boolean,
+  extraArgs: string[],
+): ChildProcessWithoutNullStreams {
   const args = [
     '--no-first-run',
     '--no-default-browser-check',
@@ -221,6 +395,7 @@ function launchChrome(chromePath: string, userDataDir: string, headless: boolean
     '--disable-gpu',
     `--user-data-dir=${userDataDir}`,
     '--remote-debugging-port=0',
+    ...extraArgs,
     'about:blank',
   ];
 
@@ -290,7 +465,7 @@ async function stopChrome(chrome: ChildProcessWithoutNullStreams): Promise<void>
   });
 }
 
-async function waitFor<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+async function waitFor<T>(operation: () => Promise<T>, timeoutMs: number, intervalMs = 100): Promise<T> {
   const startedAt = Date.now();
   let lastError: unknown;
 
@@ -299,7 +474,7 @@ async function waitFor<T>(operation: () => Promise<T>, timeoutMs: number): Promi
       return await operation();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
   }
 
@@ -363,17 +538,19 @@ class CdpClient {
 
   async readPageText(url: string, timeoutMs: number): Promise<string> {
     return this.withPage(url, timeoutMs, async (sessionId) => {
-      const text = await waitFor(async () => {
-        const pageText = await this.evaluate<string>('document.body?.innerText ?? ""', sessionId);
-        if (!pageText.trim()) {
-          throw new Error('Page text is empty');
-        }
-
-        return pageText;
-      }, timeoutMs);
-
-      return text;
+      return this.readAttachedPageText(sessionId, timeoutMs);
     });
+  }
+
+  async readAttachedPageText(sessionId: string, timeoutMs: number): Promise<string> {
+    return waitFor(async () => {
+      const pageText = await this.evaluate<string>('document.body?.innerText ?? ""', sessionId);
+      if (!pageText.trim()) {
+        throw new Error('Page text is empty');
+      }
+
+      return pageText;
+    }, timeoutMs);
   }
 
   async sendExtensionRuntimeMessage(url: string, message: ReadingEventBatchMessage, timeoutMs: number): Promise<void> {
@@ -416,7 +593,7 @@ class CdpClient {
     this.socket.close();
   }
 
-  private async withPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
+  async withOpenPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
     const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
     const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
       flatten: true,
@@ -429,6 +606,10 @@ class CdpClient {
     } finally {
       await this.send('Target.closeTarget', { targetId });
     }
+  }
+
+  private async withPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
+    return this.withOpenPage(url, timeoutMs, readPage);
   }
 
   private async waitForPageReady(sessionId: string, timeoutMs: number): Promise<void> {
