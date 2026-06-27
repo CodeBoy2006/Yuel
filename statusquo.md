@@ -117,3 +117,9 @@
 - **Status:** Completed
 - **Next Steps:** Add idle/active state sampling so exposure ticks can distinguish unattended visible pages from active reading sessions.
 - **Context:** Scroll velocity is estimated locally from page scroll progress and detected page word count; no raw page text is persisted beyond existing local batch analysis.
+
+## [2026-06-27 22:54] Idle Active Reading Signals
+- **Changes:** Added tested content-script idle/active sampling with `UserIdle` and `UserActive` events, plus `idle` flags on exposure ticks for effective-reading scoring.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening content-script signal quality.
+- **Context:** The collector defaults to a 45-second idle threshold and resets to active on pointer, keyboard, scroll, or text-selection activity.

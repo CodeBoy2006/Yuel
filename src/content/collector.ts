@@ -10,6 +10,7 @@ export interface CollectorController {
 
 interface CollectorOptions {
   flushIntervalMs?: number;
+  idleTimeoutMs?: number;
 }
 
 interface VisibleBlockState {
@@ -31,11 +32,15 @@ interface ScrollVelocityMeasurement extends ScrollVelocitySample {
 
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
+  const idleTimeoutMs = options.idleTimeoutMs ?? 45_000;
   const sessionId = createSessionId();
   const page = summarizeCurrentPage();
   const blocks = collectTextBlocks();
   const visibleBlocks = new Map<string, VisibleBlockState>();
   let latestScrollSpeedWordsPerMinute = 0;
+  let userIdle = false;
+  let lastInteractionAt = Date.now();
+  let idleStartedAt: number | undefined;
   let lastScrollSample: ScrollVelocitySample = {
     scrollY: getCurrentScrollY(),
     sampledAt: Date.now(),
@@ -67,7 +72,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
       } else if (existingState) {
-        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now, latestScrollSpeedWordsPerMinute);
+        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now, latestScrollSpeedWordsPerMinute, userIdle);
         visibleBlocks.delete(block.chunkId);
       }
 
@@ -92,7 +97,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   }
 
   const flushNow = async () => {
-    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute);
+    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
     await flushEvents(page, blocks, pendingEvents);
   };
 
@@ -100,9 +105,62 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     void flushNow();
   }, flushIntervalMs);
 
+  let idleTimer = window.setTimeout(() => {
+    markUserIdle(Date.now());
+  }, idleTimeoutMs);
+
+  const resetIdleTimer = () => {
+    window.clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(() => {
+      markUserIdle(Date.now());
+    }, idleTimeoutMs);
+  };
+
+  const markUserIdle = (now: number) => {
+    if (userIdle) {
+      return;
+    }
+
+    userIdle = true;
+    idleStartedAt = now;
+    pendingEvents.push({
+      id: createEventId('UserIdle', now),
+      sessionId,
+      pageId: page.pageId,
+      kind: 'UserIdle',
+      occurredAt: now,
+      confidence: 'medium',
+      value: {
+        idleMs: now - lastInteractionAt,
+      },
+    });
+  };
+
+  const markUserActive = () => {
+    const now = Date.now();
+    if (userIdle) {
+      pendingEvents.push({
+        id: createEventId('UserActive', now),
+        sessionId,
+        pageId: page.pageId,
+        kind: 'UserActive',
+        occurredAt: now,
+        confidence: 'medium',
+        value: {
+          idleMs: idleStartedAt ? now - idleStartedAt : 0,
+        },
+      });
+    }
+
+    userIdle = false;
+    idleStartedAt = undefined;
+    lastInteractionAt = now;
+    resetIdleTimer();
+  };
+
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
-      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute);
+      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
       visibleBlocks.clear();
     }
 
@@ -121,6 +179,8 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const onScroll = () => {
+    markUserActive();
+
     const measurement = measureScrollVelocity(lastScrollSample, page.totalWords);
     if (!measurement) {
       return;
@@ -150,6 +210,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     const text = document.getSelection()?.toString().trim();
     if (!text) return;
 
+    markUserActive();
     pendingEvents.push({
       id: createEventId('TextSelected'),
       sessionId,
@@ -164,7 +225,13 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     });
   };
 
+  const onUserActivity = () => {
+    markUserActive();
+  };
+
   document.addEventListener('visibilitychange', onVisibilityChange);
+  document.addEventListener('pointerdown', onUserActivity);
+  document.addEventListener('keydown', onUserActivity);
   window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('selectionchange', onSelectionChange);
 
@@ -173,7 +240,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   return {
     stop: () => {
       window.clearInterval(flushTimer);
+      window.clearTimeout(idleTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('pointerdown', onUserActivity);
+      document.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
@@ -188,10 +258,11 @@ function appendOpenExposureTicks(
   pageId: string,
   visibleBlocks: Map<string, VisibleBlockState>,
   scrollSpeedWordsPerMinute: number,
+  idle: boolean,
 ): void {
   const now = Date.now();
   for (const state of visibleBlocks.values()) {
-    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute);
+    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute, idle);
     state.visibleSince = now;
   }
 }
@@ -203,6 +274,7 @@ function appendExposureTick(
   state: VisibleBlockState,
   now: number,
   scrollSpeedWordsPerMinute: number,
+  idle: boolean,
 ): void {
   const dwellMs = now - state.visibleSince;
   if (dwellMs < 250) {
@@ -223,6 +295,7 @@ function appendExposureTick(
       wordCount: state.block.wordCount,
       activeTab: document.visibilityState === 'visible',
       scrollSpeedWordsPerMinute,
+      idle,
     },
   });
 }

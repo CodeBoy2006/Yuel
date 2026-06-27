@@ -160,4 +160,99 @@ describe('startReadingCollector', () => {
 
     controller.stop();
   });
+
+  it('marks exposure ticks as idle after the user stops interacting', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Long visible documentation pages should not count as active reading after the user leaves the browser idle.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const batch = mocks.sendMessage.mock.calls[0][0];
+    expect(batch.payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'UserIdle',
+          value: expect.objectContaining({
+            idleMs: 500,
+          }),
+        }),
+        expect.objectContaining({
+          kind: 'TextBlockExposureTick',
+          value: expect.objectContaining({
+            idle: true,
+          }),
+        }),
+      ]),
+    );
+
+    controller.stop();
+  });
+
+  it('emits an active event and resumes non-idle exposure after user interaction', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Active reading should resume when keyboard input follows an idle visible documentation session.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(600);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    await vi.advanceTimersByTimeAsync(400);
+
+    const batch = mocks.sendMessage.mock.calls[0][0];
+    expect(batch.payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'UserIdle',
+        }),
+        expect.objectContaining({
+          kind: 'UserActive',
+          value: expect.objectContaining({
+            idleMs: 100,
+          }),
+        }),
+        expect.objectContaining({
+          kind: 'TextBlockExposureTick',
+          value: expect.objectContaining({
+            idle: false,
+          }),
+        }),
+      ]),
+    );
+
+    controller.stop();
+  });
 });
