@@ -45,6 +45,7 @@ describe('getEnabledSiteOrigins', () => {
         'https://example.com/*',
         'https://example.com/*',
         'http://docs.example.com/*',
+        'https://ports.example.com:8443/*',
         'chrome://extensions/*',
         42,
         'https://missing-wildcard.example.com',

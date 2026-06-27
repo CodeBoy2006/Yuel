@@ -417,3 +417,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** A side panel stats load failure no longer looks like an empty-reading-data state in the top-domain card.
+
+## [2026-06-28 03:27] Enabled Site Origin Port Guard
+- **Changes:** Filtered stored enabled-site origins that include explicit ports before dynamic content-script registration, with permission-service coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-flow recovery around startup registration and externally changed host permissions.
+- **Context:** A malformed stored origin such as `https://example.com:8443/*` no longer reaches Chrome dynamic script registration.

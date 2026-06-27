@@ -72,7 +72,7 @@ function isEnabledSiteOrigin(value: unknown): value is string {
   try {
     const origin = value.slice(0, -2);
     const parsed = new URL(origin);
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin === origin;
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.port === '' && parsed.origin === origin;
   } catch {
     return false;
   }
