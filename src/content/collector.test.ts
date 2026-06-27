@@ -311,4 +311,50 @@ describe('startReadingCollector', () => {
 
     controller.stop();
   });
+
+  it('flushes open exposure when the page is hidden by navigation before the next interval', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Navigation away from a technical article should preserve the final visible reading exposure locally.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    window.dispatchEvent(new Event('pagehide'));
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    const batch = mocks.sendMessage.mock.calls[0][0];
+    expect(batch.payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'TextBlockExposureTick',
+          value: expect.objectContaining({
+            dwellMs: 500,
+            activeTab: true,
+          }),
+        }),
+        expect.objectContaining({
+          kind: 'PageHidden',
+        }),
+      ]),
+    );
+
+    controller.stop();
+  });
 });

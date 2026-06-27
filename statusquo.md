@@ -315,3 +315,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening browser-level verification around optional host permission flows where automation is stable.
 - **Context:** `disableEnabledSite` now treats a `permissions.remove()` false result as a failure instead of silently unregistering local collection state.
+
+## [2026-06-28 02:20] Pagehide Collector Flush
+- **Changes:** Added `pagehide` handling to flush open reading exposure before navigation unloads the page, with collector test coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening real-page capture and browser-level verification around user-enabled sites.
+- **Context:** The collector now preserves final visible exposure even when navigation happens before the next interval or a reliable `visibilitychange` flush.

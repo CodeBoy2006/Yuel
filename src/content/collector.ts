@@ -39,6 +39,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   const visibleBlocks = new Map<string, VisibleBlockState>();
   let latestScrollSpeedWordsPerMinute = 0;
   let userIdle = false;
+  let pageHidden = document.visibilityState === 'hidden';
   let lastInteractionAt = Date.now();
   let idleStartedAt: number | undefined;
   let lastScrollSample: ScrollVelocitySample = {
@@ -158,26 +159,48 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     resetIdleTimer();
   };
 
+  const flushHiddenPage = () => {
+    const now = Date.now();
+    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
+    visibleBlocks.clear();
+
+    if (!pageHidden) {
+      pendingEvents.push({
+        id: createEventId('PageHidden', now),
+        sessionId,
+        pageId: page.pageId,
+        kind: 'PageHidden',
+        occurredAt: now,
+        confidence: 'medium',
+      });
+      pageHidden = true;
+    }
+
+    void flushNow();
+  };
+
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
-      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
-      visibleBlocks.clear();
-    } else {
+      flushHiddenPage();
+      return;
+    }
+
+    if (pageHidden) {
+      pageHidden = false;
       restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
+      pendingEvents.push({
+        id: createEventId('PageVisible'),
+        sessionId,
+        pageId: page.pageId,
+        kind: 'PageVisible',
+        occurredAt: Date.now(),
+        confidence: 'medium',
+      });
     }
+  };
 
-    pendingEvents.push({
-      id: createEventId(document.visibilityState === 'hidden' ? 'PageHidden' : 'PageVisible'),
-      sessionId,
-      pageId: page.pageId,
-      kind: document.visibilityState === 'hidden' ? 'PageHidden' : 'PageVisible',
-      occurredAt: Date.now(),
-      confidence: 'medium',
-    });
-
-    if (document.visibilityState === 'hidden') {
-      void flushNow();
-    }
+  const onPageHide = () => {
+    flushHiddenPage();
   };
 
   const onScroll = () => {
@@ -232,6 +255,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('pagehide', onPageHide);
   document.addEventListener('pointerdown', onUserActivity);
   document.addEventListener('keydown', onUserActivity);
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -244,6 +268,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       window.clearInterval(flushTimer);
       window.clearTimeout(idleTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('pointerdown', onUserActivity);
       document.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onScroll);
