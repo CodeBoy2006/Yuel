@@ -51,6 +51,10 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const hasLoaded = Boolean(summary) || loadFailed;
   const statusText = loadFailed ? 'Local data unavailable' : summary?.hasData ? 'Reading data loaded' : hasLoaded ? 'No reading data yet' : 'Loading local data';
   const topDomain = summary?.topDomains[0] ?? 'No top domain yet';
+  const todayValue = loadFailed ? 'Unavailable' : summary ? formatWords(summary.effectiveWords) : 'Loading';
+  const timeValue = loadFailed ? 'Unavailable' : summary ? `${formatMinutes(summary.minutes)} read` : 'Loading';
+  const pagesValue = loadFailed ? 'Unavailable' : summary ? `${summary.readPages} pages` : 'Loading';
+  const learningValue = loadFailed ? 'Unavailable' : summary ? `${summary.learningWords} words` : 'Loading';
 
   const openDashboard = async () => {
     setDashboardBusy(true);
@@ -77,10 +81,10 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       </header>
 
       <section className="grid grid-cols-2 gap-3 px-4 py-4">
-        <Metric label="Today" value={summary ? formatWords(summary.effectiveWords) : 'Loading'} icon={BookOpen} />
-        <Metric label="Time" value={summary ? `${formatMinutes(summary.minutes)} read` : 'Loading'} icon={Activity} />
-        <Metric label="Pages" value={summary ? `${summary.readPages} pages` : 'Loading'} icon={Database} />
-        <Metric label="Learning" value={summary ? `${summary.learningWords} words` : 'Loading'} icon={Languages} />
+        <Metric label="Today" value={todayValue} icon={BookOpen} />
+        <Metric label="Time" value={timeValue} icon={Activity} />
+        <Metric label="Pages" value={pagesValue} icon={Database} />
+        <Metric label="Learning" value={learningValue} icon={Languages} />
       </section>
 
       <section className="px-4 pb-4">

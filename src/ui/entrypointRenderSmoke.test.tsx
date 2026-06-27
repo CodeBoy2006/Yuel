@@ -786,6 +786,25 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('docs.example.com');
   });
 
+  it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => {
+            throw new Error('stats unavailable');
+          },
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Local data unavailable');
+    expect(container.textContent).toContain('TodayUnavailable');
+    expect(container.textContent).toContain('TimeUnavailable');
+    expect(container.textContent).toContain('PagesUnavailable');
+    expect(container.textContent).toContain('LearningUnavailable');
+  });
+
   it('opens the dashboard from the side panel companion action', async () => {
     const openDashboard = vi.fn(async () => undefined);
     const container = await renderForSmoke(

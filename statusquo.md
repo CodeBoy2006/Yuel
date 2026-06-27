@@ -375,3 +375,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
 - **Context:** A failed summary query no longer leaves Today, Pages, and Learning stuck on loading while Time reports unavailable.
+
+## [2026-06-28 03:04] Side Panel Metrics Load Failure
+- **Changes:** Made side panel reading metric cards show `Unavailable` when local reading stats fail to load, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** The compact companion now matches popup failure behavior instead of showing stale loading labels under a local-data error.
