@@ -1067,6 +1067,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('TimeUnavailable');
     expect(container.textContent).toContain('PagesUnavailable');
     expect(container.textContent).toContain('LearningUnavailable');
+    expect(container.textContent).toContain('Top domainUnavailable');
+    expect(container.textContent).not.toContain('No top domain yet');
   });
 
   it('opens the dashboard from the side panel companion action', async () => {

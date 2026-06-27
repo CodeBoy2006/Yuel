@@ -411,3 +411,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local-data recovery states across dashboard export, copy, and clear flows.
 - **Context:** Clearing local data no longer leaves a previous `Copied` status attached to the newly empty share card.
+
+## [2026-06-28 03:23] Side Panel Top Domain Load Failure
+- **Changes:** Made the side panel top-domain card show `Unavailable` when local reading stats fail to load, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** A side panel stats load failure no longer looks like an empty-reading-data state in the top-domain card.
