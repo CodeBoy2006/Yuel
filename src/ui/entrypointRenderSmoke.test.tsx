@@ -49,6 +49,45 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Enabled');
   });
 
+  it('shows zero popup reading time when only non-time local data exists', async () => {
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 0,
+            minutes: 0,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 0,
+            learningWords: 5,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites: async () => [],
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('0 min read');
+    expect(container.textContent).not.toContain('<1 min read');
+  });
+
   it('opens the side panel companion from the popup action', async () => {
     const openSidePanel = vi.fn(async () => undefined);
     const container = await renderForSmoke(

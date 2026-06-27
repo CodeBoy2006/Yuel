@@ -311,7 +311,7 @@ function formatWords(words: number): string {
 }
 
 function formatMinutes(minutes: number): string {
-  if (minutes < 1) {
+  if (minutes < 1 && minutes > 0) {
     return '<1 min';
   }
 

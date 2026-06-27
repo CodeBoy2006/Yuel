@@ -363,3 +363,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening today-summary accuracy around repeated page visits and mixed effective/ineffective batches.
 - **Context:** Opened-only new pages can still be stored locally, but old read pages are no longer refreshed into today's page count by ineffective activity.
+
+## [2026-06-28 02:53] Popup Zero Minute Display
+- **Changes:** Made popup reading-time formatting show `0 min read` when local data exists but today's reading minutes are zero, with UI smoke coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening empty and partial-data states across popup, side panel, and dashboard.
+- **Context:** Non-time data such as learning words no longer makes the popup imply a sub-minute reading session.
