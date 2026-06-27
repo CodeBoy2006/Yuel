@@ -87,3 +87,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** Documentation now describes optional site enablement, local aggregation, Pack-tagged vocabulary, and the current smoke-test gate.
+
+## [2026-06-27 22:22] Message Contract Guard
+- **Changes:** Added reading batch message contract tests and tightened the runtime type guard to validate page, chunk, and reading event payload structure before background storage writes.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** Background routing now ignores malformed batch-shaped messages instead of passing incomplete payloads into the IndexedDB repository path.
