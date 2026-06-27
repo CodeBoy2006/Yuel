@@ -105,3 +105,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
 - **Context:** This improves user-enabled arbitrary sites that wrap article-like text in generic div containers instead of semantic reading landmarks.
+
+## [2026-06-27 22:43] Removed Host Permission Sync
+- **Changes:** Added tested cleanup for externally removed host permissions and wired the background listener to remove matching enabled sites before refreshing dynamic content scripts.
+- **Status:** Completed
+- **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available.
+- **Context:** If users revoke a site permission outside the popup, `yuel.enabledSiteOrigins` now drops that origin so startup/runtime registration does not retain stale site access state.

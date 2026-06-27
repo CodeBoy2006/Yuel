@@ -6,7 +6,9 @@ import {
   disableEnabledSite,
   enableCurrentTabSite,
   getCurrentTabSiteAccess,
+  handleHostPermissionsRemoved,
   listEnabledSites,
+  removeEnabledSitesForOrigins,
   toOptionalHostOrigin,
   type SiteAccessRuntime,
 } from './siteAccess';
@@ -235,6 +237,52 @@ describe('disableEnabledSite', () => {
     expect(runtime.removedOrigins).toEqual([]);
     expect(result).toEqual({
       removed: false,
+      remainingOrigins: ['https://old.example/*'],
+    });
+  });
+});
+
+describe('removeEnabledSitesForOrigins', () => {
+  it('removes externally revoked host permissions from enabled sites and refreshes dynamic scripts', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+    });
+
+    const result = await removeEnabledSitesForOrigins(['https://example.com/*'], runtime);
+
+    expect(runtime.storedValues).toEqual([
+      {
+        [ENABLED_SITE_ORIGINS_KEY]: ['https://old.example/*'],
+      },
+    ]);
+    expect(runtime.registeredScripts).toEqual([
+      expect.objectContaining({
+        matches: ['https://old.example/*'],
+        js: [CONTENT_SCRIPT_FILE],
+      }),
+    ]);
+    expect(result).toEqual({
+      removedOrigins: ['https://example.com/*'],
+      remainingOrigins: ['https://old.example/*'],
+    });
+  });
+});
+
+describe('handleHostPermissionsRemoved', () => {
+  it('cleans enabled sites from browser permission removal events', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+    });
+
+    const result = await handleHostPermissionsRemoved({ origins: ['https://example.com/*'] }, runtime);
+
+    expect(runtime.storedValues).toEqual([
+      {
+        [ENABLED_SITE_ORIGINS_KEY]: ['https://old.example/*'],
+      },
+    ]);
+    expect(result).toEqual({
+      removedOrigins: ['https://example.com/*'],
       remainingOrigins: ['https://old.example/*'],
     });
   });

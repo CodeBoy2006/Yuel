@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 
 import { isReadingEventBatchMessage } from '../src/messaging/contracts';
 import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
+import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
 import { recordReadingEventBatch } from '../src/storage/repositories';
 
 export default defineBackground({
@@ -15,6 +16,10 @@ export default defineBackground({
 
     browser.runtime.onStartup.addListener(() => {
       void rehydrateEnabledSiteContentScripts();
+    });
+
+    browser.permissions.onRemoved.addListener((permissions) => {
+      void syncRemovedHostPermissions(permissions);
     });
 
     browser.runtime.onMessage.addListener((message) => {
@@ -50,5 +55,13 @@ async function rehydrateEnabledSiteContentScripts(): Promise<void> {
     await registerEnabledSiteContentScripts();
   } catch (error) {
     console.error('Failed to register Yuel enabled-site content scripts', error);
+  }
+}
+
+async function syncRemovedHostPermissions(permissions: { origins?: string[] }): Promise<void> {
+  try {
+    await handleHostPermissionsRemoved(permissions);
+  } catch (error) {
+    console.error('Failed to sync removed Yuel host permissions', error);
   }
 }

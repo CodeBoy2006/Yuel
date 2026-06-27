@@ -62,6 +62,15 @@ export interface DisableEnabledSiteResult {
   remainingOrigins: string[];
 }
 
+export interface RemovedEnabledSitesResult {
+  removedOrigins: string[];
+  remainingOrigins: string[];
+}
+
+export interface HostPermissionsChange {
+  origins?: string[];
+}
+
 export type SiteAccessState = SupportedSiteAccessState | UnsupportedSiteAccessState;
 
 export type SiteEnableResult =
@@ -176,6 +185,40 @@ export async function disableEnabledSite(
     removed: true,
     remainingOrigins,
   };
+}
+
+export async function removeEnabledSitesForOrigins(
+  origins: string[],
+  runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
+): Promise<RemovedEnabledSitesResult> {
+  const enabledOrigins = await getEnabledOrigins(runtime);
+  const removedOriginSet = new Set(origins);
+  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => !removedOriginSet.has(enabledOrigin));
+  const removedOrigins = enabledOrigins.filter((enabledOrigin) => removedOriginSet.has(enabledOrigin));
+
+  if (removedOrigins.length === 0) {
+    return {
+      removedOrigins,
+      remainingOrigins,
+    };
+  }
+
+  await runtime.storage.local.set({
+    [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
+  });
+  await registerEnabledSiteContentScripts(runtime);
+
+  return {
+    removedOrigins,
+    remainingOrigins,
+  };
+}
+
+export async function handleHostPermissionsRemoved(
+  permissions: HostPermissionsChange,
+  runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
+): Promise<RemovedEnabledSitesResult> {
+  return removeEnabledSitesForOrigins(permissions.origins ?? [], runtime);
 }
 
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {
