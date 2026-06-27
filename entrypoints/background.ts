@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { handleMaintenanceAlarm, YUEL_MAINTENANCE_ALARM } from '../src/background/maintenance';
+import { registerSaveSelectionClickHandler, registerSaveSelectionContextMenu } from '../src/background/saveSelectionMenu';
 import { isReadingEventBatchMessage } from '../src/messaging/contracts';
 import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
 import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
@@ -9,9 +10,12 @@ import { recordReadingEventBatch } from '../src/storage/repositories';
 export default defineBackground({
   type: 'module',
   main() {
+    registerSaveSelectionClickHandler();
+
     browser.runtime.onInstalled.addListener(() => {
       void browser.alarms.create(YUEL_MAINTENANCE_ALARM, { periodInMinutes: 60 });
       void enableSidePanelOnActionClick();
+      void setupSaveSelectionContextMenu();
       void rehydrateEnabledSiteContentScripts();
     });
 
@@ -20,6 +24,7 @@ export default defineBackground({
     });
 
     browser.runtime.onStartup.addListener(() => {
+      void setupSaveSelectionContextMenu();
       void rehydrateEnabledSiteContentScripts();
     });
 
@@ -60,6 +65,14 @@ async function rehydrateEnabledSiteContentScripts(): Promise<void> {
     await registerEnabledSiteContentScripts();
   } catch (error) {
     console.error('Failed to register Yuel enabled-site content scripts', error);
+  }
+}
+
+async function setupSaveSelectionContextMenu(): Promise<void> {
+  try {
+    await registerSaveSelectionContextMenu();
+  } catch (error) {
+    console.error('Failed to register Yuel save-selection context menu', error);
   }
 }
 

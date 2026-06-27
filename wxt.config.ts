@@ -13,7 +13,7 @@ export default defineConfig({
     description: 'Local-first English reading analytics and pack-based vocabulary insights.',
     version: '0.1.0',
     minimum_chrome_version: '116',
-    permissions: ['activeTab', 'alarms', 'idle', 'sidePanel', 'scripting', 'storage'],
+    permissions: ['activeTab', 'alarms', 'contextMenus', 'idle', 'sidePanel', 'scripting', 'storage'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
     action: {
       default_title: 'Yuel Reading',

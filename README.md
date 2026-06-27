@@ -40,11 +40,14 @@ The extension can collect reading activity in two ways:
 
 Once enabled, the content script emits local reading events as visible text blocks enter and leave view. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, aggregates effective words and reading minutes, and tags matched vocabulary with the bundled Tech English Pack.
 
+Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag; ordinary text selection events remain hashed telemetry and do not store raw text.
+
 ## MVP Surfaces
 
 - Popup: today’s effective words, reading time, page count, learning words, current-site permission state, enabled-site management, and a dashboard link.
 - Side panel: compact reading companion summary with today’s metrics and top domain.
 - Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
+- Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
 
@@ -58,7 +61,7 @@ CI=true pnpm typecheck
 CI=true pnpm test:extension-smoke
 ```
 
-`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, core extension pages, background worker, and content script artifacts.
+`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
 
 ## Architecture
 
@@ -85,4 +88,4 @@ Key boundaries:
 
 The V0.1 manifest avoids mandatory `<all_urls>` access. Broad host access is optional, while the static starter content script covers MDN, GitHub, Medium, Wikipedia, and arXiv for early validation.
 
-By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. The dashboard can clear local reading data after confirmation without changing enabled-site permissions.
+By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text is stored only when the user explicitly chooses the Yuel context-menu save action. The dashboard can clear local reading data after confirmation without changing enabled-site permissions.

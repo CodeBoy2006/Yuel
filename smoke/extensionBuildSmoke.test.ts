@@ -7,7 +7,7 @@ describe('Chrome MV3 build output', () => {
     const result = await validateChromeMv3Build('.output/chrome-mv3');
 
     expect(result.manifest.manifest_version).toBe(3);
-    expect(result.manifest.permissions).toEqual(['activeTab', 'alarms', 'idle', 'sidePanel', 'scripting', 'storage']);
+    expect(result.manifest.permissions).toEqual(['activeTab', 'alarms', 'contextMenus', 'idle', 'sidePanel', 'scripting', 'storage']);
     expect(result.manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
     expect(result.manifest.background?.service_worker).toBe('background.js');
     expect(result.manifest.action?.default_popup).toBe('popup.html');

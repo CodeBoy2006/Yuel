@@ -207,3 +207,9 @@
 - **Status:** Completed
 - **Next Steps:** Add browser-loaded extension smoke once a stable automation harness is available, or continue tightening dashboard data quality around old local records.
 - **Context:** This keeps old opened-only vocabulary telemetry from appearing as learning history while still allowing slightly older effective records to surface.
+
+## [2026-06-28 00:24] Save Selection Context Menu
+- **Changes:** Added an explicit "Save selection to Yuel" context-menu path that stores selected text as local saved items, wired background registration, updated MV3 permissions, and documented the privacy boundary.
+- **Status:** Completed
+- **Next Steps:** Surface saved items in the dashboard or card/export flow so the intentional save path is visible after capture.
+- **Context:** Ordinary selection telemetry still stores only hashes; raw selected text is written only through the explicit context-menu action.
