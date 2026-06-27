@@ -1,9 +1,12 @@
 import { analyzeEnglishText } from '../analysis/english';
+import { matchPackRules, type YuelPack } from '../domain/packs';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
+import techEnglishPack from '../packs/tech-english.pack.json';
 import { db, type PageRecord, type TextChunkRecord, type VocabExposureRecord } from './schema';
 import { summarizeReadingEventBatch } from './aggregateReading';
 
 const BASIC_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'be', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to']);
+const ACTIVE_PACKS: YuelPack[] = [techEnglishPack as YuelPack];
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
@@ -71,6 +74,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
               seenCount: existing.seenCount + update.seenCount,
               effectiveSeenCount: existing.effectiveSeenCount + update.effectiveSeenCount,
               lastSeenAt: now,
+              packTags: mergeTags(existing.packTags, update.packTags),
             }
           : update,
       );
@@ -113,10 +117,11 @@ function mergeTopDomains(existing: string[], domain: string): string[] {
 
 function extractVocabExposureUpdates(text: string, now: number): VocabExposureRecord[] {
   const counts = new Map<string, number>();
+  const packTagsByLemma = collectPackTagsByLemma(text);
   const analysis = analyzeEnglishText(text);
 
   for (const token of analysis.tokens) {
-    if (token.length < 4 || BASIC_STOP_WORDS.has(token) || /^\d+$/.test(token)) {
+    if (!isTrackableToken(token)) {
       continue;
     }
 
@@ -131,7 +136,37 @@ function extractVocabExposureUpdates(text: string, now: number): VocabExposureRe
     lookupCount: 0,
     savedCount: 0,
     lastSeenAt: now,
-    packTags: [],
+    packTags: packTagsByLemma.get(lemma) ?? [],
     userStatus: 'new',
   }));
+}
+
+function collectPackTagsByLemma(text: string): Map<string, string[]> {
+  const tagsByLemma = new Map<string, Set<string>>();
+
+  for (const pack of ACTIVE_PACKS) {
+    for (const match of matchPackRules(pack, text)) {
+      for (const lemma of analyzeEnglishText(match.text).tokens) {
+        if (!isTrackableToken(lemma)) {
+          continue;
+        }
+
+        const tags = tagsByLemma.get(lemma) ?? new Set<string>();
+        for (const tag of match.tags) {
+          tags.add(tag);
+        }
+        tagsByLemma.set(lemma, tags);
+      }
+    }
+  }
+
+  return new Map(Array.from(tagsByLemma, ([lemma, tags]) => [lemma, Array.from(tags)]));
+}
+
+function mergeTags(existing: string[], next: string[]): string[] {
+  return Array.from(new Set([...existing, ...next]));
+}
+
+function isTrackableToken(token: string): boolean {
+  return token.length >= 4 && !BASIC_STOP_WORDS.has(token) && !/^\d+$/.test(token);
 }
