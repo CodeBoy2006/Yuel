@@ -357,4 +357,45 @@ describe('startReadingCollector', () => {
 
     controller.stop();
   });
+
+  it('retries the final stop flush once when runtime delivery fails', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Stopping a collector should still preserve final visible reading exposure when delivery briefly fails.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce(undefined);
+
+    controller.stop();
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage.mock.calls[1][0].payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'TextBlockExposureTick',
+          value: expect.objectContaining({
+            dwellMs: 500,
+          }),
+        }),
+      ]),
+    );
+  });
 });

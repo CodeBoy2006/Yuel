@@ -447,3 +447,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-flow recovery and browser-level checks for user-enabled site lifecycle edges.
 - **Context:** External permission removals now best-effort stop an already injected collector instead of only cleaning stored enabled-site records.
+
+## [2026-06-28 03:43] Collector Stop Flush Retry
+- **Changes:** Added one immediate retry for the collector's final stop flush when runtime delivery fails, with content collector coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event delivery around page lifecycle, dynamic content, and browser-level enabled-site flows.
+- **Context:** Stopping a collector no longer leaves failed final events pending with no timer left to retry them.

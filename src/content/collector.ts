@@ -97,9 +97,9 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     observer.observe(block.element);
   }
 
-  const flushNow = async () => {
+  const flushNow = async (): Promise<boolean> => {
     appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
-    await flushEvents(page, blocks, pendingEvents);
+    return flushEvents(page, blocks, pendingEvents);
   };
 
   const flushTimer = window.setInterval(() => {
@@ -274,7 +274,11 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
-      void flushNow();
+      void flushNow().then((delivered) => {
+        if (!delivered && pendingEvents.length > 0) {
+          void flushNow();
+        }
+      });
     },
   };
 }
@@ -420,9 +424,9 @@ async function flushEvents(
   page: ReturnType<typeof summarizeCurrentPage>,
   blocks: TextBlockCandidate[],
   pendingEvents: ReadingEvent[],
-): Promise<void> {
+): Promise<boolean> {
   if (pendingEvents.length === 0) {
-    return;
+    return true;
   }
 
   const events = pendingEvents.splice(0, pendingEvents.length);
@@ -433,8 +437,10 @@ async function flushEvents(
       type: MESSAGE_TYPES.readingEventsBatch,
       payload: { page, chunks, events },
     });
+    return true;
   } catch (error) {
     pendingEvents.unshift(...events);
     console.warn('Failed to deliver Yuel reading events; will retry on the next flush', error);
+    return false;
   }
 }
