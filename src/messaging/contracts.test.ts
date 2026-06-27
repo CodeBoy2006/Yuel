@@ -220,6 +220,23 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects chunk-scoped reading events without chunk links', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events linked to an unknown chunk', () => {
     expect(
       isReadingEventBatchMessage({

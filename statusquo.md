@@ -525,3 +525,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Content-to-background batches now need canonical trimmed IDs, hashes, domains, language codes, selectors, and event metadata.
+
+## [2026-06-28 04:53] Chunk Event Link Guard
+- **Changes:** Required chunk-scoped reading events to include a known `chunkId` at the message contract boundary, with contract coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Text-block visibility, exposure, and save events without chunk links no longer enter the storage pipeline as unusable raw events.

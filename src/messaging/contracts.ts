@@ -32,6 +32,12 @@ const READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageExcluded',
 ]);
 const READING_CONFIDENCES = new Set<ReadingConfidence>(['low', 'medium', 'high']);
+const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
+  'TextBlockVisible',
+  'TextBlockHidden',
+  'TextBlockExposureTick',
+  'ChunkSaved',
+]);
 
 export function isReadingEventBatchMessage(message: unknown): message is ReadingEventBatchMessage {
   return (
@@ -65,7 +71,17 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
 
   return (
     chunks.every((chunk) => chunk.pageId === page.pageId) &&
-    events.every((event) => event.pageId === page.pageId && (event.chunkId === undefined || chunkIds.has(event.chunkId)))
+    events.every((event) => {
+      if (event.pageId !== page.pageId) {
+        return false;
+      }
+
+      if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
+        return event.chunkId !== undefined && chunkIds.has(event.chunkId);
+      }
+
+      return event.chunkId === undefined || chunkIds.has(event.chunkId);
+    })
   );
 }
 
