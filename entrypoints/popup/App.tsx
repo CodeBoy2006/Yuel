@@ -3,8 +3,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 
 import {
+  disableEnabledSite,
   enableCurrentTabSite,
   getCurrentTabSiteAccess,
+  listEnabledSites,
+  type EnabledSiteRecord,
   type SiteAccessState,
 } from '../../src/permissions/siteAccess';
 import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
@@ -15,8 +18,10 @@ export function PopupApp() {
   const [summary, setSummary] = useState<TodayReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
+  const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
+  const [removingOrigin, setRemovingOrigin] = useState<string>();
 
   useEffect(() => {
     let mounted = true;
@@ -56,8 +61,26 @@ export function PopupApp() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    void refreshEnabledSites().catch((error) => {
+      console.error('Failed to load Yuel enabled sites', error);
+      if (!mounted) return;
+      setSiteAccessFailed(true);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const openDashboard = async () => {
     await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
+  };
+
+  const refreshEnabledSites = async () => {
+    setEnabledSites(await listEnabledSites());
   };
 
   const enableSite = async () => {
@@ -79,11 +102,32 @@ export function PopupApp() {
             }
           : result,
       );
+      await refreshEnabledSites();
     } catch (error) {
       console.error('Failed to enable Yuel on current site', error);
       setSiteAccessFailed(true);
     } finally {
       setSiteAccessBusy(false);
+    }
+  };
+
+  const removeEnabledSite = async (origin: string) => {
+    setRemovingOrigin(origin);
+    setSiteAccessFailed(false);
+
+    try {
+      await disableEnabledSite(origin);
+      await refreshEnabledSites();
+      setSiteAccess((currentAccess) =>
+        currentAccess?.supported && currentAccess.origin === origin
+          ? { ...currentAccess, granted: false, enabled: false }
+          : currentAccess,
+      );
+    } catch (error) {
+      console.error('Failed to remove Yuel enabled site', error);
+      setSiteAccessFailed(true);
+    } finally {
+      setRemovingOrigin(undefined);
     }
   };
 
@@ -104,6 +148,28 @@ export function PopupApp() {
             <p className="text-xs text-neutral-400">Local-first reading telemetry</p>
           </div>
           <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+        </div>
+        <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-900 p-3">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Enabled sites</p>
+          {enabledSites.length > 0 ? (
+            <div className="grid gap-2">
+              {enabledSites.map((site) => (
+                <div key={site.origin} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm text-neutral-200">{site.host}</span>
+                  <button
+                    type="button"
+                    disabled={removingOrigin === site.origin}
+                    onClick={() => void removeEnabledSite(site.origin)}
+                    className="shrink-0 rounded border border-neutral-700 px-2 py-1 text-xs font-semibold text-neutral-300 hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {removingOrigin === site.origin ? 'Removing' : 'Remove'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-500">No custom sites enabled</p>
+          )}
         </div>
       </section>
 

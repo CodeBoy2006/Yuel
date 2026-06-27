@@ -22,6 +22,7 @@ export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
     request: (permissions: { origins: string[] }) => Promise<boolean>;
+    remove: (permissions: { origins: string[] }) => Promise<boolean>;
   };
   storage: {
     local: {
@@ -51,6 +52,16 @@ export interface UnsupportedSiteAccessState {
   reason: string;
 }
 
+export interface EnabledSiteRecord {
+  origin: string;
+  host: string;
+}
+
+export interface DisableEnabledSiteResult {
+  removed: boolean;
+  remainingOrigins: string[];
+}
+
 export type SiteAccessState = SupportedSiteAccessState | UnsupportedSiteAccessState;
 
 export type SiteEnableResult =
@@ -74,6 +85,14 @@ export function toOptionalHostOrigin(url: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+export async function listEnabledSites(runtime: SiteAccessRuntime = browser as SiteAccessRuntime): Promise<EnabledSiteRecord[]> {
+  const origins = await getEnabledOrigins(runtime);
+  return origins.map((origin) => ({
+    origin,
+    host: originToHost(origin),
+  }));
 }
 
 export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = browser as SiteAccessRuntime): Promise<SiteAccessState> {
@@ -134,6 +153,31 @@ export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser 
   };
 }
 
+export async function disableEnabledSite(
+  origin: string,
+  runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
+): Promise<DisableEnabledSiteResult> {
+  const enabledOrigins = await getEnabledOrigins(runtime);
+  if (!enabledOrigins.includes(origin)) {
+    return {
+      removed: false,
+      remainingOrigins: enabledOrigins,
+    };
+  }
+
+  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => enabledOrigin !== origin);
+  await runtime.storage.local.set({
+    [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
+  });
+  await runtime.permissions.remove({ origins: [origin] });
+  await registerEnabledSiteContentScripts(runtime);
+
+  return {
+    removed: true,
+    remainingOrigins,
+  };
+}
+
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {
   const [tab] = await runtime.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -152,6 +196,10 @@ async function persistEnabledOrigin(runtime: SiteAccessRuntime, origin: string):
   await runtime.storage.local.set({
     [ENABLED_SITE_ORIGINS_KEY]: [...enabledOrigins, origin],
   });
+}
+
+function originToHost(origin: string): string {
+  return new URL(origin.slice(0, -2)).hostname;
 }
 
 async function injectCollector(runtime: SiteAccessRuntime, tabId: number | undefined): Promise<boolean> {

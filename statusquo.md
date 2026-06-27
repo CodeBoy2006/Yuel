@@ -33,3 +33,9 @@
 - **Status:** Completed
 - **Next Steps:** Add a user-facing enabled-sites management view so users can inspect and remove granted sites.
 - **Context:** Dynamic scripts are registered from `yuel.enabledSiteOrigins` and use the existing guarded collector entrypoint, keeping broad host access optional rather than mandatory.
+
+## [2026-06-27 21:40] Enabled Site Management
+- **Changes:** Added tested enabled-site listing and removal flows, including storage updates, optional host permission removal, dynamic content-script refresh, and popup controls for removing enabled sites.
+- **Status:** Completed
+- **Next Steps:** Add a browser runtime smoke test for the enable/remove flow against the built extension.
+- **Context:** Removing a site updates `yuel.enabledSiteOrigins`, calls `permissions.remove`, and refreshes dynamic content scripts while keeping starter static matches unchanged.
