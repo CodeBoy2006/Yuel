@@ -243,6 +243,7 @@ export async function handleHostPermissionsRemoved(
 }
 
 function isEnabledOriginCoveredByRemovedPermissions(enabledOrigin: string, removedOrigins: string[]): boolean {
+  const enabled = parseStoredOrigin(enabledOrigin);
   return removedOrigins.some((removedOrigin) => {
     if (removedOrigin === enabledOrigin || removedOrigin === '<all_urls>') {
       return true;
@@ -256,8 +257,33 @@ function isEnabledOriginCoveredByRemovedPermissions(enabledOrigin: string, remov
       return enabledOrigin.startsWith('https://');
     }
 
-    return false;
+    const wildcardHost = parseWildcardHostRemovalOrigin(removedOrigin);
+    if (!enabled || !wildcardHost || enabled.protocol !== wildcardHost.protocol) {
+      return false;
+    }
+
+    return enabled.hostname === wildcardHost.baseHost || enabled.hostname.endsWith(`.${wildcardHost.baseHost}`);
   });
+}
+
+function parseStoredOrigin(origin: string): URL | undefined {
+  try {
+    return new URL(origin.slice(0, -2));
+  } catch {
+    return undefined;
+  }
+}
+
+function parseWildcardHostRemovalOrigin(origin: string): { protocol: string; baseHost: string } | undefined {
+  const match = /^(https?):\/\/\*\.([^/*]+)\/\*$/.exec(origin);
+  if (!match) {
+    return undefined;
+  }
+
+  return {
+    protocol: `${match[1]}:`,
+    baseHost: match[2],
+  };
 }
 
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {

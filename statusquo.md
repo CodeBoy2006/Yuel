@@ -807,3 +807,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event-sourced storage boundaries before expanding user-facing MVP flows.
 - **Context:** Equal-timestamp events remain valid, but accepted batches now preserve nondecreasing raw event order for local aggregation and debugging.
+
+## [2026-06-28 14:29] Wildcard Permission Removal Guard
+- **Changes:** Removed persisted enabled-site origins when browser host-permission removal events use wildcard host patterns such as `https://*.example.com/*`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-state cleanup and restart-safe site enablement for the MVP loop.
+- **Context:** Exact enabled origins under the revoked wildcard host now disappear from local settings and dynamic content-script registration is refreshed.
