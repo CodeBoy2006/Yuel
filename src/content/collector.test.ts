@@ -260,6 +260,35 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('orders page visible before restored block visibility when a hidden tab becomes visible', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Restored visible documentation blocks should follow the page visible lifecycle event.</p>
+      </article>
+    `;
+    setDocumentVisibility('hidden');
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+
+      setDocumentVisibility('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map(
+        (event: { kind: string }) => event.kind,
+      );
+      expect(eventKinds).toEqual(['PageVisible', 'TextBlockVisible', 'TextBlockExposureTick']);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('ignores scroll velocity updates while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `

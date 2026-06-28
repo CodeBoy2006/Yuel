@@ -214,7 +214,6 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       pageHidden = false;
       lastInteractionAt = Date.now();
       resetIdleTimer();
-      restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
       pendingEvents.push({
         id: createEventId('PageVisible'),
         sessionId,
@@ -223,6 +222,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
         occurredAt: Date.now(),
         confidence: 'medium',
       });
+      restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
     }
   };
 

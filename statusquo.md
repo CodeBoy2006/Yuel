@@ -753,3 +753,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector-to-storage consistency and end-to-end local reading accuracy.
 - **Context:** Dynamic pages can change between DOM extraction passes, so page `totalWords` now stays aligned with the chunks sent in the same reading batch.
+
+## [2026-06-28 13:56] Restored Visibility Ordering Guard
+- **Changes:** Ordered resumed `PageVisible` events before restored `TextBlockVisible` events when a hidden tab becomes visible again.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector lifecycle ordering and end-to-end local reading accuracy.
+- **Context:** Resumed block visibility now follows the page-visible lifecycle event, keeping raw local event streams chronologically coherent.
