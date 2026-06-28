@@ -26,7 +26,7 @@ export interface ReadingEventBatchMessage {
 
 export type YuelMessage = ReadingEventBatchMessage;
 
-const READING_EVENT_KINDS = new Set<ReadingEventKind>([
+const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',
   'TextBlockVisible',
@@ -36,9 +36,6 @@ const READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'UserIdle',
   'UserActive',
   'TextSelected',
-  'LookupTriggered',
-  'ChunkSaved',
-  'PageExcluded',
 ]);
 const READING_CONFIDENCES = new Set<ReadingConfidence>(['low', 'medium', 'high']);
 const MIN_TEXT_CHUNK_WORD_COUNT = 8;
@@ -46,7 +43,6 @@ const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
   'TextBlockHidden',
   'TextBlockExposureTick',
-  'ChunkSaved',
 ]);
 const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
@@ -55,8 +51,6 @@ const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'UserIdle',
   'UserActive',
   'TextSelected',
-  'LookupTriggered',
-  'PageExcluded',
 ]);
 const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
@@ -66,9 +60,6 @@ const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
 const PAYLOAD_FREE_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',
-  'LookupTriggered',
-  'ChunkSaved',
-  'PageExcluded',
 ]);
 
 export function isReadingEventBatchMessage(message: unknown): message is ReadingEventBatchMessage {
@@ -187,7 +178,7 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
       isNonBlankString(value.pageId) &&
       (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
       isNonBlankString(value.kind) &&
-      READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
+      SUPPORTED_READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
       isNonNegativeFiniteNumber(value.occurredAt) &&
       isNonBlankString(value.confidence) &&
       READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&

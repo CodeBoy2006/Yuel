@@ -693,3 +693,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event payload schemas before broadening user-facing MVP flows.
 - **Context:** These event kinds are not emitted by the current collector, so they remain payload-free until a concrete privacy-preserving schema is implemented.
+
+## [2026-06-28 13:16] Supported Event Kind Guard
+- **Changes:** Rejected reading event kinds that are not emitted by the current collector, including `LookupTriggered`, `ChunkSaved`, and `PageExcluded`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening implemented event schemas and user-facing MVP flows.
+- **Context:** Future event kinds remain in the domain type for planned features, but they cannot enter raw local event storage until their collectors and privacy-preserving payload schemas exist.

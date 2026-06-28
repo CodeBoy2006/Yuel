@@ -833,6 +833,58 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects unimplemented future event kinds until their collectors exist', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'LookupTriggered',
+              value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'PageExcluded',
+              value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'ChunkSaved',
+              value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects page-level events linked to chunks', () => {
     expect(
       isReadingEventBatchMessage({
