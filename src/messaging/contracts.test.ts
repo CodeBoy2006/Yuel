@@ -148,6 +148,28 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects optional chunk text that is blank or not trimmed', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], text: '   ' }],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects exposure ticks without positive dwell time', () => {
     expect(
       isReadingEventBatchMessage({

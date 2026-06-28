@@ -609,3 +609,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
 - **Context:** The collector does not send empty event batches, so malformed runtime messages can no longer create page records without a raw reading event.
+
+## [2026-06-28 11:58] Chunk Text Normalization Guard
+- **Changes:** Rejected optional chunk `text` values that are blank or include surrounding whitespace at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local text snapshot and event payload boundaries.
+- **Context:** Collector-emitted chunk text is normalized before batching, so malformed messages no longer carry unusable raw text into vocabulary analysis.

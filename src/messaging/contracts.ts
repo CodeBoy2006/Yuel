@@ -119,7 +119,7 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.chunkId) &&
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
-    (value.text === undefined || isString(value.text)) &&
+    (value.text === undefined || isNonBlankString(value.text)) &&
     isNonNegativeFiniteNumber(value.wordCount) &&
     isNonNegativeFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)
