@@ -112,19 +112,33 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
 }
 
 function isReadingEvent(value: unknown): value is ReadingEvent {
-  return (
-    isObject(value) &&
-    isNonBlankString(value.id) &&
-    isNonBlankString(value.sessionId) &&
-    isNonBlankString(value.pageId) &&
-    (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
-    isNonBlankString(value.kind) &&
-    READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
-    isNonNegativeFiniteNumber(value.occurredAt) &&
-    isNonBlankString(value.confidence) &&
-    READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&
-    (value.value === undefined || isObject(value.value))
-  );
+  if (
+    !(
+      isObject(value) &&
+      isNonBlankString(value.id) &&
+      isNonBlankString(value.sessionId) &&
+      isNonBlankString(value.pageId) &&
+      (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
+      isNonBlankString(value.kind) &&
+      READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
+      isNonNegativeFiniteNumber(value.occurredAt) &&
+      isNonBlankString(value.confidence) &&
+      READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&
+      (value.value === undefined || isObject(value.value))
+    )
+  ) {
+    return false;
+  }
+
+  return hasValidReadingEventValue(value.kind as ReadingEventKind, value.value);
+}
+
+function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {
+  if (kind === 'TextBlockExposureTick') {
+    return isObject(value) && isPositiveFiniteNumber(value.dwellMs);
+  }
+
+  return true;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -145,4 +159,8 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0;
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value > 0;
 }

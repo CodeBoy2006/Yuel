@@ -531,3 +531,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Text-block visibility, exposure, and save events without chunk links no longer enter the storage pipeline as unusable raw events.
+
+## [2026-06-28 11:12] Exposure Tick Dwell Guard
+- **Changes:** Rejected exposure tick messages without positive dwell time at the reading batch contract boundary, with contract coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Malformed exposure ticks that cannot contribute to aggregates no longer enter the raw reading-event table.
