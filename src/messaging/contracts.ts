@@ -32,6 +32,7 @@ const READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageExcluded',
 ]);
 const READING_CONFIDENCES = new Set<ReadingConfidence>(['low', 'medium', 'high']);
+const MIN_TEXT_CHUNK_WORD_COUNT = 8;
 const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
   'TextBlockHidden',
@@ -142,7 +143,7 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
     (value.text === undefined || isNonBlankString(value.text)) &&
-    isNonNegativeFiniteNumber(value.wordCount) &&
+    isFiniteNumberAtLeast(value.wordCount, MIN_TEXT_CHUNK_WORD_COUNT) &&
     isPositiveFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)
   );

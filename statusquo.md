@@ -639,3 +639,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local page and chunk snapshot consistency.
 - **Context:** Collector-emitted chunks come from nonblank visible text and carry at least one sentence segment, so malformed snapshots with zero sentences no longer enter local storage.
+
+## [2026-06-28 12:21] Chunk Word Threshold Guard
+- **Changes:** Rejected chunk snapshots below the collector's 8-word minimum at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local page and chunk snapshot consistency.
+- **Context:** The content collector filters out tiny text blocks before batching, so malformed messages with sub-threshold chunks no longer enter local storage or aggregate processing.

@@ -11,7 +11,7 @@ const validMessage: ReadingEventBatchMessage = {
       titleHash: 'title',
       urlHash: 'url',
       language: 'en',
-      totalWords: 6,
+      totalWords: 8,
       capturedAt: Date.UTC(2026, 5, 27, 12, 0, 0),
     },
     chunks: [
@@ -19,8 +19,8 @@ const validMessage: ReadingEventBatchMessage = {
         chunkId: 'chunk-1',
         pageId: 'page-1',
         textHash: 'chunk-text',
-        text: 'Mitigate memory overhead and fail gracefully.',
-        wordCount: 6,
+        text: 'Mitigate memory overhead and fail gracefully during rollout.',
+        wordCount: 8,
         sentenceCount: 1,
         selector: 'p',
       },
@@ -37,7 +37,7 @@ const validMessage: ReadingEventBatchMessage = {
         value: {
           dwellMs: 30_000,
           visibleRatio: 1,
-          wordCount: 6,
+          wordCount: 8,
           activeTab: true,
           scrollSpeedWordsPerMinute: 180,
           idle: false,
@@ -158,6 +158,35 @@ describe('isReadingEventBatchMessage', () => {
             ...validMessage.payload.page,
             totalWords: validMessage.payload.chunks[0].wordCount + 1,
           },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects chunks below the collector word threshold', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            totalWords: 7,
+          },
+          chunks: [{ ...validMessage.payload.chunks[0], wordCount: 7 }],
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                wordCount: 7,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
         },
       }),
     ).toBe(false);
