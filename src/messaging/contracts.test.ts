@@ -1084,6 +1084,25 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects batches whose events move backward in time', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            validMessage.payload.events[0],
+            {
+              ...validMessage.payload.events[0],
+              id: 'event-2',
+              occurredAt: validMessage.payload.events[0].occurredAt - 1,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events that occurred before the page snapshot was captured', () => {
     expect(
       isReadingEventBatchMessage({

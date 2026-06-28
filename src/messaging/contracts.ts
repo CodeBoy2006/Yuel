@@ -103,6 +103,7 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
     page.totalWords === totalChunkWords &&
     eventIds.size === events.length &&
     eventSessionIds.size <= 1 &&
+    hasChronologicalEvents(events) &&
     chunks.every((chunk) => chunk.pageId === page.pageId) &&
     events.every((event) => {
       if (event.pageId !== page.pageId) {
@@ -129,6 +130,10 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       return false;
     })
   );
+}
+
+function hasChronologicalEvents(events: ReadingEvent[]): boolean {
+  return events.every((event, index) => index === 0 || event.occurredAt >= events[index - 1].occurredAt);
 }
 
 function isPageSnapshot(value: unknown): value is PageSnapshot {

@@ -801,3 +801,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector lifecycle coherence and end-to-end local reading accuracy.
 - **Context:** A visible block now emits one visible lifecycle event per visible interval while repeated observer updates still raise the exposure tick's max visible ratio.
+
+## [2026-06-28 14:24] Event Chronology Contract Guard
+- **Changes:** Rejected reading event batches whose event timestamps move backward inside a single collector flush.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event-sourced storage boundaries before expanding user-facing MVP flows.
+- **Context:** Equal-timestamp events remain valid, but accepted batches now preserve nondecreasing raw event order for local aggregation and debugging.
