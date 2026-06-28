@@ -939,3 +939,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue reviewing the remaining Budgeted Exposure Model gaps, especially interaction confidence signals and adaptive WPM.
 - **Context:** `TextBlockVisible` lifecycle events still use the observer entry ratio, while `TextViewportExposureTick.visibleChunks[].visibleRatio` now represents the tick-time viewport snapshot used by the reading budget allocator.
+
+## [2026-06-28 19:30] Long Text Chunk Splitting
+- **Changes:** Split long readable text elements into bounded sentence-based chunks, kept short trailing body-text sentences during splitting, and updated the collector to emit visibility and viewport exposure for every chunk sharing the same DOM element.
+- **Status:** Completed
+- **Next Steps:** Continue reviewing Budgeted Exposure Model gaps around interaction confidence signals, quote candidates, and adaptive WPM.
+- **Context:** Short UI-like elements under the minimum word threshold are still skipped at the source element level, while long paragraphs can now produce multiple stable `TextViewportExposureTick.visibleChunks` entries instead of one oversized chunk.

@@ -44,6 +44,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   const sessionId = createSessionId();
   const blocks = collectTextBlocks();
   const page = summarizeCurrentPage(document, blocks);
+  const blocksByElement = groupBlocksByElement(blocks);
   const visibleBlocks = new Map<string, VisibleBlockState>();
   let latestScrollSpeedWordsPerMinute = 0;
   let userIdle = false;
@@ -75,21 +76,21 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     }
 
     for (const entry of entries) {
-      const block = blocks.find((candidate) => candidate.element === entry.target);
-      if (!block) continue;
+      const entryBlocks = blocksByElement.get(entry.target);
+      if (!entryBlocks || entryBlocks.length === 0) continue;
 
       const now = Date.now();
       const isVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
-      const existingState = visibleBlocks.get(block.chunkId);
+      const visibleEntryBlocks = entryBlocks.filter((block) => visibleBlocks.has(block.chunkId));
 
       if (isVisible) {
-        const wasVisible = Boolean(existingState);
-        if (!wasVisible) {
+        const newlyVisibleBlocks = entryBlocks.filter((block) => !visibleBlocks.has(block.chunkId));
+        if (newlyVisibleBlocks.length > 0) {
           closeCurrentViewportInterval(now);
         }
-        visibleBlocks.set(block.chunkId, { block });
 
-        if (!wasVisible) {
+        for (const block of newlyVisibleBlocks) {
+          visibleBlocks.set(block.chunkId, { block });
           pendingEvents.push({
             id: createEventId('TextBlockVisible'),
             sessionId,
@@ -104,29 +105,31 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
             },
           });
         }
-      } else if (existingState) {
+      } else if (visibleEntryBlocks.length > 0) {
         closeCurrentViewportInterval(now);
-        visibleBlocks.delete(block.chunkId);
 
-        pendingEvents.push({
-          id: createEventId('TextBlockHidden'),
-          sessionId,
-          pageId: page.pageId,
-          chunkId: block.chunkId,
-          kind: 'TextBlockHidden',
-          occurredAt: now,
-          confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
-          value: {
-            visibleRatio: entry.intersectionRatio,
-            wordCount: block.wordCount,
-          },
-        });
+        for (const block of visibleEntryBlocks) {
+          visibleBlocks.delete(block.chunkId);
+          pendingEvents.push({
+            id: createEventId('TextBlockHidden'),
+            sessionId,
+            pageId: page.pageId,
+            chunkId: block.chunkId,
+            kind: 'TextBlockHidden',
+            occurredAt: now,
+            confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
+            value: {
+              visibleRatio: entry.intersectionRatio,
+              wordCount: block.wordCount,
+            },
+          });
+        }
       }
     }
   }, { threshold: [0.15, 0.35, 0.65, 0.9] });
 
-  for (const block of blocks) {
-    observer.observe(block.element);
+  for (const element of blocksByElement.keys()) {
+    observer.observe(element);
   }
 
   const flushNow = async (): Promise<boolean> => {
@@ -368,6 +371,18 @@ function createNoopCollectorController(): CollectorController {
   return {
     stop: () => undefined,
   };
+}
+
+function groupBlocksByElement(blocks: TextBlockCandidate[]): Map<Element, TextBlockCandidate[]> {
+  const blocksByElement = new Map<Element, TextBlockCandidate[]>();
+
+  for (const block of blocks) {
+    const groupedBlocks = blocksByElement.get(block.element) ?? [];
+    groupedBlocks.push(block);
+    blocksByElement.set(block.element, groupedBlocks);
+  }
+
+  return blocksByElement;
 }
 
 function restoreVisibleBlocksFromLayout(

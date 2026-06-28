@@ -65,6 +65,14 @@ function partiallyVisibleRect(visibleRatio: number): DOMRect {
   };
 }
 
+function longReadableParagraph(sentenceCount = 10): string {
+  return Array.from(
+    { length: sentenceCount },
+    (_, index) =>
+      `Section ${index + 1} explains how budgeted reading analytics allocate viewport attention across visible documentation paragraphs without duplicating effective reading speed.`,
+  ).join(' ');
+}
+
 function setWindowScrollY(value: number): void {
   Object.defineProperty(window, 'scrollY', {
     configurable: true,
@@ -521,6 +529,48 @@ describe('startReadingCollector', () => {
         }),
       );
       expect(viewportTick).not.toHaveProperty('chunkId');
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('emits viewport exposure for every chunk split from a single long text element', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="long">${longReadableParagraph()}</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const longBlock = document.querySelector('#long');
+      expect(longBlock).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: longBlock as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      const batch = mocks.sendMessage.mock.calls[0][0];
+      const viewportTick = batch.payload.events.find(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      const visibleChunkIds = viewportTick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId);
+
+      expect(batch.payload.chunks.length).toBeGreaterThan(1);
+      expect(batch.payload.chunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 120)).toBe(true);
+      expect(visibleChunkIds).toEqual(batch.payload.chunks.map((chunk: { chunkId: string }) => chunk.chunkId));
     } finally {
       controller.stop();
       await flushPromises();

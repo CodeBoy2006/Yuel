@@ -39,6 +39,9 @@ const TEXT_BLOCK_SELECTOR = [
   'blockquote',
 ].join(',');
 const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body h1, body h2, body h3, body pre, body blockquote';
+const MIN_TEXT_CHUNK_WORDS = 8;
+const TARGET_MIN_TEXT_CHUNK_WORDS = 30;
+const MAX_TEXT_CHUNK_WORDS = 120;
 const EXCLUDED_ANCESTOR_SELECTOR = [
   'nav',
   'header',
@@ -96,10 +99,8 @@ function collectCandidates(doc: Document, pageId: string, selector: string): Tex
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
     .filter((element) => !hasExcludedAncestor(element) && !hasNonEnglishLanguageDeclaration(element))
-    .map((element) => createCandidate(pageId, element))
-    .filter((candidate): candidate is TextBlockCandidate => {
-      if (!candidate) return false;
-      if (candidate.wordCount < 8) return false;
+    .flatMap((element) => createCandidates(pageId, element))
+    .filter((candidate) => {
       if (seen.has(candidate.textHash)) return false;
       seen.add(candidate.textHash);
       return true;
@@ -115,28 +116,144 @@ function hasNonEnglishLanguageDeclaration(element: HTMLElement): boolean {
   return Boolean(declaredLanguageOwner && normalizePageLanguage(declaredLanguageOwner.lang) !== 'en');
 }
 
-function createCandidate(pageId: string, element: HTMLElement): TextBlockCandidate | undefined {
+function createCandidates(pageId: string, element: HTMLElement): TextBlockCandidate[] {
   if (!isVisibleElement(element)) {
-    return undefined;
+    return [];
   }
 
   const text = normalizeWhitespace(element.innerText || element.textContent || '');
   if (!text) {
-    return undefined;
+    return [];
   }
 
-  const analysis = analyzeEnglishText(text);
+  const textAnalysis = analyzeEnglishText(text);
+  if (textAnalysis.wordCount < MIN_TEXT_CHUNK_WORDS) {
+    return [];
+  }
 
-  return {
-    element,
-    chunkId: createChunkId(pageId, text),
-    pageId,
-    textHash: hashText(text),
-    text,
-    wordCount: analysis.wordCount,
-    sentenceCount: analysis.sentenceCount,
-    selector: describeElement(element),
-  };
+  const selector = describeElement(element);
+  const textChunks = splitTextIntoChunkTexts(text);
+
+  return textChunks.map((chunkText, index) => {
+    const analysis = analyzeEnglishText(chunkText);
+    return {
+      element,
+      chunkId: createChunkId(pageId, chunkText),
+      pageId,
+      textHash: hashText(chunkText),
+      text: chunkText,
+      wordCount: analysis.wordCount,
+      sentenceCount: analysis.sentenceCount,
+      selector: textChunks.length === 1 ? selector : `${selector}::chunk(${index + 1})`,
+    };
+  });
+}
+
+interface TextChunkUnit {
+  text: string;
+  wordCount: number;
+}
+
+function splitTextIntoChunkTexts(text: string): string[] {
+  const units = splitIntoChunkUnits(text);
+  const chunks: TextChunkUnit[] = [];
+  let currentTexts: string[] = [];
+  let currentWordCount = 0;
+
+  for (const unit of units) {
+    if (currentWordCount > 0 && currentWordCount + unit.wordCount > MAX_TEXT_CHUNK_WORDS) {
+      chunks.push({
+        text: currentTexts.join(' '),
+        wordCount: currentWordCount,
+      });
+      currentTexts = [unit.text];
+      currentWordCount = unit.wordCount;
+      continue;
+    }
+
+    currentTexts.push(unit.text);
+    currentWordCount += unit.wordCount;
+  }
+
+  if (currentWordCount > 0) {
+    chunks.push({
+      text: currentTexts.join(' '),
+      wordCount: currentWordCount,
+    });
+  }
+
+  const lastChunk = chunks.at(-1);
+  const previousChunk = chunks.at(-2);
+  if (
+    chunks.length > 1 &&
+    lastChunk &&
+    previousChunk &&
+    lastChunk.wordCount < TARGET_MIN_TEXT_CHUNK_WORDS &&
+    previousChunk.wordCount + lastChunk.wordCount <= MAX_TEXT_CHUNK_WORDS
+  ) {
+    previousChunk.text = `${previousChunk.text} ${lastChunk.text}`;
+    previousChunk.wordCount += lastChunk.wordCount;
+    chunks.pop();
+  }
+
+  return chunks.map((chunk) => chunk.text);
+}
+
+function splitIntoChunkUnits(text: string): TextChunkUnit[] {
+  return splitIntoSentenceTexts(text).flatMap((sentence) => {
+    const analysis = analyzeEnglishText(sentence);
+    if (analysis.wordCount <= MAX_TEXT_CHUNK_WORDS) {
+      return analysis.wordCount > 0 ? [{ text: sentence, wordCount: analysis.wordCount }] : [];
+    }
+
+    return splitOversizedSentence(sentence);
+  });
+}
+
+function splitIntoSentenceTexts(text: string): string[] {
+  const segmenter = getSentenceSegmenter();
+  if (segmenter) {
+    return Array.from(segmenter.segment(text), (segment) => normalizeWhitespace(segment.segment)).filter(Boolean);
+  }
+
+  return (text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [text]).map(normalizeWhitespace).filter(Boolean);
+}
+
+function splitOversizedSentence(sentence: string): TextChunkUnit[] {
+  const parts = sentence.split(/\s+/).filter(Boolean);
+  const chunks: TextChunkUnit[] = [];
+  let currentParts: string[] = [];
+  let currentWordCount = 0;
+
+  for (const part of parts) {
+    const wordCount = analyzeEnglishText(part).wordCount;
+    if (wordCount === 0) {
+      currentParts.push(part);
+      continue;
+    }
+
+    if (currentWordCount > 0 && currentWordCount + wordCount > MAX_TEXT_CHUNK_WORDS) {
+      chunks.push({
+        text: currentParts.join(' '),
+        wordCount: currentWordCount,
+      });
+      currentParts = [part];
+      currentWordCount = wordCount;
+      continue;
+    }
+
+    currentParts.push(part);
+    currentWordCount += wordCount;
+  }
+
+  if (currentWordCount > 0) {
+    chunks.push({
+      text: currentParts.join(' '),
+      wordCount: currentWordCount,
+    });
+  }
+
+  return chunks;
 }
 
 function isVisibleElement(element: HTMLElement): boolean {
@@ -157,6 +274,14 @@ function describeElement(element: HTMLElement): string {
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function getSentenceSegmenter(): Intl.Segmenter | undefined {
+  if (typeof Intl === 'undefined' || typeof Intl.Segmenter === 'undefined') {
+    return undefined;
+  }
+
+  return new Intl.Segmenter('en', { granularity: 'sentence' });
 }
 
 function normalizePageLanguage(language: string): string {

@@ -16,6 +16,14 @@ function visibleRect(): DOMRect {
   } as DOMRect;
 }
 
+function longReadableParagraph(sentenceCount = 10): string {
+  return Array.from(
+    { length: sentenceCount },
+    (_, index) =>
+      `Section ${index + 1} explains how budgeted reading analytics allocate viewport attention across visible documentation paragraphs without duplicating effective reading speed.`,
+  ).join(' ');
+}
+
 describe('collectTextBlocks', () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(visibleRect());
@@ -91,6 +99,43 @@ describe('collectTextBlocks', () => {
     const blocks = collectTextBlocks(document);
 
     expect(blocks.map((block) => block.selector)).toEqual(['h2#heading', 'pre#snippet']);
+  });
+
+  it('splits long article paragraphs into bounded sentence-preserving chunks', () => {
+    const text = longReadableParagraph();
+    document.body.innerHTML = `
+      <article>
+        <p id="long">${text}</p>
+      </article>
+    `;
+
+    const blocks = collectTextBlocks(document);
+    const page = summarizeCurrentPage(document, blocks);
+
+    expect(blocks.length).toBeGreaterThan(1);
+    expect(blocks.every((block) => block.wordCount <= 120)).toBe(true);
+    expect(blocks.every((block) => block.wordCount >= 30)).toBe(true);
+    expect(blocks.map((block) => block.text).join(' ')).toBe(text);
+    expect(blocks.map((block) => block.selector)).toEqual(blocks.map((_, index) => `p#long::chunk(${index + 1})`));
+    expect(page.totalWords).toBe(blocks.reduce((sum, block) => sum + block.wordCount, 0));
+  });
+
+  it('keeps short trailing sentences when splitting long article paragraphs', () => {
+    const leadSentence = `${Array.from({ length: 120 }, () => 'alpha').join(' ')}.`;
+    const trailingSentence = 'Tiny final sentence remains here.';
+    const text = `${leadSentence} ${trailingSentence}`;
+    document.body.innerHTML = `
+      <article>
+        <p id="long">${text}</p>
+      </article>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks.length).toBeGreaterThan(1);
+    expect(blocks.map((block) => block.text).join(' ')).toBe(text);
+    expect(blocks.reduce((sum, block) => sum + block.wordCount, 0)).toBe(125);
+    expect(blocks.at(-1)?.text).toBe(trailingSentence);
   });
 
   it('skips non-reading ancestors even when they match primary content selectors', () => {
