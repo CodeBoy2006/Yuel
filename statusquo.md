@@ -819,3 +819,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-state cleanup and restart-safe site enablement for the MVP loop.
 - **Context:** Scheme-wildcard removals now clear both HTTP and HTTPS exact enabled origins under the revoked host family and refresh dynamic content-script registration.
+
+## [2026-06-28 14:38] Primary Extraction Ancestor Guard
+- **Changes:** Applied non-reading ancestor exclusions to primary text-block extraction, not only fallback extraction.
+- **Status:** Completed
+- **Next Steps:** Continue tightening readable-text capture quality before broadening content-script behavior.
+- **Context:** Paragraphs inside `aside`, page chrome, forms, dialogs, or `aria-hidden` containers are no longer collected just because they sit under `main` or other primary selectors.

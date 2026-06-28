@@ -78,4 +78,28 @@ describe('collectTextBlocks', () => {
       text: 'Memory overhead can grow quickly when analytics batches retry across unstable browser extension contexts.',
     });
   });
+
+  it('skips non-reading ancestors even when they match primary content selectors', () => {
+    document.body.innerHTML = `
+      <main>
+        <aside>
+          <p id="aside">Related links changelog pricing integrations support contact company careers roadmap newsletter.</p>
+        </aside>
+        <div aria-hidden="true">
+          <p id="hidden">Decorative repeated marketing copy should stay outside local reading analytics.</p>
+        </div>
+        <article>
+          <p id="content">Reading analytics should focus on visible article body text instead of page chrome.</p>
+        </article>
+      </main>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      selector: 'p#content',
+      text: 'Reading analytics should focus on visible article body text instead of page chrome.',
+    });
+  });
 });
