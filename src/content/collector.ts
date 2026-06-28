@@ -79,6 +79,20 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           visibleSince: existingState?.visibleSince ?? now,
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
+
+        pendingEvents.push({
+          id: createEventId('TextBlockVisible'),
+          sessionId,
+          pageId: page.pageId,
+          chunkId: block.chunkId,
+          kind: 'TextBlockVisible',
+          occurredAt: now,
+          confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
+          value: {
+            visibleRatio: entry.intersectionRatio,
+            wordCount: block.wordCount,
+          },
+        });
       } else if (existingState) {
         appendExposureTick(
           pendingEvents,
@@ -91,21 +105,21 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           document.visibilityState === 'visible',
         );
         visibleBlocks.delete(block.chunkId);
-      }
 
-      pendingEvents.push({
-        id: createEventId(isVisible ? 'TextBlockVisible' : 'TextBlockHidden'),
-        sessionId,
-        pageId: page.pageId,
-        chunkId: block.chunkId,
-        kind: isVisible ? 'TextBlockVisible' : 'TextBlockHidden',
-        occurredAt: now,
-        confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
-        value: {
-          visibleRatio: entry.intersectionRatio,
-          wordCount: block.wordCount,
-        },
-      });
+        pendingEvents.push({
+          id: createEventId('TextBlockHidden'),
+          sessionId,
+          pageId: page.pageId,
+          chunkId: block.chunkId,
+          kind: 'TextBlockHidden',
+          occurredAt: now,
+          confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
+          value: {
+            visibleRatio: entry.intersectionRatio,
+            wordCount: block.wordCount,
+          },
+        });
+      }
     }
   }, { threshold: [0.15, 0.35, 0.65, 0.9] });
 

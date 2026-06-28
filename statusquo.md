@@ -789,3 +789,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
 - **Context:** Exposure ticks are derived from visible-block state, so below-threshold exposure can no longer enter raw local storage through malformed messages.
+
+## [2026-06-28 14:17] Never-Visible Hidden Event Guard
+- **Changes:** Prevented the content collector from emitting `TextBlockHidden` events for text blocks that had never entered visible-block state.
+- **Status:** Completed
+- **Next Steps:** Continue tightening raw collector event lifecycle coherence before broadening MVP flows.
+- **Context:** Below-threshold observer callbacks no longer create standalone hidden events; hidden events now close an actual prior visible interval.

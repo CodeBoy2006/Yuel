@@ -289,6 +289,40 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('does not emit hidden block events for blocks that were never visible', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Below threshold documentation blocks should not create hidden events before becoming visible.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 0.1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('ignores scroll velocity updates while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
