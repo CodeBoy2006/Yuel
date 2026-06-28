@@ -53,6 +53,18 @@ function visibleRect(): DOMRect {
   } as DOMRect;
 }
 
+function partiallyVisibleRect(visibleRatio: number): DOMRect {
+  const height = 80;
+  const visibleHeight = height * visibleRatio;
+
+  return {
+    ...visibleRect(),
+    y: visibleHeight - height,
+    top: visibleHeight - height,
+    bottom: visibleHeight,
+  };
+}
+
 function setWindowScrollY(value: number): void {
   Object.defineProperty(window, 'scrollY', {
     configurable: true,
@@ -395,7 +407,7 @@ describe('startReadingCollector', () => {
               tickMs: 1_000,
               visibleChunks: [
                 expect.objectContaining({
-                  visibleRatio: 0.9,
+                  visibleRatio: 1,
                   centerDistance: expect.any(Number),
                   contentWeight: 1,
                 }),
@@ -403,6 +415,54 @@ describe('startReadingCollector', () => {
             }),
           }),
         ]),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('uses the current viewport visible ratio in exposure ticks instead of the historical maximum', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Viewport exposure should reflect the visible text available at the time the tick closes.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 0.9,
+        },
+      ]);
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(partiallyVisibleRect(0.25));
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      const viewportTick = mocks.sendMessage.mock.calls[0][0].payload.events.find(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(viewportTick).toEqual(
+        expect.objectContaining({
+          value: expect.objectContaining({
+            visibleChunks: [
+              expect.objectContaining({
+                visibleRatio: 0.25,
+              }),
+            ],
+          }),
+        }),
       );
     } finally {
       controller.stop();
@@ -455,7 +515,7 @@ describe('startReadingCollector', () => {
             tickMs: 1_000,
             visibleChunks: [
               expect.objectContaining({ visibleRatio: 1, contentWeight: 1 }),
-              expect.objectContaining({ visibleRatio: 0.75, contentWeight: 1 }),
+              expect.objectContaining({ visibleRatio: 1, contentWeight: 1 }),
             ],
           }),
         }),

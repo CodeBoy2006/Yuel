@@ -933,3 +933,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate the packaged extension smoke flows after typecheck and build.
 - **Context:** `TextViewportExposureTick` is now the supported measured-reading event; old `TextBlockExposureTick` events are not part of the message contract.
+
+## [2026-06-28 19:08] Viewport Ratio Snapshot Fix
+- **Changes:** Updated content viewport exposure ticks to measure the current layout-visible ratio when each tick closes instead of reusing a historical maximum observer ratio; added a regression test for partially visible text.
+- **Status:** Completed
+- **Next Steps:** Continue reviewing the remaining Budgeted Exposure Model gaps, especially interaction confidence signals and adaptive WPM.
+- **Context:** `TextBlockVisible` lifecycle events still use the observer entry ratio, while `TextViewportExposureTick.visibleChunks[].visibleRatio` now represents the tick-time viewport snapshot used by the reading budget allocator.

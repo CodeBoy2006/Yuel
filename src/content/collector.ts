@@ -21,7 +21,6 @@ interface CollectorOptions {
 
 interface VisibleBlockState {
   block: TextBlockCandidate;
-  maxVisibleRatio: number;
 }
 
 interface ScrollVelocitySample {
@@ -88,10 +87,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
         if (!wasVisible) {
           closeCurrentViewportInterval(now);
         }
-        visibleBlocks.set(block.chunkId, {
-          block,
-          maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
-        });
+        visibleBlocks.set(block.chunkId, { block });
 
         if (!wasVisible) {
           pendingEvents.push({
@@ -392,10 +388,7 @@ function restoreVisibleBlocksFromLayout(
       continue;
     }
 
-    visibleBlocks.set(block.chunkId, {
-      block,
-      maxVisibleRatio: visibleRatio,
-    });
+    visibleBlocks.set(block.chunkId, { block });
     pendingEvents.push({
       id: createEventId('TextBlockVisible', now),
       sessionId,
@@ -443,13 +436,26 @@ function appendViewportExposureTick(
     return;
   }
 
-  const visibleChunks = Array.from(visibleBlocks.values()).map((state) => ({
-    chunkId: state.block.chunkId,
-    wordCount: state.block.wordCount,
-    visibleRatio: state.maxVisibleRatio,
-    centerDistance: getViewportCenterDistance(state.block.element),
-    contentWeight: getContentWeight(state.block.element),
-  }));
+  const visibleChunks = Array.from(visibleBlocks.values()).flatMap((state) => {
+    const visibleRatio = getViewportVisibleRatio(state.block.element);
+    if (visibleRatio < 0.15) {
+      return [];
+    }
+
+    return [
+      {
+        chunkId: state.block.chunkId,
+        wordCount: state.block.wordCount,
+        visibleRatio,
+        centerDistance: getViewportCenterDistance(state.block.element),
+        contentWeight: getContentWeight(state.block.element),
+      },
+    ];
+  });
+
+  if (visibleChunks.length === 0) {
+    return;
+  }
 
   pendingEvents.push({
     id: createEventId('TextViewportExposureTick', now),
