@@ -225,6 +225,38 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('ignores scroll velocity updates while a tab remains hidden', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Hidden scrolling through dense technical documentation should not affect local reading velocity.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      setDocumentVisibility('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      await vi.advanceTimersByTimeAsync(500);
+      setWindowScrollY(600);
+      window.dispatchEvent(new Event('scroll'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `

@@ -218,6 +218,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const onScroll = () => {
+    if (pageHidden) {
+      return;
+    }
+
     markUserActive();
 
     const measurement = measureScrollVelocity(lastScrollSample, page.totalWords);

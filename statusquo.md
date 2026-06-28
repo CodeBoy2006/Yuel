@@ -717,3 +717,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
 - **Context:** Hidden pages can receive delayed observer callbacks, so visible-block and exposure telemetry now stays tied to actual visible reading sessions.
+
+## [2026-06-28 13:30] Hidden Tab Scroll Guard
+- **Changes:** Ignored scroll velocity updates while a tab is hidden so hidden-page scrolling cannot emit `ScrollVelocityChanged` events.
+- **Status:** Completed
+- **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
+- **Context:** Scroll telemetry now stays tied to visible reading sessions instead of background or hidden-page movement.
