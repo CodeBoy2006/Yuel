@@ -849,3 +849,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening mixed-language and readable-text capture quality before broadening content-script behavior.
 - **Context:** English page and element declarations still collect normally, while locally declared non-English sections no longer enter the English reading analytics pipeline.
+
+## [2026-06-28 14:56] Editable Region Extraction Guard
+- **Changes:** Skipped text-block candidates inside editable and textbox regions so user-authored drafts do not become local reading analytics.
+- **Status:** Completed
+- **Next Steps:** Continue tightening privacy-sensitive extraction boundaries and readable-text capture quality before broadening content-script behavior.
+- **Context:** Published page content still collects normally, while `contenteditable` and role-textbox regions are treated like forms and other non-reading UI.

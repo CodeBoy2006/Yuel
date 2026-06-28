@@ -131,6 +131,27 @@ describe('collectTextBlocks', () => {
     });
   });
 
+  it('skips editable page regions in primary content selectors', () => {
+    document.body.innerHTML = `
+      <main>
+        <div contenteditable="true">
+          <p id="draft">Private draft notes about architecture performance incidents should not become reading analytics.</p>
+        </div>
+        <article>
+          <p id="article">Published documentation content should remain eligible for local reading analytics.</p>
+        </article>
+      </main>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      selector: 'p#article',
+      text: 'Published documentation content should remain eligible for local reading analytics.',
+    });
+  });
+
   it('skips locally declared non-English text inside English pages', () => {
     document.documentElement.lang = 'en-US';
     document.body.innerHTML = `

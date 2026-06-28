@@ -27,6 +27,7 @@ const EXCLUDED_ANCESTOR_SELECTOR = [
   'form',
   'dialog',
   '[aria-hidden="true"]',
+  '[contenteditable]',
   '[hidden]',
   '[inert]',
   '[role="banner"]',
@@ -35,6 +36,7 @@ const EXCLUDED_ANCESTOR_SELECTOR = [
   '[role="dialog"]',
   '[role="navigation"]',
   '[role="search"]',
+  '[role="textbox"]',
 ].join(',');
 
 export function summarizeCurrentPage(
