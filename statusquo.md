@@ -669,3 +669,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local text snapshot metrics before broadening user-facing MVP flows.
 - **Context:** Collector-emitted chunks derive `sentenceCount` from `analyzeEnglishText`, so malformed batches can no longer store inconsistent text metrics for local page and chunk records.
+
+## [2026-06-28 12:58] Required Chunk Text Guard
+- **Changes:** Required every reading batch chunk snapshot to include normalized raw `text` at the message contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening the local event-to-analysis path before broadening user-facing MVP flows.
+- **Context:** Chunk text is not stored in IndexedDB, but it must travel through local extension messages so background analysis can update vocabulary exposure and Pack tags.

@@ -151,8 +151,8 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.chunkId) &&
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
-    (value.text === undefined ||
-      (isNonBlankString(value.text) && hasConsistentChunkTextSnapshot(value, value.pageId, value.text))) &&
+    isNonBlankString(value.text) &&
+    hasConsistentChunkTextSnapshot(value, value.pageId, value.text) &&
     isFiniteNumberAtLeast(value.wordCount, MIN_TEXT_CHUNK_WORD_COUNT) &&
     isPositiveFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)

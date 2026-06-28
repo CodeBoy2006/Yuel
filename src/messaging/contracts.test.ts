@@ -209,7 +209,7 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects optional chunk text that is blank or not trimmed', () => {
+  it('rejects chunk text that is blank or not trimmed', () => {
     expect(
       isReadingEventBatchMessage({
         ...validMessage,
@@ -226,6 +226,18 @@ describe('isReadingEventBatchMessage', () => {
         payload: {
           ...validMessage.payload,
           chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects chunks without raw text needed for local vocabulary analysis', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], text: undefined }],
         },
       }),
     ).toBe(false);
