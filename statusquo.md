@@ -675,3 +675,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening the local event-to-analysis path before broadening user-facing MVP flows.
 - **Context:** Chunk text is not stored in IndexedDB, but it must travel through local extension messages so background analysis can update vocabulary exposure and Pack tags.
+
+## [2026-06-28 13:05] Page Domain ID Guard
+- **Changes:** Rejected page snapshots whose stored `domain` does not match the collector-style `pageId` prefix.
+- **Status:** Completed
+- **Next Steps:** Continue tightening page identity and local aggregate boundaries before broadening user-facing MVP flows.
+- **Context:** Collector-emitted page IDs include the normalized domain prefix, so malformed batches can no longer attribute one page identity to a different daily top-domain bucket.

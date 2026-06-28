@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createChunkId, hashText } from '../domain/events';
+import { createChunkId, createPageId, hashText } from '../domain/events';
 import { isReadingEventBatchMessage, MESSAGE_TYPES, type ReadingEventBatchMessage } from './contracts';
 
-const validPageId = 'page-1';
+const validPageUrl = 'https://example.com/articles/local-reading';
+const validPageId = createPageId(validPageUrl);
 const validChunkText = 'Mitigate memory overhead and fail gracefully during rollout.';
 const validChunkId = createChunkId(validPageId, validChunkText);
 
@@ -14,7 +15,7 @@ const validMessage: ReadingEventBatchMessage = {
       pageId: validPageId,
       domain: 'example.com',
       titleHash: 'title',
-      urlHash: 'url',
+      urlHash: hashText(validPageUrl),
       language: 'en',
       totalWords: 8,
       capturedAt: Date.UTC(2026, 5, 27, 12, 0, 0),
@@ -162,6 +163,21 @@ describe('isReadingEventBatchMessage', () => {
           page: {
             ...validMessage.payload.page,
             totalWords: validMessage.payload.chunks[0].wordCount + 1,
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects page domains that do not match the page id prefix', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            domain: 'other.example.com',
           },
         },
       }),

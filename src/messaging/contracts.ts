@@ -137,6 +137,7 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
     isObject(value) &&
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.domain) &&
+    value.pageId.startsWith(`${value.domain}_`) &&
     isNonBlankString(value.titleHash) &&
     isNonBlankString(value.urlHash) &&
     isNonBlankString(value.language) &&

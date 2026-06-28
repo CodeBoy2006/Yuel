@@ -6,7 +6,7 @@ import { createServer, type Server } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
 import { analyzeEnglishText } from '../src/analysis/english';
-import { createChunkId, hashText } from '../src/domain/events';
+import { createChunkId, createPageId, hashText } from '../src/domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchMessage, type ReadingEventBatchPayload } from '../src/messaging/contracts';
 
 export interface BrowserLoadedSmokeResult {
@@ -296,7 +296,7 @@ function createRuntimeReadingBatchMessage(now = Date.now()): ReadingEventBatchMe
 
 function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload {
   const url = `https://${RUNTIME_LOOP_DOMAIN}/local-first-browser-reading`;
-  const pageId = `${RUNTIME_LOOP_DOMAIN}_${hashText(url)}`;
+  const pageId = createPageId(url);
   const chunkText =
     'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.';
   const chunkAnalysis = analyzeEnglishText(chunkText);

@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { analyzeEnglishText } from '../analysis/english';
-import { createChunkId, hashText } from '../domain/events';
+import { createChunkId, createPageId, hashText } from '../domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchPayload } from '../messaging/contracts';
 import { handleReadingRuntimeMessage } from './readingMessage';
 
-const pageId = 'page-1';
+const pageUrl = 'https://docs.example.com/runtime-retry-loop';
+const pageId = createPageId(pageUrl);
 const chunkText = 'Runtime failures should remain visible to the content collector retry loop.';
 const chunkAnalysis = analyzeEnglishText(chunkText);
 const chunkId = createChunkId(pageId, chunkText);
@@ -15,7 +16,7 @@ const payload: ReadingEventBatchPayload = {
     pageId,
     domain: 'docs.example.com',
     titleHash: 'title',
-    urlHash: 'url',
+    urlHash: hashText(pageUrl),
     language: 'en',
     totalWords: chunkAnalysis.wordCount,
     capturedAt: Date.UTC(2026, 5, 27, 12, 0, 0),
