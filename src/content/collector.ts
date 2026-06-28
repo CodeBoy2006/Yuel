@@ -80,7 +80,16 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
       } else if (existingState) {
-        appendExposureTick(pendingEvents, sessionId, page.pageId, existingState, now, latestScrollSpeedWordsPerMinute, userIdle);
+        appendExposureTick(
+          pendingEvents,
+          sessionId,
+          page.pageId,
+          existingState,
+          now,
+          latestScrollSpeedWordsPerMinute,
+          userIdle,
+          document.visibilityState === 'visible',
+        );
         visibleBlocks.delete(block.chunkId);
       }
 
@@ -188,7 +197,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const flushHiddenPage = () => {
-    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
+    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle, true);
     visibleBlocks.clear();
     appendPageHiddenOnce();
 
@@ -375,10 +384,11 @@ function appendOpenExposureTicks(
   visibleBlocks: Map<string, VisibleBlockState>,
   scrollSpeedWordsPerMinute: number,
   idle: boolean,
+  activeTab = document.visibilityState === 'visible',
 ): void {
   const now = Date.now();
   for (const state of visibleBlocks.values()) {
-    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute, idle);
+    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute, idle, activeTab);
     state.visibleSince = now;
   }
 }
@@ -391,6 +401,7 @@ function appendExposureTick(
   now: number,
   scrollSpeedWordsPerMinute: number,
   idle: boolean,
+  activeTab: boolean,
 ): void {
   const dwellMs = now - state.visibleSince;
   if (dwellMs < 250) {
@@ -409,7 +420,7 @@ function appendExposureTick(
       dwellMs,
       visibleRatio: state.maxVisibleRatio,
       wordCount: state.block.wordCount,
-      activeTab: document.visibilityState === 'visible',
+      activeTab,
       scrollSpeedWordsPerMinute,
       idle,
     },

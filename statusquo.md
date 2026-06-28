@@ -735,3 +735,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
 - **Context:** Activity telemetry now resumes only after the page becomes visible again and restarts the idle window from that visible moment.
+
+## [2026-06-28 13:42] Visibilitychange Exposure Guard
+- **Changes:** Preserved `activeTab: true` for the final exposure tick flushed when a visible tab transitions to hidden.
+- **Status:** Completed
+- **Next Steps:** Continue tightening lifecycle edge cases and end-to-end local reading accuracy.
+- **Context:** The final dwell window happened while the page was visible, so it should count as active exposure even though the `visibilitychange` handler runs after the document reports `hidden`.

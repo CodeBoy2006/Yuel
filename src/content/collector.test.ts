@@ -454,6 +454,56 @@ describe('startReadingCollector', () => {
     controller.stop();
   });
 
+  it('keeps final visibilitychange exposure active for the visible dwell window', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Visible reading before a tab is hidden should still count as active exposure time.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(500);
+      setDocumentVisibility('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+
+      const batch = mocks.sendMessage.mock.calls[0][0];
+      expect(batch.payload.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'TextBlockExposureTick',
+            value: expect.objectContaining({
+              dwellMs: 500,
+              activeTab: true,
+            }),
+          }),
+          expect.objectContaining({
+            kind: 'PageHidden',
+          }),
+        ]),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('resumes exposure ticks for visible blocks after the tab becomes visible again', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
