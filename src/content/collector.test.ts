@@ -639,6 +639,37 @@ describe('startReadingCollector', () => {
     );
   });
 
+  it('orders final stop exposure before the page hidden event', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Stopping a visible reading session should keep exposure before the lifecycle hidden event.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 10_000 });
+    await flushPromises();
+    mocks.sendMessage.mockClear();
+
+    const blockElement = document.querySelector('#guide');
+    expect(blockElement).toBeInstanceOf(HTMLElement);
+    TestIntersectionObserver.instances[0].emit([
+      {
+        target: blockElement as Element,
+        isIntersecting: true,
+        intersectionRatio: 1,
+      },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    controller.stop();
+    await flushPromises();
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map((event: { kind: string }) => event.kind);
+    expect(eventKinds).toEqual(['TextBlockVisible', 'TextBlockExposureTick', 'PageHidden']);
+  });
+
   it('emits PageHidden when stopping a visible page collector', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
 

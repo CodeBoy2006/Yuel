@@ -741,3 +741,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening lifecycle edge cases and end-to-end local reading accuracy.
 - **Context:** The final dwell window happened while the page was visible, so it should count as active exposure even though the `visibilitychange` handler runs after the document reports `hidden`.
+
+## [2026-06-28 13:46] Stop Flush Ordering Guard
+- **Changes:** Ordered final `TextBlockExposureTick` events before `PageHidden` when the collector is stopped on a visible page.
+- **Status:** Completed
+- **Next Steps:** Continue tightening lifecycle edge cases and end-to-end local reading accuracy.
+- **Context:** Stop-time raw events now preserve the same lifecycle ordering as visibility/pagehide flushes: visible exposure is recorded before the page is marked hidden.

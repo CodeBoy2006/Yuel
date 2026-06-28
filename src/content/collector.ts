@@ -314,6 +314,8 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
+      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
+      visibleBlocks.clear();
       appendPageHiddenOnce();
       void flushNow().then((delivered) => {
         if (!delivered && pendingEvents.length > 0) {
