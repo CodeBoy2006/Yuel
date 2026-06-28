@@ -457,6 +457,46 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(true);
   });
 
+  it('does not treat blank vocabulary lemmas as dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({
+            lemma: '   ',
+            effectiveSeenCount: 3,
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([]);
+    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
+    expect(details.hasData).toBe(false);
+  });
+
+  it('normalizes vocabulary lemmas before dashboard display', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({
+            lemma: '  resilience  ',
+            effectiveSeenCount: 3,
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([
+      expect.objectContaining({
+        lemma: 'resilience',
+      }),
+    ]);
+    expect(details.summaryCardText).toContain('Vocabulary: resilience');
+    expect(details.summaryCardText).not.toContain('  resilience  ');
+  });
+
   it('normalizes vocabulary pack tags before dashboard display', async () => {
     const details = await getReadingDashboardDetails(
       createStore({

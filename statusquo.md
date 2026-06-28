@@ -903,3 +903,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
 - **Context:** Vocabulary chips now follow the same dashboard hygiene as saved-selection tags, preventing blank chips and duplicate tag keys from malformed local records.
+
+## [2026-06-28 16:23] Vocabulary Lemma Normalization
+- **Changes:** Normalized vocabulary lemmas before dashboard display and ignored blank lemma records when computing dashboard data.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around malformed local records before broadening MVP behavior.
+- **Context:** Effective or saved vocabulary records with blank lemma text no longer make the dashboard appear populated, while spaced lemmas render consistently in lists and share-card text.

@@ -170,7 +170,7 @@ export async function getReadingDashboardDetails(
     .filter(hasVisibleVocabularyMemory)
     .slice(0, RECENT_VOCABULARY_LIMIT)
     .map((vocab): RecentVocabularySummary => ({
-      lemma: vocab.lemma,
+      lemma: normalizeVocabularyLemma(vocab.lemma),
       seenCount: vocab.seenCount,
       effectiveSeenCount: vocab.effectiveSeenCount,
       lookupCount: vocab.lookupCount,
@@ -208,7 +208,11 @@ function hasMeasuredReading(page: PageRecord): boolean {
 }
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
-  return vocab.userStatus !== 'ignored' && (vocab.effectiveSeenCount > 0 || vocab.savedCount > 0);
+  return (
+    normalizeVocabularyLemma(vocab.lemma).length > 0 &&
+    vocab.userStatus !== 'ignored' &&
+    (vocab.effectiveSeenCount > 0 || vocab.savedCount > 0)
+  );
 }
 
 function hasVisibleSavedItem(item: SavedItemRecord): boolean {
@@ -221,6 +225,10 @@ function normalizeTopDomains(topDomains: string[]): string[] {
 
 function normalizeSavedItemText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeVocabularyLemma(lemma: string): string {
+  return lemma.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeTags(tags: string[]): string[] {
