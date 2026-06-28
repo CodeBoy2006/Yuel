@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { analyzeEnglishText } from '../analysis/english';
 import { createChunkId, hashText } from '../domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchPayload } from '../messaging/contracts';
 import { handleReadingRuntimeMessage } from './readingMessage';
 
 const pageId = 'page-1';
 const chunkText = 'Runtime failures should remain visible to the content collector retry loop.';
+const chunkAnalysis = analyzeEnglishText(chunkText);
 const chunkId = createChunkId(pageId, chunkText);
 
 const payload: ReadingEventBatchPayload = {
@@ -15,7 +17,7 @@ const payload: ReadingEventBatchPayload = {
     titleHash: 'title',
     urlHash: 'url',
     language: 'en',
-    totalWords: 12,
+    totalWords: chunkAnalysis.wordCount,
     capturedAt: Date.UTC(2026, 5, 27, 12, 0, 0),
   },
   chunks: [
@@ -24,8 +26,8 @@ const payload: ReadingEventBatchPayload = {
       pageId,
       textHash: hashText(chunkText),
       text: chunkText,
-      wordCount: 12,
-      sentenceCount: 1,
+      wordCount: chunkAnalysis.wordCount,
+      sentenceCount: chunkAnalysis.sentenceCount,
       selector: 'p#guide',
     },
   ],
@@ -41,7 +43,7 @@ const payload: ReadingEventBatchPayload = {
       value: {
         dwellMs: 1_000,
         visibleRatio: 1,
-        wordCount: 12,
+        wordCount: chunkAnalysis.wordCount,
         activeTab: true,
         scrollSpeedWordsPerMinute: 180,
         idle: false,

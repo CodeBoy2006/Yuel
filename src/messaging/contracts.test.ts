@@ -261,6 +261,35 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects chunk word counts that do not match the text snapshot analysis', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            totalWords: 9,
+          },
+          chunks: [{ ...validMessage.payload.chunks[0], wordCount: 9 }],
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                wordCount: 9,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects exposure ticks without positive dwell time', () => {
     expect(
       isReadingEventBatchMessage({

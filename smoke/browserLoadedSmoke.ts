@@ -5,7 +5,8 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { createServer, type Server } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
-import { hashText } from '../src/domain/events';
+import { analyzeEnglishText } from '../src/analysis/english';
+import { createChunkId, hashText } from '../src/domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchMessage, type ReadingEventBatchPayload } from '../src/messaging/contracts';
 
 export interface BrowserLoadedSmokeResult {
@@ -298,7 +299,8 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
   const pageId = `${RUNTIME_LOOP_DOMAIN}_${hashText(url)}`;
   const chunkText =
     'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.';
-  const chunkId = `${pageId}_${hashText(chunkText)}`;
+  const chunkAnalysis = analyzeEnglishText(chunkText);
+  const chunkId = createChunkId(pageId, chunkText);
   const sessionId = `browser_smoke_${now}`;
 
   return {
@@ -308,7 +310,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
       titleHash: hashText('Runtime reading loop'),
       urlHash: hashText(url),
       language: 'en',
-      totalWords: 14,
+      totalWords: chunkAnalysis.wordCount,
       capturedAt: now,
     },
     chunks: [
@@ -317,8 +319,8 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
         pageId,
         textHash: hashText(chunkText),
         text: chunkText,
-        wordCount: 14,
-        sentenceCount: 1,
+        wordCount: chunkAnalysis.wordCount,
+        sentenceCount: chunkAnalysis.sentenceCount,
         selector: 'article > p:nth-of-type(1)',
       },
     ],
@@ -341,7 +343,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
         confidence: 'high',
         value: {
           visibleRatio: 1,
-          wordCount: 14,
+          wordCount: chunkAnalysis.wordCount,
         },
       },
       {
@@ -355,7 +357,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
         value: {
           dwellMs: 60_000,
           visibleRatio: 1,
-          wordCount: 14,
+          wordCount: chunkAnalysis.wordCount,
           activeTab: true,
           scrollSpeedWordsPerMinute: 180,
           idle: false,

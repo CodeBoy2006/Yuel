@@ -1,3 +1,4 @@
+import { analyzeEnglishText } from '../analysis/english';
 import {
   createChunkId,
   hashText,
@@ -151,12 +152,20 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
     (value.text === undefined ||
-      (isNonBlankString(value.text) &&
-        value.textHash === hashText(value.text) &&
-        value.chunkId === createChunkId(value.pageId, value.text))) &&
+      (isNonBlankString(value.text) && hasConsistentChunkTextSnapshot(value, value.pageId, value.text))) &&
     isFiniteNumberAtLeast(value.wordCount, MIN_TEXT_CHUNK_WORD_COUNT) &&
     isPositiveFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)
+  );
+}
+
+function hasConsistentChunkTextSnapshot(value: Record<string, unknown>, pageId: string, text: string): boolean {
+  const analysis = analyzeEnglishText(text);
+
+  return (
+    value.textHash === hashText(text) &&
+    value.chunkId === createChunkId(pageId, text) &&
+    value.wordCount === analysis.wordCount
   );
 }
 

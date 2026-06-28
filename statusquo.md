@@ -657,3 +657,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local page and chunk snapshot identity consistency.
 - **Context:** Collector-emitted chunks derive `chunkId` from `pageId` and normalized text, so malformed messages can no longer attach reading events to a stale chunk identity.
+
+## [2026-06-28 12:44] Chunk Word Analysis Guard
+- **Changes:** Rejected chunk snapshots whose optional raw `text` analysis does not match the supplied `wordCount`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local text snapshot metrics before broadening user-facing MVP flows.
+- **Context:** Collector-emitted chunks derive `wordCount` from `analyzeEnglishText`, so malformed batches can no longer inflate page totals, event word counts, or effective reading estimates with inconsistent text metrics.
