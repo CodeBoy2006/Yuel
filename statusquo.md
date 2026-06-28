@@ -885,3 +885,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
 - **Context:** Explicit saved selections keep their meaning, while legacy records with line breaks or repeated spaces now render as readable single-line text.
+
+## [2026-06-28 16:13] Saved Item Tag Normalization
+- **Changes:** Normalized saved-selection tags in dashboard details by trimming, dropping blanks, and removing duplicates.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
+- **Context:** Valid saved-selection tags still surface in order, while malformed legacy tag arrays no longer create blank or repeated dashboard chips.

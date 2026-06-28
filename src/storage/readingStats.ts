@@ -185,7 +185,7 @@ export async function getReadingDashboardDetails(
       text: normalizeSavedItemText(item.text),
       type: item.type,
       sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-      tags: item.tags,
+      tags: normalizeSavedItemTags(item.tags),
       createdAt: item.createdAt,
     }));
 
@@ -219,6 +219,10 @@ function normalizeTopDomains(topDomains: string[]): string[] {
 
 function normalizeSavedItemText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeSavedItemTags(tags: string[]): string[] {
+  return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
 }
 
 function normalizeDisplayDomain(domain: string): string {
