@@ -84,6 +84,10 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
         return false;
       }
 
+      if (event.occurredAt < page.capturedAt) {
+        return false;
+      }
+
       if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
         return event.chunkId !== undefined && chunkIds.has(event.chunkId);
       }

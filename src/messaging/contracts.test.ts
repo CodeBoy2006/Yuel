@@ -657,6 +657,23 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects events that occurred before the page snapshot was captured', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              occurredAt: validMessage.payload.page.capturedAt - 1,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({

@@ -591,3 +591,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local batch identity hygiene and remaining reading event payload boundaries.
 - **Context:** Ambiguous event batches no longer rely on repository-level duplicate filtering to decide which raw events contribute to aggregates.
+
+## [2026-06-28 11:48] Event Capture Time Guard
+- **Changes:** Rejected reading events whose `occurredAt` timestamp predates the page snapshot `capturedAt` time at the message contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
+- **Context:** Malformed batches can no longer write raw events or daily aggregates that imply reading activity before the page was captured.
