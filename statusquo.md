@@ -771,3 +771,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening vocabulary status boundaries across storage and dashboard surfaces.
 - **Context:** Ignored words should remain quiet until the user explicitly saves them again, which already reactivates them through the saved-selection path.
+
+## [2026-06-28 14:07] Visible Block Threshold Contract Guard
+- **Changes:** Rejected `TextBlockVisible` events below the collector's 0.15 visibility threshold at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
+- **Context:** Hidden or barely visible blocks can still emit `TextBlockHidden`, but visible-block events now match the collector's actual visibility threshold before entering raw local storage.

@@ -61,6 +61,7 @@ const PAYLOAD_FREE_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',
 ]);
+const MIN_VISIBLE_BLOCK_RATIO = 0.15;
 
 export function isReadingEventBatchMessage(message: unknown): message is ReadingEventBatchMessage {
   return (
@@ -205,7 +206,11 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
   }
 
   if (VISIBILITY_RATIO_READING_EVENT_KINDS.has(kind)) {
-    return isObject(value) && isUnitIntervalFiniteNumber(value.visibleRatio) && isPositiveFiniteNumber(value.wordCount);
+    if (!isObject(value) || !isUnitIntervalFiniteNumber(value.visibleRatio) || !isPositiveFiniteNumber(value.wordCount)) {
+      return false;
+    }
+
+    return kind !== 'TextBlockVisible' || value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO;
   }
 
   if (kind === 'TextSelected') {
