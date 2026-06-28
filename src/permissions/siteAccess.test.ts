@@ -504,4 +504,32 @@ describe('handleHostPermissionsRemoved', () => {
       remainingOrigins: ['http://docs.example.com/*', 'https://other.example.org/*'],
     });
   });
+
+  it('cleans enabled sites covered by scheme-wildcard host permission removal events', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: [
+        'https://example.com/*',
+        'http://docs.example.com/*',
+        'https://other.example.org/*',
+      ],
+    });
+
+    const result = await handleHostPermissionsRemoved({ origins: ['*://*.example.com/*'] }, runtime);
+
+    expect(runtime.storedValues).toEqual([
+      {
+        [ENABLED_SITE_ORIGINS_KEY]: ['https://other.example.org/*'],
+      },
+    ]);
+    expect(runtime.registeredScripts).toEqual([
+      expect.objectContaining({
+        matches: ['https://other.example.org/*'],
+        js: [CONTENT_SCRIPT_FILE],
+      }),
+    ]);
+    expect(result).toEqual({
+      removedOrigins: ['https://example.com/*', 'http://docs.example.com/*'],
+      remainingOrigins: ['https://other.example.org/*'],
+    });
+  });
 });

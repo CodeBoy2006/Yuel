@@ -258,7 +258,7 @@ function isEnabledOriginCoveredByRemovedPermissions(enabledOrigin: string, remov
     }
 
     const wildcardHost = parseWildcardHostRemovalOrigin(removedOrigin);
-    if (!enabled || !wildcardHost || enabled.protocol !== wildcardHost.protocol) {
+    if (!enabled || !wildcardHost || (wildcardHost.protocol && enabled.protocol !== wildcardHost.protocol)) {
       return false;
     }
 
@@ -274,14 +274,14 @@ function parseStoredOrigin(origin: string): URL | undefined {
   }
 }
 
-function parseWildcardHostRemovalOrigin(origin: string): { protocol: string; baseHost: string } | undefined {
-  const match = /^(https?):\/\/\*\.([^/*]+)\/\*$/.exec(origin);
+function parseWildcardHostRemovalOrigin(origin: string): { protocol?: string; baseHost: string } | undefined {
+  const match = /^(\*|https?):\/\/\*\.([^/*]+)\/\*$/.exec(origin);
   if (!match) {
     return undefined;
   }
 
   return {
-    protocol: `${match[1]}:`,
+    protocol: match[1] === '*' ? undefined : `${match[1]}:`,
     baseHost: match[2],
   };
 }

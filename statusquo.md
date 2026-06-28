@@ -813,3 +813,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-state cleanup and restart-safe site enablement for the MVP loop.
 - **Context:** Exact enabled origins under the revoked wildcard host now disappear from local settings and dynamic content-script registration is refreshed.
+
+## [2026-06-28 14:33] Scheme-Wildcard Permission Removal Guard
+- **Changes:** Removed persisted enabled-site origins when browser host-permission removal events use scheme-wildcard host patterns such as `*://*.example.com/*`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-state cleanup and restart-safe site enablement for the MVP loop.
+- **Context:** Scheme-wildcard removals now clear both HTTP and HTTPS exact enabled origins under the revoked host family and refresh dynamic content-script registration.
