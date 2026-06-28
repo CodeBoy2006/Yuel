@@ -73,7 +73,7 @@ function collectCandidates(doc: Document, pageId: string, selector: string): Tex
   const seen = new Set<string>();
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
-    .filter((element) => !hasExcludedAncestor(element))
+    .filter((element) => !hasExcludedAncestor(element) && !hasNonEnglishLanguageDeclaration(element))
     .map((element) => createCandidate(pageId, element))
     .filter((candidate): candidate is TextBlockCandidate => {
       if (!candidate) return false;
@@ -86,6 +86,11 @@ function collectCandidates(doc: Document, pageId: string, selector: string): Tex
 
 function hasExcludedAncestor(element: HTMLElement): boolean {
   return Boolean(element.closest(EXCLUDED_ANCESTOR_SELECTOR));
+}
+
+function hasNonEnglishLanguageDeclaration(element: HTMLElement): boolean {
+  const declaredLanguageOwner = element.closest<HTMLElement>('[lang]');
+  return Boolean(declaredLanguageOwner && normalizePageLanguage(declaredLanguageOwner.lang) !== 'en');
 }
 
 function createCandidate(pageId: string, element: HTMLElement): TextBlockCandidate | undefined {

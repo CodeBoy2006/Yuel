@@ -131,6 +131,28 @@ describe('collectTextBlocks', () => {
     });
   });
 
+  it('skips locally declared non-English text inside English pages', () => {
+    document.documentElement.lang = 'en-US';
+    document.body.innerHTML = `
+      <main>
+        <section lang="fr">
+          <p id="localized">Architecture notes and performance details should not be captured when this section declares another language.</p>
+        </section>
+        <article>
+          <p id="article">English documentation content should remain eligible for local reading analytics.</p>
+        </article>
+      </main>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      selector: 'p#article',
+      text: 'English documentation content should remain eligible for local reading analytics.',
+    });
+  });
+
   it('reports declared non-English page language in page snapshots', () => {
     document.documentElement.lang = 'fr-FR';
 

@@ -843,3 +843,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening English-only collector boundaries and readable-text capture before broadening MVP behavior.
 - **Context:** Blank language declarations still default to English, while declared `en-*` pages collect normally and declared non-English pages no-op before local text capture begins.
+
+## [2026-06-28 14:53] Local Language Block Guard
+- **Changes:** Skipped text-block candidates whose nearest local `lang` declaration is non-English, even when the page itself declares English.
+- **Status:** Completed
+- **Next Steps:** Continue tightening mixed-language and readable-text capture quality before broadening content-script behavior.
+- **Context:** English page and element declarations still collect normally, while locally declared non-English sections no longer enter the English reading analytics pipeline.
