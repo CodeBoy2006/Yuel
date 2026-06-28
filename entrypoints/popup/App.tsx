@@ -41,6 +41,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [loadFailed, setLoadFailed] = useState(false);
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
+  const [enabledSitesLoaded, setEnabledSitesLoaded] = useState(false);
   const [enabledSitesFailed, setEnabledSitesFailed] = useState(false);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessDenied, setSiteAccessDenied] = useState(false);
@@ -107,6 +108,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
   const refreshEnabledSites = async () => {
     setEnabledSites(await dependencies.listEnabledSites());
+    setEnabledSitesLoaded(true);
     setEnabledSitesFailed(false);
   };
 
@@ -227,7 +229,9 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         </div>
         <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-900 p-3">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Enabled sites</p>
-          {enabledSites.length > 0 ? (
+          {!enabledSitesLoaded && !enabledSitesFailed ? (
+            <p className="text-sm text-neutral-500">Loading enabled sites</p>
+          ) : enabledSites.length > 0 ? (
             <div className="grid gap-2">
               {enabledSites.map((site) => (
                 <div key={site.origin} className="flex items-center justify-between gap-2">
@@ -243,7 +247,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
                 </div>
               ))}
             </div>
-          ) : (
+          ) : enabledSitesFailed ? null : (
             <p className="text-sm text-neutral-500">No custom sites enabled</p>
           )}
           {enabledSitesFailed ? <p className="mt-2 text-xs font-medium text-red-300">Enabled sites unavailable</p> : null}

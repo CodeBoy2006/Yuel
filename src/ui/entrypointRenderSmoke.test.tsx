@@ -121,6 +121,45 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Local data unavailable');
   });
 
+  it('does not show popup enabled-sites empty state while persisted sites are loading', async () => {
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites: () => new Promise(() => undefined),
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Loading enabled sites');
+    expect(container.textContent).not.toContain('No custom sites enabled');
+  });
+
   it('opens the side panel companion from the popup action', async () => {
     const openSidePanel = vi.fn(async () => undefined);
     const container = await renderForSmoke(
@@ -541,6 +580,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Enabled sites unavailable');
     expect(container.textContent).toContain('example.com');
     expect(container.textContent).toContain('Yuel can collect reading events on this site');
+    expect(container.textContent).not.toContain('No custom sites enabled');
     expect(container.textContent).not.toContain('Permission status unavailable');
   });
 

@@ -915,3 +915,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard UX states for the local-first MVP loop.
 - **Context:** Recent pages, vocabulary exposure, and saved selections no longer show empty-state copy while the dashboard is still loading local data.
+
+## [2026-06-28 16:31] Popup Enabled Sites Loading State
+- **Changes:** Added an explicit enabled-sites loading state in the popup and kept failure copy separate from true empty-state copy.
+- **Status:** Completed
+- **Next Steps:** Continue tightening permission-state UX for the local-first MVP loop.
+- **Context:** The popup no longer shows "No custom sites enabled" before persisted site access records have loaded or when that load fails.
