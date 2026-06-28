@@ -63,6 +63,13 @@ const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockHidden',
   'TextBlockExposureTick',
 ]);
+const PAYLOAD_FREE_READING_EVENT_KINDS = new Set<ReadingEventKind>([
+  'PageVisible',
+  'PageHidden',
+  'LookupTriggered',
+  'ChunkSaved',
+  'PageExcluded',
+]);
 
 export function isReadingEventBatchMessage(message: unknown): message is ReadingEventBatchMessage {
   return (
@@ -232,11 +239,11 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     return isObject(value) && isNonNegativeFiniteNumber(value.idleMs);
   }
 
-  if (kind === 'PageVisible' || kind === 'PageHidden') {
+  if (PAYLOAD_FREE_READING_EVENT_KINDS.has(kind)) {
     return value === undefined;
   }
 
-  return true;
+  return false;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

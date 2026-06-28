@@ -687,3 +687,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening page identity and local aggregate boundaries before broadening user-facing MVP flows.
 - **Context:** The MVP collector and analysis pipeline are English-only, so malformed batches can no longer store non-English page records while still running English tokenization and Pack matching.
+
+## [2026-06-28 13:11] Future Event Payload Guard
+- **Changes:** Rejected payload objects on currently unshaped `LookupTriggered`, `ChunkSaved`, and `PageExcluded` reading events.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event payload schemas before broadening user-facing MVP flows.
+- **Context:** These event kinds are not emitted by the current collector, so they remain payload-free until a concrete privacy-preserving schema is implemented.
