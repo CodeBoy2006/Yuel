@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { hashText } from '../domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchPayload } from '../messaging/contracts';
 import { handleReadingRuntimeMessage } from './readingMessage';
+
+const chunkText = 'Runtime failures should remain visible to the content collector retry loop.';
 
 const payload: ReadingEventBatchPayload = {
   page: {
@@ -17,8 +20,8 @@ const payload: ReadingEventBatchPayload = {
     {
       chunkId: 'chunk-1',
       pageId: 'page-1',
-      textHash: 'chunk-text',
-      text: 'Runtime failures should remain visible to the content collector retry loop.',
+      textHash: hashText(chunkText),
+      text: chunkText,
       wordCount: 12,
       sentenceCount: 1,
       selector: 'p#guide',

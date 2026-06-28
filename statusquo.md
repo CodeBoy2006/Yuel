@@ -645,3 +645,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local page and chunk snapshot consistency.
 - **Context:** The content collector filters out tiny text blocks before batching, so malformed messages with sub-threshold chunks no longer enter local storage or aggregate processing.
+
+## [2026-06-28 12:26] Chunk Text Hash Guard
+- **Changes:** Rejected chunk snapshots whose optional raw `text` does not match the supplied `textHash`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local page and chunk snapshot identity consistency.
+- **Context:** Collector-emitted chunks derive `textHash` from normalized text, so malformed messages can no longer pair one raw text body with another hash identity.

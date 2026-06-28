@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { hashText } from '../domain/events';
 import { isReadingEventBatchMessage, MESSAGE_TYPES, type ReadingEventBatchMessage } from './contracts';
+
+const validChunkText = 'Mitigate memory overhead and fail gracefully during rollout.';
 
 const validMessage: ReadingEventBatchMessage = {
   type: MESSAGE_TYPES.readingEventsBatch,
@@ -18,8 +21,8 @@ const validMessage: ReadingEventBatchMessage = {
       {
         chunkId: 'chunk-1',
         pageId: 'page-1',
-        textHash: 'chunk-text',
-        text: 'Mitigate memory overhead and fail gracefully during rollout.',
+        textHash: hashText(validChunkText),
+        text: validChunkText,
         wordCount: 8,
         sentenceCount: 1,
         selector: 'p',
@@ -221,6 +224,23 @@ describe('isReadingEventBatchMessage', () => {
         payload: {
           ...validMessage.payload,
           chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects chunk text whose hash does not match its text snapshot', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [
+            {
+              ...validMessage.payload.chunks[0],
+              text: 'Architecture performance guides keep local extension telemetry private.',
+            },
+          ],
         },
       }),
     ).toBe(false);
