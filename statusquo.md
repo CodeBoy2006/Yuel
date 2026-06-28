@@ -945,3 +945,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue reviewing Budgeted Exposure Model gaps around interaction confidence signals, quote candidates, and adaptive WPM.
 - **Context:** Short UI-like elements under the minimum word threshold are still skipped at the source element level, while long paragraphs can now produce multiple stable `TextViewportExposureTick.visibleChunks` entries instead of one oversized chunk.
+
+## [2026-06-28 19:41] Raw Exposure For Capped Chunks
+- **Changes:** Separated chunk raw-exposure aggregation from effective budget allocation so capped visible chunks still receive chunk and chunk-day raw exposure when other visible chunks receive effective words.
+- **Status:** Completed
+- **Next Steps:** Continue reviewing Budgeted Exposure Model gaps around interaction confidence signals, quote candidates, and adaptive WPM.
+- **Context:** `rawExposureMs` now follows viewport visibility, while `effectiveWords`, `newWords`, `reviewWords`, and `effectiveReadingMs` still follow the budget allocator and session/day/lifetime caps.

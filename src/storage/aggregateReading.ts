@@ -138,17 +138,18 @@ export function summarizeReadingEventBatch(
     totalEffectiveReadingMs += estimate.effectiveReadingMs;
     pageEffectiveWords += estimate.allocatedWords;
 
+    recordVisibleChunkRawExposure(chunkUpdates, chunkDayUpdates, date, visibleChunks, estimate.rawExposureMs, estimate.confidenceScore);
+
     for (const chunkEstimate of estimate.chunkEstimates) {
       const existingUpdate = chunkUpdates.get(chunkEstimate.chunkId);
       const nextEffectiveWords = (existingUpdate?.effectiveWords ?? 0) + chunkEstimate.effectiveWords;
-      const nextRawExposureMs = (existingUpdate?.rawExposureMs ?? 0) + estimate.rawExposureMs;
       const nextEffectiveReadingMs = (existingUpdate?.effectiveReadingMs ?? 0) + chunkEstimate.effectiveReadingMs;
       const nextNewWords = (existingUpdate?.newWords ?? 0) + chunkEstimate.newWords;
       const nextReviewWords = (existingUpdate?.reviewWords ?? 0) + chunkEstimate.reviewWords;
 
       chunkUpdates.set(chunkEstimate.chunkId, {
         chunkId: chunkEstimate.chunkId,
-        rawExposureMs: nextRawExposureMs,
+        rawExposureMs: existingUpdate?.rawExposureMs ?? 0,
         effectiveReadingMs: nextEffectiveReadingMs,
         effectiveWords: nextEffectiveWords,
         newWords: nextNewWords,
@@ -169,7 +170,7 @@ export function summarizeReadingEventBatch(
       chunkDayUpdates.set(chunkDayUpdateKey, {
         date,
         chunkId: chunkEstimate.chunkId,
-        rawExposureMs: (existingChunkDayUpdate?.rawExposureMs ?? 0) + estimate.rawExposureMs,
+        rawExposureMs: existingChunkDayUpdate?.rawExposureMs ?? 0,
         effectiveReadingMs: (existingChunkDayUpdate?.effectiveReadingMs ?? 0) + chunkEstimate.effectiveReadingMs,
         effectiveWords: (existingChunkDayUpdate?.effectiveWords ?? 0) + chunkEstimate.effectiveWords,
         newWords: (existingChunkDayUpdate?.newWords ?? 0) + chunkEstimate.newWords,
@@ -203,6 +204,40 @@ export function summarizeReadingEventBatch(
     dailyUpdates: Array.from(dailyUpdates.values()),
     chunkDayUpdates: Array.from(chunkDayUpdates.values()),
   };
+}
+
+function recordVisibleChunkRawExposure(
+  chunkUpdates: Map<string, ChunkReadingUpdate>,
+  chunkDayUpdates: Map<string, ChunkDayReadingUpdate>,
+  date: string,
+  visibleChunks: VisibleChunkBudgetInput[],
+  rawExposureMs: number,
+  confidence: number,
+): void {
+  for (const chunk of visibleChunks) {
+    const existingUpdate = chunkUpdates.get(chunk.chunkId);
+    chunkUpdates.set(chunk.chunkId, {
+      chunkId: chunk.chunkId,
+      rawExposureMs: (existingUpdate?.rawExposureMs ?? 0) + rawExposureMs,
+      effectiveReadingMs: existingUpdate?.effectiveReadingMs ?? 0,
+      effectiveWords: existingUpdate?.effectiveWords ?? 0,
+      newWords: existingUpdate?.newWords ?? 0,
+      reviewWords: existingUpdate?.reviewWords ?? 0,
+      confidence: existingUpdate?.confidence ?? confidence,
+    });
+
+    const chunkDayUpdateKey = `${date}:${chunk.chunkId}`;
+    const existingChunkDayUpdate = chunkDayUpdates.get(chunkDayUpdateKey);
+    chunkDayUpdates.set(chunkDayUpdateKey, {
+      date,
+      chunkId: chunk.chunkId,
+      rawExposureMs: (existingChunkDayUpdate?.rawExposureMs ?? 0) + rawExposureMs,
+      effectiveReadingMs: existingChunkDayUpdate?.effectiveReadingMs ?? 0,
+      effectiveWords: existingChunkDayUpdate?.effectiveWords ?? 0,
+      newWords: existingChunkDayUpdate?.newWords ?? 0,
+      reviewWords: existingChunkDayUpdate?.reviewWords ?? 0,
+    });
+  }
 }
 
 function cloneChunkStates(states: Map<string, ChunkReadingState> | undefined): Map<string, ChunkReadingState> {

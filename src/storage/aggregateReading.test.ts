@@ -159,4 +159,52 @@ describe('summarizeReadingEventBatch', () => {
     expect(summary.pageNewWords).toBeCloseTo(10, 6);
     expect(summary.pageReviewWords).toBeCloseTo(40, 6);
   });
+
+  it('records raw exposure for capped visible chunks when other chunks still receive effective allocation', () => {
+    const summary = summarizeReadingEventBatch(createPayload(), {
+      chunkStates: new Map([
+        [
+          'chunk-1',
+          {
+            sessionEffectiveWords: 120,
+            todayEffectiveWords: 120,
+            lifetimeEffectiveWords: 120,
+          },
+        ],
+      ]),
+    });
+
+    expect(summary.chunkUpdates).toEqual([
+      expect.objectContaining({
+        chunkId: 'chunk-1',
+        rawExposureMs: 60_000,
+        effectiveReadingMs: 0,
+        effectiveWords: 0,
+        newWords: 0,
+        reviewWords: 0,
+      }),
+      expect.objectContaining({
+        chunkId: 'chunk-2',
+        rawExposureMs: 60_000,
+        effectiveWords: 120,
+      }),
+    ]);
+    expect(summary.chunkDayUpdates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          chunkId: 'chunk-1',
+          rawExposureMs: 60_000,
+          effectiveReadingMs: 0,
+          effectiveWords: 0,
+        }),
+        expect.objectContaining({
+          chunkId: 'chunk-2',
+          rawExposureMs: 60_000,
+          effectiveWords: 120,
+        }),
+      ]),
+    );
+    expect(summary.pageEffectiveWords).toBeCloseTo(120, 6);
+    expect(summary.totalRawExposureMs).toBe(60_000);
+  });
 });
