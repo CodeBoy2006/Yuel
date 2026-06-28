@@ -879,3 +879,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
 - **Context:** Explicit saved selections with visible text still surface normally, while whitespace-only legacy records no longer make the dashboard appear populated.
+
+## [2026-06-28 15:16] Saved Item Text Normalization
+- **Changes:** Normalized saved-selection text in dashboard details by trimming and collapsing whitespace before display and summary-card generation.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
+- **Context:** Explicit saved selections keep their meaning, while legacy records with line breaks or repeated spaces now render as readable single-line text.

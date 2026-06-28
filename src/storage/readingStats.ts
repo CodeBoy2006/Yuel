@@ -182,7 +182,7 @@ export async function getReadingDashboardDetails(
     .filter(hasVisibleSavedItem)
     .map((item): RecentSavedItemSummary => ({
       id: item.id,
-      text: item.text,
+      text: normalizeSavedItemText(item.text),
       type: item.type,
       sourceDomain: normalizeDisplayDomain(item.sourceDomain),
       tags: item.tags,
@@ -210,11 +210,15 @@ function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
 }
 
 function hasVisibleSavedItem(item: SavedItemRecord): boolean {
-  return item.text.trim().length > 0;
+  return normalizeSavedItemText(item.text).length > 0;
 }
 
 function normalizeTopDomains(topDomains: string[]): string[] {
   return Array.from(new Set(topDomains.map((domain) => domain.trim()).filter(Boolean)));
+}
+
+function normalizeSavedItemText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeDisplayDomain(domain: string): string {

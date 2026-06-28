@@ -501,6 +501,28 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(false);
   });
 
+  it('normalizes saved selection text before dashboard display', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-spaced-text',
+            text: '  mitigate\n\nmemory\t\t overhead  ',
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems).toEqual([
+      expect.objectContaining({
+        id: 'saved-spaced-text',
+        text: 'mitigate memory overhead',
+      }),
+    ]);
+    expect(details.summaryCardText).toContain('Saved: mitigate memory overhead');
+  });
+
   it('normalizes blank saved selection source domains for dashboard display', async () => {
     const details = await getReadingDashboardDetails(
       createStore({
