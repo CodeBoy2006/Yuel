@@ -34,7 +34,7 @@ const validMessage: ReadingEventBatchMessage = {
     events: [
       {
         id: 'TextBlockExposureTick_event-1',
-        sessionId: 'session-1',
+        sessionId: 'session_1',
         pageId: validPageId,
         chunkId: validChunkId,
         kind: 'TextBlockExposureTick',
@@ -1101,6 +1101,38 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects session IDs that do not match the collector session shape', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              sessionId: 'manual-session-1',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              sessionId: 'session_',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects batches whose events move backward in time', () => {
     expect(
       isReadingEventBatchMessage({
@@ -1111,7 +1143,7 @@ describe('isReadingEventBatchMessage', () => {
             validMessage.payload.events[0],
             {
               ...validMessage.payload.events[0],
-              id: 'event-2',
+              id: 'TextBlockExposureTick_event-2',
               occurredAt: validMessage.payload.events[0].occurredAt - 1,
             },
           ],
@@ -1147,8 +1179,8 @@ describe('isReadingEventBatchMessage', () => {
             validMessage.payload.events[0],
             {
               ...validMessage.payload.events[0],
-              id: 'event-2',
-              sessionId: 'session-2',
+              id: 'TextBlockExposureTick_event-2',
+              sessionId: 'session_2',
             },
           ],
         },

@@ -861,3 +861,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
 - **Context:** Collector-shaped event IDs such as `TextBlockExposureTick_*` still pass, while kind/ID mismatches are rejected at the message contract boundary.
+
+## [2026-06-28 15:04] Reading Session ID Shape Guard
+- **Changes:** Required runtime reading event batches to use collector-shaped `session_*` IDs before entering local storage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
+- **Context:** Collector sessions still pass, while manual or empty `session_` values are rejected at the message contract boundary.

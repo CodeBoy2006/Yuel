@@ -301,7 +301,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
     'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.';
   const chunkAnalysis = analyzeEnglishText(chunkText);
   const chunkId = createChunkId(pageId, chunkText);
-  const sessionId = `browser_smoke_${now}`;
+  const sessionId = `session_browser_smoke_${now}`;
 
   return {
     page: {

@@ -181,6 +181,7 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
       isObject(value) &&
       isNonBlankString(value.id) &&
       isNonBlankString(value.sessionId) &&
+      hasCollectorSessionIdShape(value.sessionId) &&
       isNonBlankString(value.pageId) &&
       (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
       isNonBlankString(value.kind) &&
@@ -200,6 +201,10 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
 
 function hasMatchingEventIdKindPrefix(id: string, kind: ReadingEventKind): boolean {
   return id.startsWith(`${kind}_`);
+}
+
+function hasCollectorSessionIdShape(sessionId: string): boolean {
+  return sessionId.startsWith('session_') && sessionId.length > 'session_'.length;
 }
 
 function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {
