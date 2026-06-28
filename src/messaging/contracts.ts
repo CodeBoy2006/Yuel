@@ -185,6 +185,7 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
       (value.chunkId === undefined || isNonBlankString(value.chunkId)) &&
       isNonBlankString(value.kind) &&
       SUPPORTED_READING_EVENT_KINDS.has(value.kind as ReadingEventKind) &&
+      hasMatchingEventIdKindPrefix(value.id, value.kind as ReadingEventKind) &&
       isNonNegativeFiniteNumber(value.occurredAt) &&
       isNonBlankString(value.confidence) &&
       READING_CONFIDENCES.has(value.confidence as ReadingConfidence) &&
@@ -195,6 +196,10 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
   }
 
   return hasValidReadingEventValue(value.kind as ReadingEventKind, value.value);
+}
+
+function hasMatchingEventIdKindPrefix(id: string, kind: ReadingEventKind): boolean {
+  return id.startsWith(`${kind}_`);
 }
 
 function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {

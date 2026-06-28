@@ -326,7 +326,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
     ],
     events: [
       {
-        id: `browser_smoke_visible_${now}`,
+        id: `PageVisible_browser_smoke_visible_${now}`,
         sessionId,
         pageId,
         kind: 'PageVisible',
@@ -334,7 +334,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
         confidence: 'medium',
       },
       {
-        id: `browser_smoke_text_visible_${now}`,
+        id: `TextBlockVisible_browser_smoke_text_visible_${now}`,
         sessionId,
         pageId,
         chunkId,
@@ -347,7 +347,7 @@ function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload
         },
       },
       {
-        id: `browser_smoke_exposure_${now}`,
+        id: `TextBlockExposureTick_browser_smoke_exposure_${now}`,
         sessionId,
         pageId,
         chunkId,

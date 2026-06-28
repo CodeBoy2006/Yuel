@@ -34,7 +34,7 @@ const payload: ReadingEventBatchPayload = {
   ],
   events: [
     {
-      id: 'event-1',
+      id: 'TextBlockExposureTick_event-1',
       sessionId: 'session-1',
       pageId,
       chunkId,

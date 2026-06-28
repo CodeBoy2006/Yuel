@@ -855,3 +855,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening privacy-sensitive extraction boundaries and readable-text capture quality before broadening content-script behavior.
 - **Context:** Published page content still collects normally, while `contenteditable` and role-textbox regions are treated like forms and other non-reading UI.
+
+## [2026-06-28 15:00] Reading Event ID Kind Guard
+- **Changes:** Required reading event IDs to use a prefix matching their event kind before runtime batches enter local storage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
+- **Context:** Collector-shaped event IDs such as `TextBlockExposureTick_*` still pass, while kind/ID mismatches are rejected at the message contract boundary.

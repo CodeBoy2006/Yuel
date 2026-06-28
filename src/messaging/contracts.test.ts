@@ -33,7 +33,7 @@ const validMessage: ReadingEventBatchMessage = {
     ],
     events: [
       {
-        id: 'event-1',
+        id: 'TextBlockExposureTick_event-1',
         sessionId: 'session-1',
         pageId: validPageId,
         chunkId: validChunkId,
@@ -1077,6 +1077,23 @@ describe('isReadingEventBatchMessage', () => {
               chunkId: undefined,
               kind: 'PageVisible',
               value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects event IDs whose kind prefix does not match the event kind', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              id: 'PageVisible_event-1',
             },
           ],
         },
