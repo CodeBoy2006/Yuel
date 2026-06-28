@@ -759,3 +759,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector lifecycle ordering and end-to-end local reading accuracy.
 - **Context:** Resumed block visibility now follows the page-visible lifecycle event, keeping raw local event streams chronologically coherent.
+
+## [2026-06-28 14:00] Ignored Vocabulary Dashboard Guard
+- **Changes:** Omitted ignored vocabulary memories from dashboard vocabulary details and summary-card data.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around user vocabulary status.
+- **Context:** Explicit saves already reactivate ignored words as learning, so still-ignored memories should stay out of user-facing vocabulary surfaces.

@@ -204,7 +204,7 @@ function hasMeasuredReading(page: PageRecord): boolean {
 }
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
-  return vocab.effectiveSeenCount > 0 || vocab.savedCount > 0;
+  return vocab.userStatus !== 'ignored' && (vocab.effectiveSeenCount > 0 || vocab.savedCount > 0);
 }
 
 function normalizeTopDomains(topDomains: string[]): string[] {

@@ -405,6 +405,26 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(false);
   });
 
+  it('omits ignored vocabulary memories from dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({
+            lemma: 'dismissed',
+            effectiveSeenCount: 4,
+            savedCount: 1,
+            userStatus: 'ignored',
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([]);
+    expect(details.summaryCardText).not.toContain('dismissed');
+    expect(details.hasData).toBe(false);
+  });
+
   it('shows saved-only vocabulary memory as dashboard data', async () => {
     const details = await getReadingDashboardDetails(
       createStore({
