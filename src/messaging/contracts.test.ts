@@ -392,6 +392,46 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects page lifecycle events with unexpected payloads', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'PageVisible',
+              value: {
+                visible: true,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'PageHidden',
+              value: {
+                reason: 'visibilitychange',
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({

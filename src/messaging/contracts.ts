@@ -169,6 +169,10 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     return isObject(value) && isNonNegativeFiniteNumber(value.idleMs);
   }
 
+  if (kind === 'PageVisible' || kind === 'PageHidden') {
+    return value === undefined;
+  }
+
   return true;
 }
 

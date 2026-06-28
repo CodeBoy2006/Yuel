@@ -561,3 +561,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
 - **Context:** Malformed activity telemetry no longer enters the raw reading-event stream without usable idle-duration metadata.
+
+## [2026-06-28 11:28] Page Lifecycle Payload Guard
+- **Changes:** Rejected unexpected `value` payloads on `PageVisible` and `PageHidden` events at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
+- **Context:** Page lifecycle events now match the collector's payload-free shape instead of accepting arbitrary raw event metadata.
