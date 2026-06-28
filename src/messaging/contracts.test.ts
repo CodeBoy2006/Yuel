@@ -637,6 +637,26 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects duplicate event IDs in a batch', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            validMessage.payload.events[0],
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'PageVisible',
+              value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({

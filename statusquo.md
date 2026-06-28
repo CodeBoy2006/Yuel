@@ -585,3 +585,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local batch identity hygiene and remaining reading event payload boundaries.
 - **Context:** Ambiguous chunk snapshots no longer reach Map-based aggregation or IndexedDB `textChunks` primary-key writes.
+
+## [2026-06-28 11:45] Duplicate Event ID Guard
+- **Changes:** Rejected reading batches containing duplicate event IDs before local storage deduplication and aggregate processing.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local batch identity hygiene and remaining reading event payload boundaries.
+- **Context:** Ambiguous event batches no longer rely on repository-level duplicate filtering to decide which raw events contribute to aggregates.
