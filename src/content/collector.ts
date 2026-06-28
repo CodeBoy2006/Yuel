@@ -250,6 +250,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const onSelectionChange = () => {
+    if (pageHidden) {
+      return;
+    }
+
     const text = document.getSelection()?.toString().trim();
     if (!text) return;
 

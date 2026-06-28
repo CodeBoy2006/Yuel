@@ -723,3 +723,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
 - **Context:** Scroll telemetry now stays tied to visible reading sessions instead of background or hidden-page movement.
+
+## [2026-06-28 13:33] Hidden Tab Selection Guard
+- **Changes:** Ignored selection telemetry while a tab is hidden so hidden-page selection changes cannot emit `TextSelected` events.
+- **Status:** Completed
+- **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
+- **Context:** Passive selection telemetry stays tied to visible reading sessions; explicit context-menu saves remain handled separately by the background save-selection flow.

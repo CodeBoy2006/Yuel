@@ -257,6 +257,34 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('ignores selection telemetry while a tab remains hidden', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    vi.spyOn(document, 'getSelection').mockReturnValue({
+      toString: () => 'hidden selected text',
+    } as Selection);
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      setDocumentVisibility('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      document.dispatchEvent(new Event('selectionchange'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
