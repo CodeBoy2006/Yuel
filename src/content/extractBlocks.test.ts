@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { collectTextBlocks } from './extractBlocks';
+import { collectTextBlocks, summarizeCurrentPage } from './extractBlocks';
 
 function visibleRect(): DOMRect {
   return {
@@ -19,6 +19,7 @@ function visibleRect(): DOMRect {
 describe('collectTextBlocks', () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(visibleRect());
+    document.documentElement.lang = '';
     document.body.innerHTML = '';
   });
 
@@ -128,5 +129,13 @@ describe('collectTextBlocks', () => {
       selector: 'p#article',
       text: 'Visible documentation content should remain the only captured reading block here.',
     });
+  });
+
+  it('reports declared non-English page language in page snapshots', () => {
+    document.documentElement.lang = 'fr-FR';
+
+    const page = summarizeCurrentPage(document, []);
+
+    expect(page.language).toBe('fr');
   });
 });

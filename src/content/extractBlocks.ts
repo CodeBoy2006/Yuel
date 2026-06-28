@@ -48,7 +48,7 @@ export function summarizeCurrentPage(
     domain: doc.location.hostname.replace(/^www\./, ''),
     titleHash: hashText(doc.title),
     urlHash: hashText(url),
-    language: 'en',
+    language: normalizePageLanguage(doc.documentElement.lang),
     totalWords: blocks.reduce((sum, block) => sum + block.wordCount, 0),
     capturedAt: Date.now(),
   };
@@ -122,4 +122,9 @@ function describeElement(element: HTMLElement): string {
 
 function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function normalizePageLanguage(language: string): string {
+  const primaryLanguage = language.trim().toLowerCase().split(/[-_]/)[0];
+  return primaryLanguage || 'en';
 }

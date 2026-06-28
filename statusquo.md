@@ -831,3 +831,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening readable-text capture quality before broadening content-script behavior.
 - **Context:** Primary extraction now skips navigation, banner, complementary, contentinfo, dialog, search, hidden, and inert wrappers even when their paragraphs match `main` or docs selectors.
+
+## [2026-06-28 14:45] Declared Page Language Guard
+- **Changes:** Derived page snapshot language from the document's declared HTML language instead of always reporting English.
+- **Status:** Completed
+- **Next Steps:** Continue tightening English-only collector boundaries before broadening content-script behavior.
+- **Context:** English variants still normalize to `en`, blank declarations default to `en`, and declared non-English pages now produce non-English snapshots that the existing message contract rejects before storage.
