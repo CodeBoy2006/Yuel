@@ -37,6 +37,10 @@ const validMessage: ReadingEventBatchMessage = {
         value: {
           dwellMs: 30_000,
           visibleRatio: 1,
+          wordCount: 6,
+          activeTab: true,
+          scrollSpeedWordsPerMinute: 180,
+          idle: false,
         },
       },
     ],
@@ -161,6 +165,73 @@ describe('isReadingEventBatchMessage', () => {
               value: {
                 dwellMs: 0,
                 visibleRatio: 1,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects exposure ticks without collector-shaped reading metadata', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                wordCount: 6,
+                activeTab: 'yes',
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                wordCount: 6,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: -1,
+                idle: false,
               },
             },
           ],

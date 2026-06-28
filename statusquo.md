@@ -567,3 +567,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
 - **Context:** Page lifecycle events now match the collector's payload-free shape instead of accepting arbitrary raw event metadata.
+
+## [2026-06-28 11:33] Exposure Tick Payload Shape Guard
+- **Changes:** Required `TextBlockExposureTick` events to carry collector-shaped reading metadata: positive `wordCount`, boolean `activeTab`, nonnegative scroll speed, and boolean `idle`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
+- **Context:** Exposure ticks now match the local collector and browser smoke payload shape before entering raw events and aggregate processing.

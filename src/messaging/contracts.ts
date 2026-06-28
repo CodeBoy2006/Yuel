@@ -140,7 +140,15 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
 
 function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {
   if (kind === 'TextBlockExposureTick') {
-    return isObject(value) && isPositiveFiniteNumber(value.dwellMs) && isUnitIntervalFiniteNumber(value.visibleRatio);
+    return (
+      isObject(value) &&
+      isPositiveFiniteNumber(value.dwellMs) &&
+      isUnitIntervalFiniteNumber(value.visibleRatio) &&
+      isPositiveFiniteNumber(value.wordCount) &&
+      isBoolean(value.activeTab) &&
+      isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute) &&
+      isBoolean(value.idle)
+    );
   }
 
   if (VISIBILITY_RATIO_READING_EVENT_KINDS.has(kind)) {
@@ -182,6 +190,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
 }
 
 function isNonBlankString(value: unknown): value is string {
