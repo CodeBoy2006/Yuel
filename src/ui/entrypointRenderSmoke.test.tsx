@@ -635,6 +635,23 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('Loading local data');
   });
 
+  it('does not show dashboard empty states while local reading details are loading', async () => {
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          getReadingDashboardDetails: () => new Promise(() => undefined),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Loading local data');
+    expect(container.textContent).not.toContain('No pages have been tracked yet.');
+    expect(container.textContent).not.toContain('No vocabulary exposure recorded yet.');
+    expect(container.textContent).not.toContain('No saved selections yet.');
+  });
+
   it('copies the dashboard share card text through injected clipboard service', async () => {
     const copyTextToClipboard = vi.fn(async () => undefined);
     const summaryCardText =

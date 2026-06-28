@@ -66,6 +66,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const pagesTodayValue = loadFailed ? 'Unavailable' : summary ? String(summary.readPages) : '...';
   const learningWordsValue = loadFailed ? 'Unavailable' : summary ? String(summary.learningWords) : '...';
   const shareCardText = loadFailed ? 'Local data unavailable' : details?.summaryCardText ?? 'Loading local data';
+  const detailPanelFallbackText = loadFailed ? 'Local data unavailable.' : 'Loading local data...';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
 
@@ -175,10 +176,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <section className="rounded-md border border-stone-200 bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Recent pages</h2>
-            <span className="text-sm text-stone-500">{details?.recentPages.length ?? 0} tracked</span>
+            <span className="text-sm text-stone-500">{details ? `${details.recentPages.length} tracked` : '...'}</span>
           </div>
           <div className="mt-4 grid gap-3">
-            {details?.recentPages.length ? (
+            {!details ? (
+              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+            ) : details.recentPages.length ? (
               details.recentPages.map((page) => (
                 <div key={page.pageId} className="rounded-md border border-stone-200 p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -199,10 +202,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <section className="rounded-md border border-stone-200 bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Vocabulary exposure</h2>
-            <span className="text-sm text-stone-500">{details?.recentVocabulary.length ?? 0} terms</span>
+            <span className="text-sm text-stone-500">{details ? `${details.recentVocabulary.length} terms` : '...'}</span>
           </div>
           <div className="mt-4 grid gap-2">
-            {details?.recentVocabulary.length ? (
+            {!details ? (
+              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+            ) : details.recentVocabulary.length ? (
               details.recentVocabulary.map((vocab) => (
                 <div key={vocab.lemma} className="rounded-md border border-stone-200 p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -269,10 +274,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <section className="rounded-md border border-stone-200 bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Saved selections</h2>
-            <span className="text-sm text-stone-500">{details?.recentSavedItems.length ?? 0} saved</span>
+            <span className="text-sm text-stone-500">{details ? `${details.recentSavedItems.length} saved` : '...'}</span>
           </div>
           <div className="mt-4 grid gap-3">
-            {details?.recentSavedItems.length ? (
+            {!details ? (
+              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+            ) : details.recentSavedItems.length ? (
               details.recentSavedItems.map((item) => (
                 <div key={item.id} className="rounded-md border border-stone-200 p-3">
                   <div className="flex items-center justify-between gap-3">

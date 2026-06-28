@@ -909,3 +909,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around malformed local records before broadening MVP behavior.
 - **Context:** Effective or saved vocabulary records with blank lemma text no longer make the dashboard appear populated, while spaced lemmas render consistently in lists and share-card text.
+
+## [2026-06-28 16:27] Dashboard Loading Placeholders
+- **Changes:** Rendered loading or unavailable placeholders in dashboard detail panels until local reading details are available.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard UX states for the local-first MVP loop.
+- **Context:** Recent pages, vocabulary exposure, and saved selections no longer show empty-state copy while the dashboard is still loading local data.
