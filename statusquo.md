@@ -633,3 +633,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local page and chunk snapshot consistency.
 - **Context:** The content collector derives page totals from collected text chunks, so malformed batches can no longer store page records with conflicting total-word counts.
+
+## [2026-06-28 12:16] Chunk Sentence Count Guard
+- **Changes:** Rejected chunk snapshots without positive `sentenceCount` values at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local page and chunk snapshot consistency.
+- **Context:** Collector-emitted chunks come from nonblank visible text and carry at least one sentence segment, so malformed snapshots with zero sentences no longer enter local storage.

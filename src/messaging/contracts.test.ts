@@ -163,6 +163,18 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects chunks without positive sentence counts', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 0 }],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects optional chunk text that is blank or not trimmed', () => {
     expect(
       isReadingEventBatchMessage({

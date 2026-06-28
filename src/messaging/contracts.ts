@@ -143,7 +143,7 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.textHash) &&
     (value.text === undefined || isNonBlankString(value.text)) &&
     isNonNegativeFiniteNumber(value.wordCount) &&
-    isNonNegativeFiniteNumber(value.sentenceCount) &&
+    isPositiveFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)
   );
 }
