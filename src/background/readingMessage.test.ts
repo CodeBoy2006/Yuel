@@ -1,14 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { hashText } from '../domain/events';
+import { createChunkId, hashText } from '../domain/events';
 import { MESSAGE_TYPES, type ReadingEventBatchPayload } from '../messaging/contracts';
 import { handleReadingRuntimeMessage } from './readingMessage';
 
+const pageId = 'page-1';
 const chunkText = 'Runtime failures should remain visible to the content collector retry loop.';
+const chunkId = createChunkId(pageId, chunkText);
 
 const payload: ReadingEventBatchPayload = {
   page: {
-    pageId: 'page-1',
+    pageId,
     domain: 'docs.example.com',
     titleHash: 'title',
     urlHash: 'url',
@@ -18,8 +20,8 @@ const payload: ReadingEventBatchPayload = {
   },
   chunks: [
     {
-      chunkId: 'chunk-1',
-      pageId: 'page-1',
+      chunkId,
+      pageId,
       textHash: hashText(chunkText),
       text: chunkText,
       wordCount: 12,
@@ -31,8 +33,8 @@ const payload: ReadingEventBatchPayload = {
     {
       id: 'event-1',
       sessionId: 'session-1',
-      pageId: 'page-1',
-      chunkId: 'chunk-1',
+      pageId,
+      chunkId,
       kind: 'TextBlockExposureTick',
       occurredAt: Date.UTC(2026, 5, 27, 12, 0, 1),
       confidence: 'high',

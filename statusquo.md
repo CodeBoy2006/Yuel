@@ -651,3 +651,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local page and chunk snapshot identity consistency.
 - **Context:** Collector-emitted chunks derive `textHash` from normalized text, so malformed messages can no longer pair one raw text body with another hash identity.
+
+## [2026-06-28 12:31] Chunk ID Text Guard
+- **Changes:** Rejected chunk snapshots whose optional raw `text` does not match the supplied collector-style `chunkId`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local page and chunk snapshot identity consistency.
+- **Context:** Collector-emitted chunks derive `chunkId` from `pageId` and normalized text, so malformed messages can no longer attach reading events to a stale chunk identity.

@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { hashText } from '../domain/events';
+import { createChunkId, hashText } from '../domain/events';
 import { isReadingEventBatchMessage, MESSAGE_TYPES, type ReadingEventBatchMessage } from './contracts';
 
+const validPageId = 'page-1';
 const validChunkText = 'Mitigate memory overhead and fail gracefully during rollout.';
+const validChunkId = createChunkId(validPageId, validChunkText);
 
 const validMessage: ReadingEventBatchMessage = {
   type: MESSAGE_TYPES.readingEventsBatch,
   payload: {
     page: {
-      pageId: 'page-1',
+      pageId: validPageId,
       domain: 'example.com',
       titleHash: 'title',
       urlHash: 'url',
@@ -19,8 +21,8 @@ const validMessage: ReadingEventBatchMessage = {
     },
     chunks: [
       {
-        chunkId: 'chunk-1',
-        pageId: 'page-1',
+        chunkId: validChunkId,
+        pageId: validPageId,
         textHash: hashText(validChunkText),
         text: validChunkText,
         wordCount: 8,
@@ -32,8 +34,8 @@ const validMessage: ReadingEventBatchMessage = {
       {
         id: 'event-1',
         sessionId: 'session-1',
-        pageId: 'page-1',
-        chunkId: 'chunk-1',
+        pageId: validPageId,
+        chunkId: validChunkId,
         kind: 'TextBlockExposureTick',
         occurredAt: Date.UTC(2026, 5, 27, 12, 0, 10),
         confidence: 'high',
@@ -241,6 +243,19 @@ describe('isReadingEventBatchMessage', () => {
               text: 'Architecture performance guides keep local extension telemetry private.',
             },
           ],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects chunk text whose chunk id does not match its text snapshot', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], chunkId: 'stale-chunk-id' }],
+          events: [{ ...validMessage.payload.events[0], chunkId: 'stale-chunk-id' }],
         },
       }),
     ).toBe(false);

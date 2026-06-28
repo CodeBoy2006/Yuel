@@ -1,4 +1,12 @@
-import { hashText, type PageSnapshot, type ReadingConfidence, type ReadingEvent, type ReadingEventKind, type TextChunkSnapshot } from '../domain/events';
+import {
+  createChunkId,
+  hashText,
+  type PageSnapshot,
+  type ReadingConfidence,
+  type ReadingEvent,
+  type ReadingEventKind,
+  type TextChunkSnapshot,
+} from '../domain/events';
 
 export const MESSAGE_TYPES = {
   readingEventsBatch: 'yuel.readingEvents.batch',
@@ -142,7 +150,10 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.chunkId) &&
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
-    (value.text === undefined || (isNonBlankString(value.text) && value.textHash === hashText(value.text))) &&
+    (value.text === undefined ||
+      (isNonBlankString(value.text) &&
+        value.textHash === hashText(value.text) &&
+        value.chunkId === createChunkId(value.pageId, value.text))) &&
     isFiniteNumberAtLeast(value.wordCount, MIN_TEXT_CHUNK_WORD_COUNT) &&
     isPositiveFiniteNumber(value.sentenceCount) &&
     isNonBlankString(value.selector)
