@@ -699,3 +699,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening implemented event schemas and user-facing MVP flows.
 - **Context:** Future event kinds remain in the domain type for planned features, but they cannot enter raw local event storage until their collectors and privacy-preserving payload schemas exist.
+
+## [2026-06-28 13:20] Hidden Tab Visibility Guard
+- **Changes:** Prevented the content collector from emitting an initial `PageVisible` event when it starts in a hidden tab; the event is now deferred until the tab becomes visible.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector lifecycle behavior and end-to-end local reading accuracy.
+- **Context:** Background-opened or hidden pages should not create misleading visible-reading lifecycle events before the user actually returns to the tab.

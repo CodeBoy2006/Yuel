@@ -47,16 +47,18 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
     scrollY: getCurrentScrollY(),
     sampledAt: Date.now(),
   };
-  const pendingEvents: ReadingEvent[] = [
-    {
-      id: createEventId('PageVisible'),
-      sessionId,
-      pageId: page.pageId,
-      kind: 'PageVisible',
-      occurredAt: Date.now(),
-      confidence: 'medium',
-    },
-  ];
+  const pendingEvents: ReadingEvent[] = pageHidden
+    ? []
+    : [
+        {
+          id: createEventId('PageVisible'),
+          sessionId,
+          pageId: page.pageId,
+          kind: 'PageVisible',
+          occurredAt: Date.now(),
+          confidence: 'medium',
+        },
+      ];
 
   const observer = new IntersectionObserver((entries) => {
     for (const entry of entries) {

@@ -121,6 +121,32 @@ describe('startReadingCollector', () => {
     controller.stop();
   });
 
+  it('does not emit PageVisible until a hidden tab becomes visible', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    setDocumentVisibility('hidden');
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+
+      setDocumentVisibility('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual([
+        expect.objectContaining({
+          kind: 'PageVisible',
+        }),
+      ]);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
