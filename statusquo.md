@@ -705,3 +705,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector lifecycle behavior and end-to-end local reading accuracy.
 - **Context:** Background-opened or hidden pages should not create misleading visible-reading lifecycle events before the user actually returns to the tab.
+
+## [2026-06-28 13:23] Hidden Tab Idle Guard
+- **Changes:** Prevented the content collector from emitting `UserIdle` activity while a tab remains hidden and restarted the idle window when the tab becomes visible.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector lifecycle behavior and end-to-end local reading accuracy.
+- **Context:** Hidden pages can stay open past the idle timeout without representing active reading, so idle telemetry is now tied to visible reading sessions.

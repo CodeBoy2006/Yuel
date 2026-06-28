@@ -121,7 +121,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const markUserIdle = (now: number) => {
-    if (userIdle) {
+    if (pageHidden || userIdle) {
       return;
     }
 
@@ -195,6 +195,8 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
     if (pageHidden) {
       pageHidden = false;
+      lastInteractionAt = Date.now();
+      resetIdleTimer();
       restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
       pendingEvents.push({
         id: createEventId('PageVisible'),
