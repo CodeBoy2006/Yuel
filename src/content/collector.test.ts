@@ -176,6 +176,55 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('ignores intersection updates while a tab remains hidden', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Hidden technical articles should not record visible reading exposure before the user returns.</p>
+      </article>
+    `;
+    setDocumentVisibility('hidden');
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+
+      setDocumentVisibility('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'PageVisible',
+          }),
+          expect.objectContaining({
+            kind: 'TextBlockVisible',
+          }),
+        ]),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `

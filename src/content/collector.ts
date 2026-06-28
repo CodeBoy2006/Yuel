@@ -61,6 +61,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       ];
 
   const observer = new IntersectionObserver((entries) => {
+    if (pageHidden) {
+      return;
+    }
+
     for (const entry of entries) {
       const block = blocks.find((candidate) => candidate.element === entry.target);
       if (!block) continue;

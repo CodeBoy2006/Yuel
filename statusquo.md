@@ -711,3 +711,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector lifecycle behavior and end-to-end local reading accuracy.
 - **Context:** Hidden pages can stay open past the idle timeout without representing active reading, so idle telemetry is now tied to visible reading sessions.
+
+## [2026-06-28 13:26] Hidden Tab Intersection Guard
+- **Changes:** Ignored IntersectionObserver visibility updates while a tab is hidden and restored visible block state from layout only after the tab becomes visible.
+- **Status:** Completed
+- **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
+- **Context:** Hidden pages can receive delayed observer callbacks, so visible-block and exposure telemetry now stays tied to actual visible reading sessions.
