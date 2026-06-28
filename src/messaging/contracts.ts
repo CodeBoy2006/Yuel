@@ -147,6 +147,15 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     return isObject(value) && isUnitIntervalFiniteNumber(value.visibleRatio);
   }
 
+  if (kind === 'TextSelected') {
+    return (
+      isObject(value) &&
+      isNonBlankString(value.textHash) &&
+      isPositiveFiniteNumber(value.characterCount) &&
+      value.text === undefined
+    );
+  }
+
   return true;
 }
 

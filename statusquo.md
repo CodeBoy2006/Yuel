@@ -543,3 +543,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Malformed visibility telemetry no longer enters the raw event stream with unusable or out-of-range visibility ratios.
+
+## [2026-06-28 11:19] Selection Telemetry Privacy Guard
+- **Changes:** Required `TextSelected` reading events to carry hashed selection metadata with a positive character count and rejected raw `text` payloads at the message contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and explicit saved-selection boundaries.
+- **Context:** Ordinary selection telemetry now enforces the README privacy posture: raw selected text only belongs in explicit saved-item records.

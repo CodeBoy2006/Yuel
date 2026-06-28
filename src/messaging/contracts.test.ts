@@ -226,6 +226,70 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects selection telemetry without positive hashed metadata', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'TextSelected',
+              value: {
+                characterCount: 12,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'TextSelected',
+              value: {
+                textHash: 'selection-hash',
+                characterCount: 0,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects raw text in selection telemetry', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'TextSelected',
+              value: {
+                text: 'private selected text',
+                textHash: 'selection-hash',
+                characterCount: 21,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({
