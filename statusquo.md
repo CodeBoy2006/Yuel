@@ -891,3 +891,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
 - **Context:** Valid saved-selection tags still surface in order, while malformed legacy tag arrays no longer create blank or repeated dashboard chips.
+
+## [2026-06-28 16:17] Saved Item Scan Window
+- **Changes:** Scanned beyond the five displayed saved selections so blank legacy records do not hide valid older saved selections from dashboard details.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
+- **Context:** Dashboard still displays at most five saved selections, but it now scans a wider recent window before filtering blank saved-item records.

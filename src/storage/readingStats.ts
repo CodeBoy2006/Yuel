@@ -105,6 +105,7 @@ const RECENT_PAGE_SCAN_LIMIT = 20;
 const RECENT_VOCABULARY_LIMIT = 8;
 const RECENT_VOCABULARY_SCAN_LIMIT = 20;
 const RECENT_SAVED_ITEM_LIMIT = 5;
+const RECENT_SAVED_ITEM_SCAN_LIMIT = 20;
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -152,7 +153,7 @@ export async function getReadingDashboardDetails(
     getTodayReadingSummary(store, now),
     store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
-    store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_LIMIT).toArray(),
+    store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
   ]);
 
   const recentPages = recentPageRecords
@@ -180,6 +181,7 @@ export async function getReadingDashboardDetails(
     }));
   const recentSavedItems = recentSavedItemRecords
     .filter(hasVisibleSavedItem)
+    .slice(0, RECENT_SAVED_ITEM_LIMIT)
     .map((item): RecentSavedItemSummary => ({
       id: item.id,
       text: normalizeSavedItemText(item.text),

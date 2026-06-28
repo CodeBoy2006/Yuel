@@ -11,7 +11,7 @@ function createStore({
   learningWords = 0,
   expectedRecentPageQueryLimit = 20,
   expectedRecentVocabularyQueryLimit = 20,
-  expectedRecentSavedItemQueryLimit = 5,
+  expectedRecentSavedItemQueryLimit = 20,
   recentPages = [],
   recentVocabulary = [],
   recentSavedItems = [],
@@ -499,6 +499,51 @@ describe('getReadingDashboardDetails', () => {
     expect(details.recentSavedItems).toEqual([]);
     expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
     expect(details.hasData).toBe(false);
+  });
+
+  it('scans past blank saved selections to show recent saved history', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        expectedRecentSavedItemQueryLimit: 20,
+        recentSavedItems: [
+          createSavedItemRecord({ id: 'blank-1', text: '   ', createdAt: morningOnJune27 + 5_000 }),
+          createSavedItemRecord({ id: 'blank-2', text: '\n\t', createdAt: morningOnJune27 + 4_000 }),
+          createSavedItemRecord({ id: 'blank-3', text: ' ', createdAt: morningOnJune27 + 3_000 }),
+          createSavedItemRecord({ id: 'blank-4', text: '  ', createdAt: morningOnJune27 + 2_000 }),
+          createSavedItemRecord({ id: 'blank-5', text: '', createdAt: morningOnJune27 + 1_000 }),
+          createSavedItemRecord({ id: 'saved-visible', text: 'mitigate memory overhead', createdAt: morningOnJune27 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems.map((item) => item.id)).toEqual(['saved-visible']);
+    expect(details.hasData).toBe(true);
+  });
+
+  it('limits dashboard recent saved selections to five visible records after scanning', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        expectedRecentSavedItemQueryLimit: 20,
+        recentSavedItems: [
+          createSavedItemRecord({ id: 'saved-1', createdAt: morningOnJune27 + 5_000 }),
+          createSavedItemRecord({ id: 'saved-2', createdAt: morningOnJune27 + 4_000 }),
+          createSavedItemRecord({ id: 'saved-3', createdAt: morningOnJune27 + 3_000 }),
+          createSavedItemRecord({ id: 'saved-4', createdAt: morningOnJune27 + 2_000 }),
+          createSavedItemRecord({ id: 'saved-5', createdAt: morningOnJune27 + 1_000 }),
+          createSavedItemRecord({ id: 'saved-6', createdAt: morningOnJune27 }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems.map((item) => item.id)).toEqual([
+      'saved-1',
+      'saved-2',
+      'saved-3',
+      'saved-4',
+      'saved-5',
+    ]);
   });
 
   it('normalizes saved selection text before dashboard display', async () => {
