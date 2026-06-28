@@ -74,10 +74,12 @@ function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBa
 function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[], events: ReadingEvent[]): boolean {
   const chunkIds = new Set(chunks.map((chunk) => chunk.chunkId));
   const eventIds = new Set(events.map((event) => event.id));
+  const eventSessionIds = new Set(events.map((event) => event.sessionId));
 
   return (
     chunkIds.size === chunks.length &&
     eventIds.size === events.length &&
+    eventSessionIds.size <= 1 &&
     chunks.every((chunk) => chunk.pageId === page.pageId) &&
     events.every((event) => {
       if (event.pageId !== page.pageId) {

@@ -597,3 +597,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
 - **Context:** Malformed batches can no longer write raw events or daily aggregates that imply reading activity before the page was captured.
+
+## [2026-06-28 11:51] Batch Session Guard
+- **Changes:** Rejected reading event batches that mix multiple `sessionId` values before local storage and aggregate processing.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
+- **Context:** Each content collector lifecycle emits one session, so mixed-session batches are now treated as malformed instead of merging distinct reading sessions.

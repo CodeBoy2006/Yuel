@@ -674,6 +674,25 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects batches that mix reading session IDs', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            validMessage.payload.events[0],
+            {
+              ...validMessage.payload.events[0],
+              id: 'event-2',
+              sessionId: 'session-2',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({
