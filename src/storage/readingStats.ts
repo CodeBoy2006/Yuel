@@ -178,14 +178,16 @@ export async function getReadingDashboardDetails(
       packTags: vocab.packTags,
       userStatus: vocab.userStatus,
     }));
-  const recentSavedItems = recentSavedItemRecords.map((item): RecentSavedItemSummary => ({
-    id: item.id,
-    text: item.text,
-    type: item.type,
-    sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-    tags: item.tags,
-    createdAt: item.createdAt,
-  }));
+  const recentSavedItems = recentSavedItemRecords
+    .filter(hasVisibleSavedItem)
+    .map((item): RecentSavedItemSummary => ({
+      id: item.id,
+      text: item.text,
+      type: item.type,
+      sourceDomain: normalizeDisplayDomain(item.sourceDomain),
+      tags: item.tags,
+      createdAt: item.createdAt,
+    }));
 
   const hasData = summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0;
 
@@ -205,6 +207,10 @@ function hasMeasuredReading(page: PageRecord): boolean {
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
   return vocab.userStatus !== 'ignored' && (vocab.effectiveSeenCount > 0 || vocab.savedCount > 0);
+}
+
+function hasVisibleSavedItem(item: SavedItemRecord): boolean {
+  return item.text.trim().length > 0;
 }
 
 function normalizeTopDomains(topDomains: string[]): string[] {

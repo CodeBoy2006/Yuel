@@ -483,6 +483,24 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(true);
   });
 
+  it('does not treat blank saved selections as dashboard data', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-blank-text',
+            text: '   ',
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems).toEqual([]);
+    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
+    expect(details.hasData).toBe(false);
+  });
+
   it('normalizes blank saved selection source domains for dashboard display', async () => {
     const details = await getReadingDashboardDetails(
       createStore({

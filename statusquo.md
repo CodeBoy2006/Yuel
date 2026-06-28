@@ -873,3 +873,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
 - **Context:** Collector-shaped IDs such as `TextBlockExposureTick_*` still pass, while bare kind prefixes like `TextBlockExposureTick_` are rejected before local storage writes.
+
+## [2026-06-28 15:12] Blank Saved Item Dashboard Guard
+- **Changes:** Omitted blank saved-selection records from dashboard details and summary-card data.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
+- **Context:** Explicit saved selections with visible text still surface normally, while whitespace-only legacy records no longer make the dashboard appear populated.
