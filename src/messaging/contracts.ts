@@ -210,7 +210,15 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
       return false;
     }
 
-    return kind !== 'TextBlockVisible' || value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO;
+    if (kind === 'TextBlockVisible') {
+      return value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO;
+    }
+
+    if (kind === 'TextBlockHidden') {
+      return value.visibleRatio < MIN_VISIBLE_BLOCK_RATIO;
+    }
+
+    return true;
   }
 
   if (kind === 'TextSelected') {

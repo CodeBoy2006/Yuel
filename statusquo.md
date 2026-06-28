@@ -777,3 +777,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
 - **Context:** Hidden or barely visible blocks can still emit `TextBlockHidden`, but visible-block events now match the collector's actual visibility threshold before entering raw local storage.
+
+## [2026-06-28 14:10] Hidden Block Threshold Contract Guard
+- **Changes:** Rejected `TextBlockHidden` events at or above the collector's 0.15 visibility threshold at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
+- **Context:** Hidden-block events now represent the below-threshold side of the collector split, while exposure ticks retain their existing bounded ratio semantics.

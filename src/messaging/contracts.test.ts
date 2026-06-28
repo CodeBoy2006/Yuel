@@ -566,6 +566,27 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects hidden block events at or above the collector visibility threshold', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'TextBlockHidden',
+              value: {
+                visibleRatio: 0.15,
+                wordCount: validMessage.payload.chunks[0].wordCount,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects chunk visibility events whose word counts differ from the linked chunk', () => {
     expect(
       isReadingEventBatchMessage({
