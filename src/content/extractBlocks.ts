@@ -21,8 +21,10 @@ const TEXT_BLOCK_SELECTOR = [
 const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body blockquote';
 const FALLBACK_EXCLUDED_ANCESTOR_SELECTOR = 'nav, header, footer, aside, form, dialog, [aria-hidden="true"]';
 
-export function summarizeCurrentPage(doc: Document = document): PageSnapshot {
-  const blocks = collectTextBlocks(doc);
+export function summarizeCurrentPage(
+  doc: Document = document,
+  blocks: TextChunkSnapshot[] = collectTextBlocks(doc),
+): PageSnapshot {
   const url = doc.location.href;
 
   return {

@@ -747,3 +747,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening lifecycle edge cases and end-to-end local reading accuracy.
 - **Context:** Stop-time raw events now preserve the same lifecycle ordering as visibility/pagehide flushes: visible exposure is recorded before the page is marked hidden.
+
+## [2026-06-28 13:52] Collector Snapshot Consistency Guard
+- **Changes:** Reused one collected text-block snapshot for both page totals and emitted chunk payloads in the content collector.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector-to-storage consistency and end-to-end local reading accuracy.
+- **Context:** Dynamic pages can change between DOM extraction passes, so page `totalWords` now stays aligned with the chunks sent in the same reading batch.

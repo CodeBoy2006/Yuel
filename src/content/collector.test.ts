@@ -147,6 +147,41 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('uses the same text snapshot for page totals and flushed chunks', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Dynamic pages should keep page word totals aligned with emitted chunk snapshots.</p>
+      </article>
+    `;
+    const hiddenRect = {
+      ...visibleRect(),
+      width: 0,
+      height: 0,
+    };
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementationOnce(visibleRect)
+      .mockReturnValue(hiddenRect);
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const batch = mocks.sendMessage.mock.calls[0][0];
+      const chunkWords = batch.payload.chunks.reduce(
+        (sum: number, chunk: { wordCount: number }) => sum + chunk.wordCount,
+        0,
+      );
+      expect(batch.payload.chunks).toHaveLength(1);
+      expect(batch.payload.page.totalWords).toBe(chunkWords);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('does not emit idle activity while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     setDocumentVisibility('hidden');
