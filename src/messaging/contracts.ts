@@ -84,6 +84,7 @@ function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBa
 
 function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[], events: ReadingEvent[]): boolean {
   const chunkIds = new Set(chunks.map((chunk) => chunk.chunkId));
+  const chunksById = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
   const eventIds = new Set(events.map((event) => event.id));
   const eventSessionIds = new Set(events.map((event) => event.sessionId));
 
@@ -106,7 +107,12 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       }
 
       if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
-        return event.chunkId !== undefined && chunkIds.has(event.chunkId);
+        if (event.chunkId === undefined || !chunkIds.has(event.chunkId)) {
+          return false;
+        }
+
+        const chunk = chunksById.get(event.chunkId);
+        return !VISIBILITY_RATIO_READING_EVENT_KINDS.has(event.kind) || event.value?.wordCount === chunk?.wordCount;
       }
 
       return false;

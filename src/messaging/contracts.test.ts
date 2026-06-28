@@ -370,6 +370,30 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects chunk visibility events whose word counts differ from the linked chunk', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 1,
+                wordCount: validMessage.payload.chunks[0].wordCount + 1,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects selection telemetry without positive hashed metadata', () => {
     expect(
       isReadingEventBatchMessage({

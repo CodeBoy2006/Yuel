@@ -621,3 +621,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event classification and remaining payload boundaries.
 - **Context:** Page lifecycle, scroll, activity, selection, lookup, and exclusion events now match the collector shape instead of borrowing a known text chunk link.
+
+## [2026-06-28 12:06] Chunk Event Word Count Guard
+- **Changes:** Rejected chunk visibility and exposure events whose payload `wordCount` differs from the linked chunk snapshot.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local text snapshot and event payload consistency.
+- **Context:** Collector-emitted chunk events report the same word count as their source chunk, so malformed messages can no longer skew effective-reading estimates with conflicting counts.
