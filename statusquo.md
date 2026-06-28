@@ -837,3 +837,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening English-only collector boundaries before broadening content-script behavior.
 - **Context:** English variants still normalize to `en`, blank declarations default to `en`, and declared non-English pages now produce non-English snapshots that the existing message contract rejects before storage.
+
+## [2026-06-28 14:50] Non-English Collector Start Guard
+- **Changes:** Prevented the content collector from starting observers, timers, and reading-event batches on pages that declare a non-English HTML language.
+- **Status:** Completed
+- **Next Steps:** Continue tightening English-only collector boundaries and readable-text capture before broadening MVP behavior.
+- **Context:** Blank language declarations still default to English, while declared `en-*` pages collect normally and declared non-English pages no-op before local text capture begins.

@@ -85,6 +85,7 @@ describe('startReadingCollector', () => {
     setDocumentVisibility('visible');
     setWindowScrollY(0);
     TestIntersectionObserver.instances = [];
+    document.documentElement.lang = '';
     document.body.innerHTML = '';
     document.title = 'Retryable reading page';
     mocks.sendMessage.mockReset();
@@ -141,6 +142,30 @@ describe('startReadingCollector', () => {
           kind: 'PageVisible',
         }),
       ]);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('does not start collection for declared non-English pages', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.documentElement.lang = 'fr-FR';
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Technical documentation should stay out of local English reading capture when the page declares another language.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
+
+    try {
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(TestIntersectionObserver.instances).toHaveLength(0);
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
     } finally {
       controller.stop();
       await flushPromises();

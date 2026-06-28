@@ -2,7 +2,12 @@ import { browser } from 'wxt/browser';
 
 import { createEventId, createSessionId, hashText, type ReadingEvent, type TextChunkSnapshot } from '../domain/events';
 import { MESSAGE_TYPES } from '../messaging/contracts';
-import { collectTextBlocks, summarizeCurrentPage, type TextBlockCandidate } from './extractBlocks';
+import {
+  collectTextBlocks,
+  getDocumentPrimaryLanguage,
+  summarizeCurrentPage,
+  type TextBlockCandidate,
+} from './extractBlocks';
 
 export interface CollectorController {
   stop: () => void;
@@ -31,6 +36,10 @@ interface ScrollVelocityMeasurement extends ScrollVelocitySample {
 }
 
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
+  if (getDocumentPrimaryLanguage(document) !== 'en') {
+    return createNoopCollectorController();
+  }
+
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
   const idleTimeoutMs = options.idleTimeoutMs ?? 45_000;
   const sessionId = createSessionId();
@@ -340,6 +349,12 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
         }
       });
     },
+  };
+}
+
+function createNoopCollectorController(): CollectorController {
+  return {
+    stop: () => undefined,
   };
 }
 

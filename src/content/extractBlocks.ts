@@ -48,17 +48,25 @@ export function summarizeCurrentPage(
     domain: doc.location.hostname.replace(/^www\./, ''),
     titleHash: hashText(doc.title),
     urlHash: hashText(url),
-    language: normalizePageLanguage(doc.documentElement.lang),
+    language: getDocumentPrimaryLanguage(doc),
     totalWords: blocks.reduce((sum, block) => sum + block.wordCount, 0),
     capturedAt: Date.now(),
   };
 }
 
 export function collectTextBlocks(doc: Document = document): TextBlockCandidate[] {
+  if (getDocumentPrimaryLanguage(doc) !== 'en') {
+    return [];
+  }
+
   const pageId = createPageId(doc.location.href);
   const primaryCandidates = collectCandidates(doc, pageId, TEXT_BLOCK_SELECTOR);
 
   return primaryCandidates.length > 0 ? primaryCandidates : collectCandidates(doc, pageId, FALLBACK_TEXT_BLOCK_SELECTOR);
+}
+
+export function getDocumentPrimaryLanguage(doc: Document = document): string {
+  return normalizePageLanguage(doc.documentElement.lang);
 }
 
 function collectCandidates(doc: Document, pageId: string, selector: string): TextBlockCandidate[] {
