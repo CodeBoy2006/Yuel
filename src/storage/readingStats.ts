@@ -176,7 +176,7 @@ export async function getReadingDashboardDetails(
       lookupCount: vocab.lookupCount,
       savedCount: vocab.savedCount,
       lastSeenAt: vocab.lastSeenAt,
-      packTags: vocab.packTags,
+      packTags: normalizeTags(vocab.packTags),
       userStatus: vocab.userStatus,
     }));
   const recentSavedItems = recentSavedItemRecords
@@ -187,7 +187,7 @@ export async function getReadingDashboardDetails(
       text: normalizeSavedItemText(item.text),
       type: item.type,
       sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-      tags: normalizeSavedItemTags(item.tags),
+      tags: normalizeTags(item.tags),
       createdAt: item.createdAt,
     }));
 
@@ -223,7 +223,7 @@ function normalizeSavedItemText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function normalizeSavedItemTags(tags: string[]): string[] {
+function normalizeTags(tags: string[]): string[] {
   return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
 }
 

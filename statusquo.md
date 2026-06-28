@@ -897,3 +897,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
 - **Context:** Dashboard still displays at most five saved selections, but it now scans a wider recent window before filtering blank saved-item records.
+
+## [2026-06-28 16:20] Vocabulary Pack Tag Normalization
+- **Changes:** Normalized vocabulary pack tags in dashboard details by trimming, dropping blanks, and removing duplicates through the shared tag helper.
+- **Status:** Completed
+- **Next Steps:** Continue tightening dashboard read-model boundaries around partial or stale local records.
+- **Context:** Vocabulary chips now follow the same dashboard hygiene as saved-selection tags, preventing blank chips and duplicate tag keys from malformed local records.

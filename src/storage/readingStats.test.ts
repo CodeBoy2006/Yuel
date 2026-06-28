@@ -457,6 +457,27 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(true);
   });
 
+  it('normalizes vocabulary pack tags before dashboard display', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentVocabulary: [
+          createVocabRecord({
+            lemma: 'resilience',
+            packTags: [' architecture ', '', 'architecture', '  performance  ', '   '],
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentVocabulary).toEqual([
+      expect.objectContaining({
+        lemma: 'resilience',
+        packTags: ['architecture', 'performance'],
+      }),
+    ]);
+  });
+
   it('loads recent saved selections as dashboard data', async () => {
     const details = await getReadingDashboardDetails(
       createStore({
