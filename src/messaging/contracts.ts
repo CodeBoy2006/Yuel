@@ -87,9 +87,11 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
   const chunksById = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
   const eventIds = new Set(events.map((event) => event.id));
   const eventSessionIds = new Set(events.map((event) => event.sessionId));
+  const totalChunkWords = chunks.reduce((sum, chunk) => sum + chunk.wordCount, 0);
 
   return (
     chunkIds.size === chunks.length &&
+    page.totalWords === totalChunkWords &&
     eventIds.size === events.length &&
     eventSessionIds.size <= 1 &&
     chunks.every((chunk) => chunk.pageId === page.pageId) &&

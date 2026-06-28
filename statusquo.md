@@ -627,3 +627,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local text snapshot and event payload consistency.
 - **Context:** Collector-emitted chunk events report the same word count as their source chunk, so malformed messages can no longer skew effective-reading estimates with conflicting counts.
+
+## [2026-06-28 12:11] Page Total Word Count Guard
+- **Changes:** Rejected reading batches whose page `totalWords` does not equal the sum of chunk `wordCount` values.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local page and chunk snapshot consistency.
+- **Context:** The content collector derives page totals from collected text chunks, so malformed batches can no longer store page records with conflicting total-word counts.

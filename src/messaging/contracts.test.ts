@@ -11,7 +11,7 @@ const validMessage: ReadingEventBatchMessage = {
       titleHash: 'title',
       urlHash: 'url',
       language: 'en',
-      totalWords: 120,
+      totalWords: 6,
       capturedAt: Date.UTC(2026, 5, 27, 12, 0, 0),
     },
     chunks: [
@@ -143,6 +143,21 @@ describe('isReadingEventBatchMessage', () => {
         payload: {
           ...validMessage.payload,
           events: [{ ...validMessage.payload.events[0], occurredAt: -1 }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects page total words that differ from the chunk word count total', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            totalWords: validMessage.payload.chunks[0].wordCount + 1,
+          },
         },
       }),
     ).toBe(false);
