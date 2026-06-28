@@ -165,7 +165,8 @@ function hasConsistentChunkTextSnapshot(value: Record<string, unknown>, pageId: 
   return (
     value.textHash === hashText(text) &&
     value.chunkId === createChunkId(pageId, text) &&
-    value.wordCount === analysis.wordCount
+    value.wordCount === analysis.wordCount &&
+    value.sentenceCount === analysis.sentenceCount
   );
 }
 

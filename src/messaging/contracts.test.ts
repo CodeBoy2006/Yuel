@@ -290,6 +290,18 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects chunk sentence counts that do not match the text snapshot analysis', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 2 }],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects exposure ticks without positive dwell time', () => {
     expect(
       isReadingEventBatchMessage({

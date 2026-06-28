@@ -663,3 +663,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local text snapshot metrics before broadening user-facing MVP flows.
 - **Context:** Collector-emitted chunks derive `wordCount` from `analyzeEnglishText`, so malformed batches can no longer inflate page totals, event word counts, or effective reading estimates with inconsistent text metrics.
+
+## [2026-06-28 12:51] Chunk Sentence Analysis Guard
+- **Changes:** Rejected chunk snapshots whose optional raw `text` analysis does not match the supplied `sentenceCount`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local text snapshot metrics before broadening user-facing MVP flows.
+- **Context:** Collector-emitted chunks derive `sentenceCount` from `analyzeEnglishText`, so malformed batches can no longer store inconsistent text metrics for local page and chunk records.
