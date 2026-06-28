@@ -19,7 +19,23 @@ const TEXT_BLOCK_SELECTOR = [
   'blockquote',
 ].join(',');
 const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body blockquote';
-const EXCLUDED_ANCESTOR_SELECTOR = 'nav, header, footer, aside, form, dialog, [aria-hidden="true"]';
+const EXCLUDED_ANCESTOR_SELECTOR = [
+  'nav',
+  'header',
+  'footer',
+  'aside',
+  'form',
+  'dialog',
+  '[aria-hidden="true"]',
+  '[hidden]',
+  '[inert]',
+  '[role="banner"]',
+  '[role="complementary"]',
+  '[role="contentinfo"]',
+  '[role="dialog"]',
+  '[role="navigation"]',
+  '[role="search"]',
+].join(',');
 
 export function summarizeCurrentPage(
   doc: Document = document,

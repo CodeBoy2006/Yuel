@@ -102,4 +102,31 @@ describe('collectTextBlocks', () => {
       text: 'Reading analytics should focus on visible article body text instead of page chrome.',
     });
   });
+
+  it('skips role-based and attribute-hidden page chrome in primary content selectors', () => {
+    document.body.innerHTML = `
+      <main>
+        <div role="navigation">
+          <p id="role-nav">Documentation home pricing integrations changelog roadmap company careers contact support.</p>
+        </div>
+        <div hidden>
+          <p id="hidden-attr">Hidden onboarding copy should not become local reading analytics text.</p>
+        </div>
+        <div inert>
+          <p id="inert">Inactive drawer copy should stay out of visible reading event capture.</p>
+        </div>
+        <article>
+          <p id="article">Visible documentation content should remain the only captured reading block here.</p>
+        </article>
+      </main>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      selector: 'p#article',
+      text: 'Visible documentation content should remain the only captured reading block here.',
+    });
+  });
 });

@@ -825,3 +825,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening readable-text capture quality before broadening content-script behavior.
 - **Context:** Paragraphs inside `aside`, page chrome, forms, dialogs, or `aria-hidden` containers are no longer collected just because they sit under `main` or other primary selectors.
+
+## [2026-06-28 14:41] Role-Based Extraction Ancestor Guard
+- **Changes:** Expanded non-reading ancestor exclusions to role-based page chrome and hidden/inert containers.
+- **Status:** Completed
+- **Next Steps:** Continue tightening readable-text capture quality before broadening content-script behavior.
+- **Context:** Primary extraction now skips navigation, banner, complementary, contentinfo, dialog, search, hidden, and inert wrappers even when their paragraphs match `main` or docs selectors.
