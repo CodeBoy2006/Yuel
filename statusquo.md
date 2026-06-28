@@ -573,3 +573,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
 - **Context:** Exposure ticks now match the local collector and browser smoke payload shape before entering raw events and aggregate processing.
+
+## [2026-06-28 11:37] Visibility Event Word Count Guard
+- **Changes:** Required `TextBlockVisible` and `TextBlockHidden` events to carry positive `wordCount` values alongside bounded `visibleRatio` values.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
+- **Context:** Text-block visibility events now match the collector payload shape before entering the raw reading-event stream.

@@ -152,7 +152,7 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
   }
 
   if (VISIBILITY_RATIO_READING_EVENT_KINDS.has(kind)) {
-    return isObject(value) && isUnitIntervalFiniteNumber(value.visibleRatio);
+    return isObject(value) && isUnitIntervalFiniteNumber(value.visibleRatio) && isPositiveFiniteNumber(value.wordCount);
   }
 
   if (kind === 'TextSelected') {

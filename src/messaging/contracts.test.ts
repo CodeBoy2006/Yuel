@@ -297,6 +297,45 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects visibility events without positive word counts', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'TextBlockVisible',
+              value: {
+                visibleRatio: 0.5,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'TextBlockHidden',
+              value: {
+                visibleRatio: 0,
+                wordCount: 0,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects selection telemetry without positive hashed metadata', () => {
     expect(
       isReadingEventBatchMessage({
