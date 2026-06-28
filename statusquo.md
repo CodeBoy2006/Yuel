@@ -951,3 +951,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue reviewing Budgeted Exposure Model gaps around interaction confidence signals, quote candidates, and adaptive WPM.
 - **Context:** `rawExposureMs` now follows viewport visibility, while `effectiveWords`, `newWords`, `reviewWords`, and `effectiveReadingMs` still follow the budget allocator and session/day/lifetime caps.
+
+## [2026-06-28 20:09] Adaptive WPM And Onboarding Calibration
+- **Changes:** Added local reading pace profiles, onboarding WPM calibration in the dashboard, adaptive high-confidence viewport-sample updates, and storage aggregation support for calibrated base WPM.
+- **Status:** Completed
+- **Next Steps:** Continue validating real-page calibration behavior against longer browsing sessions.
+- **Context:** Adaptive WPM uses raw viewport sample evidence rather than `effectiveWords / minutes`, and local data clearing now resets reading pace profiles with other local reading data.

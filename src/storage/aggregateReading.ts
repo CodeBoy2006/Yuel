@@ -10,6 +10,7 @@ export interface ChunkReadingState {
 export interface ReadingAggregationState {
   chunkStates?: Map<string, ChunkReadingState>;
   chunkDayStates?: Map<string, Map<string, ChunkDayReadingState>>;
+  baseWordsPerMinute?: number;
 }
 
 export interface ChunkDayReadingState {
@@ -126,7 +127,9 @@ export function summarizeReadingEventBatch(
 
     const estimate = allocateReadingBudget({
       tickMs,
-      baseWordsPerMinute: readPositiveNumber(value, 'baseWordsPerMinute') || DEFAULT_BASE_WORDS_PER_MINUTE,
+      baseWordsPerMinute:
+        readPositiveFiniteNumber(state.baseWordsPerMinute) ??
+        (readPositiveNumber(value, 'baseWordsPerMinute') || DEFAULT_BASE_WORDS_PER_MINUTE),
       isActiveTab: readBoolean(value, 'activeTab', true),
       isDocumentVisible: readBoolean(value, 'documentVisible', true),
       scrollSpeedWordsPerMinute: readNumber(value, 'scrollSpeedWordsPerMinute', 0),
@@ -342,6 +345,10 @@ function readNumber(value: Record<string, unknown> | undefined, key: string, fal
 
 function readPositiveNumber(value: Record<string, unknown> | undefined, key: string): number {
   return Math.max(0, readNumber(value, key, 0));
+}
+
+function readPositiveFiniteNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {

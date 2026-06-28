@@ -1,18 +1,41 @@
 import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
 import type { ReadingEvent } from '../domain/events';
 import { matchPackRules, type YuelPack } from '../domain/packs';
+import {
+  DEFAULT_READING_CONTENT_TYPE,
+  createReadingPaceProfileId,
+  normalizeReadingPaceLanguage,
+  resolveReadingPaceBaseWordsPerMinute,
+  updateAdaptiveReadingPaceProfile,
+  type AdaptiveReadingPaceSample,
+} from '../domain/readingPace';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import techEnglishPack from '../packs/tech-english.pack.json';
-import { db, type ChunkDayRecord, type ChunkSessionRecord, type PageRecord, type TextChunkRecord, type VocabExposureRecord } from './schema';
+import {
+  db,
+  type ChunkDayRecord,
+  type ChunkSessionRecord,
+  type PageRecord,
+  type ReadingPaceProfileRecord,
+  type TextChunkRecord,
+  type VocabExposureRecord,
+} from './schema';
 import { summarizeReadingEventBatch, type ChunkDayReadingState, type ChunkReadingState } from './aggregateReading';
 
 const ACTIVE_PACKS: YuelPack[] = [techEnglishPack as YuelPack];
 const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
+const MIN_ADAPTIVE_PAGE_WORDS = 250;
+const MIN_ADAPTIVE_SAMPLE_WORDS = 80;
+const MIN_ADAPTIVE_ENGAGED_MS = 20_000;
+const MIN_ADAPTIVE_VISIBLE_RATIO = 0.65;
+const MIN_ADAPTIVE_CONTENT_WEIGHT = 0.8;
+const MIN_ADAPTIVE_CHUNKS = 2;
+const MAX_ADAPTIVE_IDLE_MS = 45_000;
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
 
-  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats], async () => {
+  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats, db.readingPaceProfiles], async () => {
     const newEvents = await getNewReadingEvents(payload.events);
     if (payload.events.length > 0 && newEvents.length === 0) {
       await pruneExpiredReadingEvents(now);
@@ -27,6 +50,9 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     const sessionId = batchPayload.events[0]?.sessionId;
     const chunkStates = new Map<string, ChunkReadingState>();
     const chunkDayStates = new Map<string, Map<string, ChunkDayReadingState>>();
+    const pageLanguage = normalizeReadingPaceLanguage(batchPayload.page.language);
+    const readingPaceProfile = await db.readingPaceProfiles.get(createReadingPaceProfileId(pageLanguage, DEFAULT_READING_CONTENT_TYPE));
+    const baseWordsPerMinute = resolveReadingPaceBaseWordsPerMinute(readingPaceProfile);
 
     for (const chunk of payload.chunks) {
       const existingChunk = await db.textChunks.get(chunk.chunkId);
@@ -50,7 +76,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       }
     }
 
-    const summary = summarizeReadingEventBatch(batchPayload, { chunkStates, chunkDayStates });
+    const summary = summarizeReadingEventBatch(batchPayload, { chunkStates, chunkDayStates, baseWordsPerMinute });
     const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
 
     const existingPage = await db.pages.get(payload.page.pageId);
@@ -118,6 +144,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     }
     await recordChunkCapIncrements(summary, existingSessionChunks, existingDayChunks, sessionId);
     await recordDailyStatIncrements(summary.dailyUpdates, pageDomain);
+    await recordAdaptiveReadingPaceSample(batchPayload, readingPaceProfile, baseWordsPerMinute, pageLanguage, now);
 
     for (const update of vocabUpdates) {
       const existing = await db.vocabExposures.get(update.lemma);
@@ -170,7 +197,17 @@ export async function pruneExpiredReadingEvents(now = Date.now()): Promise<void>
 export async function clearLocalReadingData(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.savedItems, db.dailyStats],
+    [
+      db.pages,
+      db.textChunks,
+      db.chunkSessions,
+      db.chunkDays,
+      db.readingEvents,
+      db.vocabExposures,
+      db.savedItems,
+      db.dailyStats,
+      db.readingPaceProfiles,
+    ],
     async () => {
       await Promise.all([
         db.pages.clear(),
@@ -181,9 +218,29 @@ export async function clearLocalReadingData(): Promise<void> {
         db.vocabExposures.clear(),
         db.savedItems.clear(),
         db.dailyStats.clear(),
+        db.readingPaceProfiles.clear(),
       ]);
     },
   );
+}
+
+async function recordAdaptiveReadingPaceSample(
+  payload: ReadingEventBatchPayload,
+  existingProfile: ReadingPaceProfileRecord | undefined,
+  baseWordsPerMinute: number,
+  language: string,
+  now: number,
+): Promise<void> {
+  const sample = createAdaptiveReadingPaceSample(payload, baseWordsPerMinute);
+  const nextProfile = updateAdaptiveReadingPaceProfile(existingProfile, sample, {
+    language,
+    contentType: DEFAULT_READING_CONTENT_TYPE,
+    now,
+  });
+
+  if (nextProfile) {
+    await db.readingPaceProfiles.put(nextProfile);
+  }
 }
 
 async function recordDailyStatIncrements(
@@ -269,6 +326,109 @@ function getEventDates(payload: ReadingEventBatchPayload): string[] {
   return Array.from(new Set(payload.events.map((event) => formatLocalDate(event.occurredAt))));
 }
 
+function createAdaptiveReadingPaceSample(
+  payload: ReadingEventBatchPayload,
+  baseWordsPerMinute: number,
+): AdaptiveReadingPaceSample | undefined {
+  if (payload.page.totalWords < MIN_ADAPTIVE_PAGE_WORDS) {
+    return undefined;
+  }
+
+  const chunksById = new Map(payload.chunks.map((chunk) => [chunk.chunkId, chunk]));
+  const readableWordsByChunk = new Map<string, number>();
+  let engagedMs = 0;
+  let observedAt = 0;
+
+  for (const event of payload.events) {
+    if (event.kind !== 'TextViewportExposureTick' || event.confidence !== 'high') {
+      continue;
+    }
+
+    const value = readObject(event.value);
+    const tickMs = readPositiveNumber(value, 'tickMs');
+    if (
+      tickMs <= 0 ||
+      !readBoolean(value, 'activeTab', true) ||
+      !readBoolean(value, 'documentVisible', true) ||
+      readNumber(value, 'idleAgeMs', 0) > MAX_ADAPTIVE_IDLE_MS ||
+      Math.abs(readNumber(value, 'scrollSpeedWordsPerMinute', 0)) > baseWordsPerMinute * 1.6
+    ) {
+      continue;
+    }
+
+    let tickHasReliableVisibleChunk = false;
+    for (const visibleChunk of readAdaptiveVisibleChunks(value?.visibleChunks)) {
+      const chunk = chunksById.get(visibleChunk.chunkId);
+      if (
+        !chunk ||
+        visibleChunk.visibleRatio < MIN_ADAPTIVE_VISIBLE_RATIO ||
+        visibleChunk.contentWeight < MIN_ADAPTIVE_CONTENT_WEIGHT
+      ) {
+        continue;
+      }
+
+      const readableWords = Math.min(chunk.wordCount, Math.round(visibleChunk.wordCount)) * visibleChunk.visibleRatio;
+      if (readableWords <= 0) {
+        continue;
+      }
+
+      readableWordsByChunk.set(
+        visibleChunk.chunkId,
+        Math.max(readableWordsByChunk.get(visibleChunk.chunkId) ?? 0, readableWords),
+      );
+      tickHasReliableVisibleChunk = true;
+    }
+
+    if (tickHasReliableVisibleChunk) {
+      engagedMs += tickMs;
+      observedAt = Math.max(observedAt, event.occurredAt);
+    }
+  }
+
+  const readableWords = Array.from(readableWordsByChunk.values()).reduce((sum, words) => sum + words, 0);
+  if (
+    readableWordsByChunk.size < MIN_ADAPTIVE_CHUNKS ||
+    readableWords < MIN_ADAPTIVE_SAMPLE_WORDS ||
+    engagedMs < MIN_ADAPTIVE_ENGAGED_MS
+  ) {
+    return undefined;
+  }
+
+  return {
+    observedWordsPerMinute: (readableWords * 60_000) / engagedMs,
+    confidence: Math.min(1, 0.75 + Math.min(0.25, readableWords / Math.max(1, payload.page.totalWords) * 0.25)),
+    observedAt,
+  };
+}
+
+function readAdaptiveVisibleChunks(value: unknown): Array<{
+  chunkId: string;
+  wordCount: number;
+  visibleRatio: number;
+  contentWeight: number;
+}> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((candidate) => {
+    const visibleChunk = readObject(candidate);
+    const chunkId = visibleChunk?.chunkId;
+    if (typeof chunkId !== 'string' || chunkId.trim().length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        chunkId,
+        wordCount: readPositiveNumber(visibleChunk, 'wordCount'),
+        visibleRatio: readNumber(visibleChunk, 'visibleRatio', 0),
+        contentWeight: readNumber(visibleChunk, 'contentWeight', 0),
+      },
+    ];
+  });
+}
+
 function createChunkSessionId(sessionId: string, chunkId: string): string {
   return `${sessionId}:${chunkId}`;
 }
@@ -297,6 +457,26 @@ function formatLocalDate(timestamp: number): string {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function readObject(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function readNumber(value: Record<string, unknown> | undefined, key: string, fallback: number): number {
+  const candidate = value?.[key];
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : fallback;
+}
+
+function readPositiveNumber(value: Record<string, unknown> | undefined, key: string): number {
+  return Math.max(0, readNumber(value, key, 0));
+}
+
+function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {
+  const candidate = value?.[key];
+  return typeof candidate === 'boolean' ? candidate : fallback;
 }
 
 function extractVocabExposureUpdates(text: string, now: number, coverage: number): VocabExposureRecord[] {

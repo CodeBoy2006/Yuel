@@ -160,6 +160,19 @@ describe('summarizeReadingEventBatch', () => {
     expect(summary.pageReviewWords).toBeCloseTo(40, 6);
   });
 
+  it('uses a stored reading pace override instead of the collector default WPM', () => {
+    const summary = summarizeReadingEventBatch(createPayload(), {
+      baseWordsPerMinute: 180,
+    });
+
+    expect(summary.pageEffectiveWords).toBeCloseTo(180, 6);
+    expect(summary.totalEffectiveReadingMs).toBeCloseTo(60_000, 6);
+    expect(summary.chunkUpdates.map((update) => update.effectiveWords)).toEqual([
+      expect.closeTo(90, 6),
+      expect.closeTo(90, 6),
+    ]);
+  });
+
   it('records raw exposure for capped visible chunks when other chunks still receive effective allocation', () => {
     const summary = summarizeReadingEventBatch(createPayload(), {
       chunkStates: new Map([

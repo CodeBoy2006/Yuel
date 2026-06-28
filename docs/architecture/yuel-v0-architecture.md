@@ -59,12 +59,15 @@ The local database uses event sourcing plus aggregate-ready tables:
 - `vocabExposures`: long-lived lemma exposure memory.
 - `savedItems`: only stores raw text when the user intentionally saves an item.
 - `dailyStats`: report-facing daily aggregates.
+- `readingPaceProfiles`: local WPM baselines by language and content type, seeded by onboarding or adaptive samples.
 
 ## Effective Reading Model
 
-Yuel uses a Budgeted Exposure Model instead of scoring each visible chunk independently. The content script closes a viewport interval on timer flushes, visibility changes, page hide, stop, and visible-block composition changes. Each `TextViewportExposureTick` carries one `tickMs` budget, base WPM, active/document visibility, scroll WPM, idle age, and visible chunk snapshots with visible ratio, viewport-center distance, and content weight.
+Yuel uses a Budgeted Exposure Model instead of scoring each visible chunk independently. The content script closes a viewport interval on timer flushes, visibility changes, page hide, stop, and visible-block composition changes. Each `TextViewportExposureTick` carries one `tickMs` budget, base WPM, active/document visibility, scroll WPM, idle age, and visible chunk snapshots with visible ratio, viewport-center distance, and content weight. Storage resolves the active reading pace profile before aggregation and overrides the collector default WPM when a calibrated or adaptive profile exists.
 
 The storage layer allocates the single tick budget across eligible chunks by attention weight, applies session and day caps before counting effective words, and uses lifetime coverage only to split new words from review words. Reading minutes are computed at tick level from allocated budget rather than by summing chunk dwell time, so multiple visible blocks cannot multiply reading time.
+
+Reading pace starts from an onboarding dashboard calibration: a fixed 200-260 word passage plus comprehension questions produces an initial WPM weighted by answer confidence. Later adaptive updates use an exponential moving average from high-confidence raw viewport samples only. A sample must come from a sufficiently long page, active and visible tab state, normal scroll speed, no long idle interval, and multiple reliable body chunks. The adaptive path intentionally does not compute WPM from `effectiveWords / minutes`, because those are already outputs of the capped budget allocation.
 
 ## Pack Boundary
 

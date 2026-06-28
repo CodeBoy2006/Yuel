@@ -1,8 +1,14 @@
-import { Activity, BookOpen, Boxes, Clipboard, Database, Download, Languages, LockKeyhole } from 'lucide-react';
+import { Activity, BookOpen, Boxes, CheckCircle2, Clipboard, Database, Download, Gauge, Languages, LockKeyhole, Play } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
 import { clearLocalReadingData } from '../../src/storage/repositories';
+import {
+  getReadingPaceSummary,
+  saveOnboardingReadingPaceCalibration,
+  type ReadingPaceSummary,
+} from '../../src/storage/readingPace';
 import { getReadingDashboardDetails, type ReadingDashboardDetails } from '../../src/storage/readingStats';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
 
@@ -19,6 +25,8 @@ export interface DashboardAppDependencies {
   confirmClearLocalReadingData: () => boolean;
   copyTextToClipboard?: (text: string) => Promise<void>;
   exportSummaryCardPng?: (element: HTMLElement, filename: string) => Promise<unknown>;
+  getReadingPaceSummary?: typeof getReadingPaceSummary;
+  saveOnboardingReadingPaceCalibration?: typeof saveOnboardingReadingPaceCalibration;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -28,17 +36,27 @@ const defaultDependencies: DashboardAppDependencies = {
   copyTextToClipboard,
   exportSummaryCardPng: exportDashboardSummaryCardPng,
   getReadingDashboardDetails,
+  getReadingPaceSummary,
+  saveOnboardingReadingPaceCalibration,
 };
 
 export function DashboardApp({ dependencies = defaultDependencies }: { dependencies?: DashboardAppDependencies }) {
   const [details, setDetails] = useState<ReadingDashboardDetails>();
+  const [paceSummary, setPaceSummary] = useState<ReadingPaceSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
+  const [paceLoadFailed, setPaceLoadFailed] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearFailed, setClearFailed] = useState(false);
   const [clearRefreshFailed, setClearRefreshFailed] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloaded' | 'failed'>('idle');
+  const [calibrationStep, setCalibrationStep] = useState<'idle' | 'reading' | 'questions'>('idle');
+  const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
+  const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
+  const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const shareCardRef = useRef<HTMLDivElement>(null);
+  const loadPaceSummary = dependencies.getReadingPaceSummary ?? getFallbackReadingPaceSummary;
+  const savePaceCalibration = dependencies.saveOnboardingReadingPaceCalibration ?? saveOnboardingReadingPaceCalibration;
 
   useEffect(() => {
     let mounted = true;
@@ -54,10 +72,21 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         setLoadFailed(true);
       });
 
+    void loadPaceSummary()
+      .then((nextPaceSummary) => {
+        if (!mounted) return;
+        setPaceSummary(nextPaceSummary);
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel reading pace summary', error);
+        if (!mounted) return;
+        setPaceLoadFailed(true);
+      });
+
     return () => {
       mounted = false;
     };
-  }, [dependencies]);
+  }, [dependencies, loadPaceSummary]);
 
   const summary = details?.summary;
   const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
@@ -67,8 +96,11 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const learningWordsValue = loadFailed ? 'Unavailable' : summary ? String(summary.learningWords) : '...';
   const shareCardText = loadFailed ? 'Local data unavailable' : details?.summaryCardText ?? 'Loading local data';
   const detailPanelFallbackText = loadFailed ? 'Local data unavailable.' : 'Loading local data...';
+  const readingPaceValue = paceLoadFailed ? 'Unavailable' : paceSummary ? `${Math.round(paceSummary.baseWordsPerMinute)} WPM` : '...';
+  const readingPaceLabel = paceLoadFailed ? 'Pace unavailable' : paceSummary ? formatPaceSource(paceSummary) : 'Loading pace';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
+  const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
 
   const clearData = async () => {
     if (!dependencies.confirmClearLocalReadingData()) {
@@ -79,8 +111,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setClearFailed(false);
     setClearRefreshFailed(false);
     setLoadFailed(false);
+    setPaceLoadFailed(false);
     setCopyStatus('idle');
     setDownloadStatus('idle');
+    setCalibrationStep('idle');
+    setCalibrationAnswers({});
+    setCalibrationSaveStatus('idle');
 
     try {
       await dependencies.clearLocalReadingData();
@@ -92,6 +128,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     }
 
     setDetails(undefined);
+    setPaceSummary(undefined);
 
     try {
       setDetails(await dependencies.getReadingDashboardDetails());
@@ -101,6 +138,13 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       setClearRefreshFailed(true);
     } finally {
       setClearBusy(false);
+    }
+
+    try {
+      setPaceSummary(await loadPaceSummary());
+    } catch (error) {
+      console.error('Failed to refresh Yuel reading pace after clearing local data', error);
+      setPaceLoadFailed(true);
     }
   };
 
@@ -133,6 +177,48 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     } catch (error) {
       console.error('Failed to export Yuel share card PNG', error);
       setDownloadStatus('failed');
+    }
+  };
+
+  const startPaceCalibration = () => {
+    setCalibrationStartedAt(Date.now());
+    setCalibrationAnswers({});
+    setCalibrationStep('reading');
+    setCalibrationSaveStatus('idle');
+  };
+
+  const finishPaceReading = () => {
+    if (!calibrationStartedAt) {
+      return;
+    }
+
+    setCalibrationStep('questions');
+  };
+
+  const savePaceCalibrationResult = async () => {
+    if (!calibrationStartedAt || !allCalibrationQuestionsAnswered) {
+      return;
+    }
+
+    const correctAnswers = paceCalibrationQuestions.filter((question) => calibrationAnswers[question.id] === question.correctOptionId).length;
+    setCalibrationSaveStatus('saving');
+
+    try {
+      const nextPaceSummary = await savePaceCalibration({
+        language: 'en',
+        contentType: 'general',
+        wordCount: PACE_CALIBRATION_WORD_COUNT,
+        startedAt: calibrationStartedAt,
+        completedAt: Date.now(),
+        correctAnswers,
+        questionCount: paceCalibrationQuestions.length,
+      });
+      setPaceSummary(nextPaceSummary);
+      setCalibrationStep('idle');
+      setCalibrationSaveStatus('saved');
+    } catch (error) {
+      console.error('Failed to save Yuel reading pace calibration', error);
+      setCalibrationSaveStatus('failed');
     }
   };
 
@@ -170,6 +256,94 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <Metric label="Reading time" value={readingTimeValue} icon={Activity} />
         <Metric label="Pages today" value={pagesTodayValue} icon={Database} />
         <Metric label="Learning words" value={learningWordsValue} icon={Languages} />
+      </section>
+
+      <section className="mx-auto max-w-5xl px-6 pb-6">
+        <section className="rounded-md border border-stone-200 bg-white p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Gauge className="h-5 w-5 text-emerald-700" aria-hidden="true" />
+                <h2 className="text-lg font-semibold">Reading pace</h2>
+              </div>
+              <p className="mt-2 text-sm text-stone-600">{readingPaceLabel}</p>
+            </div>
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <p className="text-2xl font-semibold">{readingPaceValue}</p>
+              <button
+                type="button"
+                onClick={startPaceCalibration}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700"
+              >
+                <Play className="h-4 w-4" aria-hidden="true" />
+                Start calibration
+              </button>
+            </div>
+          </div>
+
+          {calibrationStep === 'reading' ? (
+            <div className="mt-5 border-t border-stone-200 pt-5">
+              <p className="text-sm font-semibold text-stone-700">{PACE_CALIBRATION_WORD_COUNT} words</p>
+              <p className="mt-3 text-sm leading-7 text-stone-700">{PACE_CALIBRATION_PASSAGE}</p>
+              <button
+                type="button"
+                onClick={finishPaceReading}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                I finished reading
+              </button>
+            </div>
+          ) : null}
+
+          {calibrationStep === 'questions' ? (
+            <div className="mt-5 border-t border-stone-200 pt-5">
+              <div className="grid gap-4">
+                {paceCalibrationQuestions.map((question) => (
+                  <fieldset key={question.id}>
+                    <legend className="text-sm font-semibold text-stone-800">{question.prompt}</legend>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {question.options.map((option) => {
+                        const selected = calibrationAnswers[question.id] === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setCalibrationAnswers((answers) => ({ ...answers, [question.id]: option.id }))}
+                            className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                              selected
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                                : 'border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  disabled={!allCalibrationQuestionsAnswered || calibrationSaveStatus === 'saving'}
+                  onClick={() => void savePaceCalibrationResult()}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  {calibrationSaveStatus === 'saving' ? 'Saving...' : 'Save calibration'}
+                </button>
+                {calibrationSaveStatus === 'failed' ? <p className="text-sm font-medium text-red-700">Calibration save failed.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {calibrationSaveStatus === 'saved' ? (
+            <p className="mt-4 text-sm font-medium text-emerald-800">Calibration saved.</p>
+          ) : null}
+        </section>
       </section>
 
       <section className="mx-auto grid max-w-5xl gap-4 px-6 pb-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -319,6 +493,44 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   );
 }
 
+const PACE_CALIBRATION_PASSAGE =
+  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should start with one realistic pace for the reader, then divide that attention across the text that is actually visible. When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become cautious. When the reader stays with a stable viewport and several body paragraphs remain visible, the sample becomes more useful. Yuel uses this calibration passage to set an initial baseline for your personal reading pace. The result is not a grade. It is a local starting point that can improve later as real pages provide stronger evidence. Comprehension questions help decide how much weight to give the timing measurement. If the answers are solid, the observed pace can influence the baseline more. If the answers are weak, the system keeps more of the default pace and waits for future high confidence samples. Over time, adaptive updates should move slowly, so one unusual page does not suddenly rewrite the baseline. This keeps daily word counts practical without rewarding fast skimming or accidental exposure.';
+
+const PACE_CALIBRATION_WORD_COUNT = countWords(PACE_CALIBRATION_PASSAGE);
+
+const paceCalibrationQuestions = [
+  {
+    id: 'budget',
+    prompt: 'What should a useful reading estimate avoid?',
+    correctOptionId: 'duplicate',
+    options: [
+      { id: 'duplicate', label: 'Duplicating visible paragraphs' },
+      { id: 'notes', label: 'Using browser notes' },
+      { id: 'local', label: 'Keeping data local' },
+    ],
+  },
+  {
+    id: 'confidence',
+    prompt: 'When should timing receive more calibration weight?',
+    correctOptionId: 'solid',
+    options: [
+      { id: 'solid', label: 'When answers are solid' },
+      { id: 'hidden', label: 'When the tab is hidden' },
+      { id: 'fast', label: 'When scrolling is fast' },
+    ],
+  },
+  {
+    id: 'adaptive',
+    prompt: 'What improves the baseline after onboarding?',
+    correctOptionId: 'samples',
+    options: [
+      { id: 'samples', label: 'High confidence real-page samples' },
+      { id: 'skimming', label: 'Fast skimming exposure' },
+      { id: 'opening', label: 'Opening unread pages' },
+    ],
+  },
+];
+
 function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
   return (
     <article className="rounded-md border border-stone-200 bg-white p-4">
@@ -331,6 +543,33 @@ function Metric({ label, value, icon: Icon }: { label: string; value: string; ic
 
 function formatCount(value: number): string {
   return Math.round(value).toLocaleString();
+}
+
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+async function getFallbackReadingPaceSummary(): Promise<ReadingPaceSummary> {
+  return {
+    language: 'en',
+    contentType: 'general',
+    baseWordsPerMinute: DEFAULT_BASE_WORDS_PER_MINUTE,
+    sampleCount: 0,
+    source: 'default',
+    hasProfile: false,
+  };
+}
+
+function formatPaceSource(summary: ReadingPaceSummary): string {
+  if (summary.source === 'default') {
+    return 'Default pace until calibration or high confidence reading samples are available.';
+  }
+
+  if (summary.source === 'onboarding') {
+    return summary.updatedAt ? `Onboarding calibrated ${formatDateTime(summary.updatedAt)}` : 'Onboarding calibrated';
+  }
+
+  return `${summary.sampleCount} adaptive samples`;
 }
 
 function formatMinutes(value: number): string {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 
-import { DashboardApp } from '../../entrypoints/dashboard/App';
+import { DashboardApp, type DashboardAppDependencies } from '../../entrypoints/dashboard/App';
 import { PopupApp } from '../../entrypoints/popup/App';
 import { SidePanelApp } from '../../entrypoints/sidepanel/App';
 import { renderForSmoke } from './renderTest';
@@ -652,6 +652,105 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Saved selections');
     expect(container.textContent).toContain('Share card');
     expect(container.textContent).toContain('Effective words: 960');
+  });
+
+  it('saves dashboard onboarding reading pace calibration', async () => {
+    const saveOnboardingReadingPaceCalibration = vi.fn<NonNullable<DashboardAppDependencies['saveOnboardingReadingPaceCalibration']>>(
+      async () => ({
+      language: 'en',
+      contentType: 'general' as const,
+      baseWordsPerMinute: 233,
+      sampleCount: 0,
+      source: 'onboarding' as const,
+      updatedAt: 61_000,
+      hasProfile: true,
+    }),
+    );
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          getReadingPaceSummary: async () => ({
+            language: 'en',
+            contentType: 'general',
+            baseWordsPerMinute: 220,
+            sampleCount: 0,
+            source: 'default',
+            hasProfile: false,
+          }),
+          saveOnboardingReadingPaceCalibration,
+          getReadingDashboardDetails: async () => ({
+            summary: {
+              date: '2026-06-27',
+              effectiveWords: 0,
+              minutes: 0,
+              advancedWords: 0,
+              expressions: 0,
+              streak: 0,
+              topDomains: [],
+              readPages: 0,
+              learningWords: 0,
+              hasData: false,
+            },
+            recentPages: [],
+            recentVocabulary: [],
+            recentSavedItems: [],
+            summaryCardText: 'Yuel Reading - 2026-06-27\nNo reading data yet.',
+            hasData: false,
+          }),
+        }}
+      />,
+    );
+
+    const startButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Start calibration');
+    expect(startButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      startButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(container.textContent).toContain('I finished reading');
+
+    nowSpy.mockReturnValue(61_000);
+    const finishedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'I finished reading');
+    await act(async () => {
+      finishedButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    for (const label of ['Duplicating visible paragraphs', 'When answers are solid', 'High confidence real-page samples']) {
+      const optionButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === label);
+      expect(optionButton).toBeInstanceOf(HTMLButtonElement);
+      await act(async () => {
+        optionButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    }
+
+    const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Save calibration');
+    expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(saveOnboardingReadingPaceCalibration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'en',
+        contentType: 'general',
+        startedAt: 1_000,
+        completedAt: 61_000,
+        correctAnswers: 3,
+        questionCount: 3,
+      }),
+    );
+    const calibrationInput = saveOnboardingReadingPaceCalibration.mock.calls[0]?.[0];
+    expect(calibrationInput?.wordCount).toBeGreaterThanOrEqual(200);
+    expect(calibrationInput?.wordCount).toBeLessThanOrEqual(260);
+    expect(container.textContent).toContain('233 WPM');
+
+    nowSpy.mockRestore();
   });
 
   it('shows unavailable dashboard metrics when local reading details fail to load', async () => {

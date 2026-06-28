@@ -43,6 +43,11 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(),
     put: vi.fn(),
   };
+  const readingPaceProfiles = {
+    clear: vi.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+  };
   const db = {
     pages,
     textChunks,
@@ -52,6 +57,7 @@ const mocks = vi.hoisted(() => {
     vocabExposures,
     savedItems,
     dailyStats,
+    readingPaceProfiles,
     transaction: vi.fn(async (...args: unknown[]) => {
       const callback = args.at(-1);
       if (typeof callback === 'function') {
@@ -60,7 +66,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { chunkDays, chunkSessions, db, dailyStats, pages, readingEvents, savedItems, textChunks, vocabExposures };
+  return { chunkDays, chunkSessions, db, dailyStats, pages, readingEvents, readingPaceProfiles, savedItems, textChunks, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -131,6 +137,7 @@ describe('recordReadingEventBatch', () => {
     mocks.chunkDays.get.mockResolvedValue(undefined);
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
+    mocks.readingPaceProfiles.get.mockResolvedValue(undefined);
     mocks.readingEvents.bulkGet.mockResolvedValue([]);
     mocks.readingEvents.where.mockReturnValue({
       below: vi.fn(() => ({
@@ -425,6 +432,85 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
+  it('uses the stored reading pace profile for budget allocation and adaptive updates', async () => {
+    mocks.readingPaceProfiles.get.mockResolvedValueOnce({
+      id: 'en:general',
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 120,
+      sampleCount: 0,
+      source: 'onboarding',
+      updatedAt: capturedAt - 1_000,
+    });
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      totalWords: 300,
+    };
+    payload.chunks = [
+      {
+        chunkId: 'chunk-1',
+        pageId: 'page-1',
+        textHash: 'chunk-text-1',
+        text: 'Mitigate memory overhead and fail gracefully under pressure.',
+        wordCount: 150,
+        sentenceCount: 1,
+        selector: 'p#one',
+      },
+      {
+        chunkId: 'chunk-2',
+        pageId: 'page-1',
+        textHash: 'chunk-text-2',
+        text: 'Budgeted exposure allocates attention across simultaneous viewport text.',
+        wordCount: 150,
+        sentenceCount: 1,
+        selector: 'p#two',
+      },
+    ];
+    payload.events = [
+      {
+        ...payload.events[0],
+        value: {
+          ...payload.events[0].value,
+          tickMs: 60_000,
+          baseWordsPerMinute: 220,
+          visibleChunks: [
+            {
+              chunkId: 'chunk-1',
+              wordCount: 150,
+              visibleRatio: 1,
+              centerDistance: 0,
+              contentWeight: 1,
+            },
+            {
+              chunkId: 'chunk-2',
+              wordCount: 150,
+              visibleRatio: 1,
+              centerDistance: 0,
+              contentWeight: 1,
+            },
+          ],
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effectiveWords: expect.closeTo(120, 6),
+      }),
+    );
+    expect(mocks.readingPaceProfiles.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'en:general',
+        baseWordsPerMinute: expect.closeTo(141.6, 6),
+        sampleCount: 1,
+        source: 'adaptive',
+      }),
+    );
+  });
+
   it('does not aggregate duplicate reading events that are already stored locally', async () => {
     const payload = createPayload();
     mocks.readingEvents.bulkGet.mockResolvedValueOnce([payload.events[0]]);
@@ -482,5 +568,6 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.vocabExposures.clear).toHaveBeenCalledOnce();
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
     expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();
+    expect(mocks.readingPaceProfiles.clear).toHaveBeenCalledOnce();
   });
 });

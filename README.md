@@ -39,7 +39,7 @@ The extension can collect reading activity in two ways:
 - Starter static matches: MDN, GitHub, Medium, Wikipedia, and arXiv load the content script without asking for broad host access.
 - User-enabled sites: open the popup on an `http` or `https` page, choose "Enable current site", and Yuel requests optional host permission only for that origin. Enabled sites are persisted and re-registered on startup.
 
-Once enabled, the content script emits local reading events as visible text blocks enter and leave view. Viewport exposure is measured with a Budgeted Exposure Model: each tick gets one WPM-based reading budget, then allocates that budget across visible chunks by visibility, viewport position, and content weight. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, applies session/day/lifetime caps, records raw exposure separately from effective reading time, and tags matched vocabulary by effective chunk coverage with the bundled Tech English Pack.
+Once enabled, the content script emits local reading events as visible text blocks enter and leave view. Viewport exposure is measured with a Budgeted Exposure Model: each tick gets one WPM-based reading budget, then allocates that budget across visible chunks by visibility, viewport position, and content weight. The storage layer uses the local reading pace profile when one exists, otherwise it falls back to the default 220 WPM collector value. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, applies session/day/lifetime caps, records raw exposure separately from effective reading time, and tags matched vocabulary by effective chunk coverage with the bundled Tech English Pack.
 
 Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag, and increments local vocabulary saved counts for trackable English words; ordinary text selection events remain hashed telemetry and do not store raw text.
 
@@ -47,10 +47,14 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: today’s effective words, reading time, page count, learning words, current-site permission state, enabled-site management, and side-panel/dashboard launch actions.
 - Side panel: compact reading companion summary with today’s metrics, top domain, and a dashboard launch action.
-- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure including saved-only words, explicit saved selections, copyable and PNG-downloadable share cards, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
+- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure including saved-only words, reading pace calibration, explicit saved selections, copyable and PNG-downloadable share cards, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
+
+## Reading Pace Calibration
+
+The dashboard includes an onboarding reading pace calibration flow. It times a fixed 200-260 word English passage, asks three comprehension questions, and blends the observed WPM with the default pace by answer confidence. Future batches can adapt the same profile with an exponential moving average, but only from high-confidence raw viewport samples: sufficiently long pages, active and visible tab state, normal scroll speed, no long idle interval, and multiple reliable body chunks. Adaptive WPM is not derived from `effectiveWords / minutes`, because those values are already capped outputs of the budget model.
 
 ## Verification
 

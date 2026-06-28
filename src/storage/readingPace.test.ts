@@ -1,0 +1,73 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { getReadingPaceSummary, saveOnboardingReadingPaceCalibration, type ReadingPaceStore } from './readingPace';
+import type { ReadingPaceProfileRecord } from './schema';
+
+function createStore(existingProfile?: ReadingPaceProfileRecord): ReadingPaceStore {
+  const records = new Map<string, ReadingPaceProfileRecord>();
+  if (existingProfile) {
+    records.set(existingProfile.id, existingProfile);
+  }
+
+  return {
+    readingPaceProfiles: {
+      get: vi.fn(async (id: string) => records.get(id)),
+      put: vi.fn(async (record: ReadingPaceProfileRecord) => {
+        records.set(record.id, record);
+      }),
+    },
+  };
+}
+
+describe('reading pace storage', () => {
+  it('returns a default pace summary without creating a profile', async () => {
+    const store = createStore();
+
+    const summary = await getReadingPaceSummary(store);
+
+    expect(summary).toEqual({
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 220,
+      sampleCount: 0,
+      source: 'default',
+      hasProfile: false,
+    });
+    expect(store.readingPaceProfiles.put).not.toHaveBeenCalled();
+  });
+
+  it('saves onboarding calibration as the active reading pace profile', async () => {
+    const store = createStore();
+
+    const summary = await saveOnboardingReadingPaceCalibration(
+      {
+        language: 'en-US',
+        contentType: 'general',
+        wordCount: 240,
+        startedAt: 1_000,
+        completedAt: 61_000,
+        correctAnswers: 3,
+        questionCount: 3,
+      },
+      store,
+    );
+
+    expect(store.readingPaceProfiles.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'en:general',
+        language: 'en',
+        contentType: 'general',
+        sampleCount: 0,
+        source: 'onboarding',
+        updatedAt: 61_000,
+      }),
+    );
+    expect(summary).toMatchObject({
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: expect.closeTo(233, 6),
+      source: 'onboarding',
+      hasProfile: true,
+    });
+  });
+});
