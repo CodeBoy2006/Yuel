@@ -145,6 +145,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const markUserActive = () => {
+    if (pageHidden) {
+      return;
+    }
+
     const now = Date.now();
     if (userIdle) {
       pendingEvents.push({

@@ -729,3 +729,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
 - **Context:** Passive selection telemetry stays tied to visible reading sessions; explicit context-menu saves remain handled separately by the background save-selection flow.
+
+## [2026-06-28 13:37] Hidden Tab Activity Guard
+- **Changes:** Ignored keyboard and pointer activity while a tab is hidden so hidden-page input cannot emit `UserActive` events.
+- **Status:** Completed
+- **Next Steps:** Continue tightening hidden-page input handling and end-to-end local reading accuracy.
+- **Context:** Activity telemetry now resumes only after the page becomes visible again and restarts the idle window from that visible moment.

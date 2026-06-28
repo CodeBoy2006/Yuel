@@ -285,6 +285,32 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('ignores user activity while a tab remains hidden', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      await vi.advanceTimersByTimeAsync(600);
+      setDocumentVisibility('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
