@@ -927,3 +927,9 @@
 - **Status:** Completed
 - **Next Steps:** Run a bounded final MVP audit before deciding whether more true blockers remain.
 - **Context:** The side panel no longer shows "No top domain yet" while local summary data is still loading, but keeps that copy for genuine loaded empty summaries.
+
+## [2026-06-28 18:36] Budgeted Exposure Reading Model
+- **Changes:** Replaced per-chunk effective reading scoring with viewport-level budget allocation, added viewport exposure events, session/day chunk caps, raw/effective exposure fields, coverage-based vocabulary updates, and heading/code extraction support.
+- **Status:** Completed
+- **Next Steps:** Validate the packaged extension smoke flows after typecheck and build.
+- **Context:** `TextViewportExposureTick` is now the supported measured-reading event; old `TextBlockExposureTick` events are not part of the message contract.

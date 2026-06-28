@@ -307,7 +307,7 @@ describe('startReadingCollector', () => {
       const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map(
         (event: { kind: string }) => event.kind,
       );
-      expect(eventKinds).toEqual(['PageVisible', 'TextBlockVisible', 'TextBlockExposureTick']);
+      expect(eventKinds).toEqual(['PageVisible', 'TextBlockVisible', 'TextViewportExposureTick']);
     } finally {
       controller.stop();
       await flushPromises();
@@ -386,17 +386,81 @@ describe('startReadingCollector', () => {
       const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map(
         (event: { kind: string }) => event.kind,
       );
-      expect(eventKinds).toEqual(['TextBlockVisible', 'TextBlockExposureTick']);
+      expect(eventKinds).toEqual(['TextBlockVisible', 'TextViewportExposureTick']);
       expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            kind: 'TextBlockExposureTick',
+            kind: 'TextViewportExposureTick',
             value: expect.objectContaining({
-              visibleRatio: 0.9,
+              tickMs: 1_000,
+              visibleChunks: [
+                expect.objectContaining({
+                  visibleRatio: 0.9,
+                  centerDistance: expect.any(Number),
+                  contentWeight: 1,
+                }),
+              ],
             }),
           }),
         ]),
       );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('emits one viewport exposure tick for multiple simultaneously visible blocks', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="first">Budgeted reading exposure should allocate one viewport budget across visible article paragraphs.</p>
+        <p id="second">Multiple visible chunks must not each receive a full independent reading speed allowance.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const firstBlock = document.querySelector('#first');
+      const secondBlock = document.querySelector('#second');
+      expect(firstBlock).toBeInstanceOf(HTMLElement);
+      expect(secondBlock).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: firstBlock as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+        {
+          target: secondBlock as Element,
+          isIntersecting: true,
+          intersectionRatio: 0.75,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const viewportTick = mocks.sendMessage.mock.calls[0][0].payload.events.find(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(viewportTick).toEqual(
+        expect.objectContaining({
+          value: expect.objectContaining({
+            tickMs: 1_000,
+            visibleChunks: [
+              expect.objectContaining({ visibleRatio: 1, contentWeight: 1 }),
+              expect.objectContaining({ visibleRatio: 0.75, contentWeight: 1 }),
+            ],
+          }),
+        }),
+      );
+      expect(viewportTick).not.toHaveProperty('chunkId');
     } finally {
       controller.stop();
       await flushPromises();
@@ -526,7 +590,7 @@ describe('startReadingCollector', () => {
           }),
         }),
         expect.objectContaining({
-          kind: 'TextBlockExposureTick',
+          kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
             scrollSpeedWordsPerMinute: expect.any(Number),
           }),
@@ -571,9 +635,9 @@ describe('startReadingCollector', () => {
           }),
         }),
         expect.objectContaining({
-          kind: 'TextBlockExposureTick',
+          kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
-            idle: true,
+            idleAgeMs: 1_000,
           }),
         }),
       ]),
@@ -621,9 +685,9 @@ describe('startReadingCollector', () => {
           }),
         }),
         expect.objectContaining({
-          kind: 'TextBlockExposureTick',
+          kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
-            idle: false,
+            idleAgeMs: 400,
           }),
         }),
       ]),
@@ -665,10 +729,11 @@ describe('startReadingCollector', () => {
       expect(batch.payload.events).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            kind: 'TextBlockExposureTick',
+            kind: 'TextViewportExposureTick',
             value: expect.objectContaining({
-              dwellMs: 500,
+              tickMs: 500,
               activeTab: true,
+              documentVisible: true,
             }),
           }),
           expect.objectContaining({
@@ -716,15 +781,17 @@ describe('startReadingCollector', () => {
 
     const batch = mocks.sendMessage.mock.calls[0][0];
     expect(batch.payload.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          kind: 'TextBlockExposureTick',
-          chunkId: expect.any(String),
-          value: expect.objectContaining({
-            activeTab: true,
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'TextViewportExposureTick',
+            value: expect.objectContaining({
+              activeTab: true,
+            }),
           }),
-        }),
-      ]),
+        ]),
+      );
+    expect(batch.payload.events.find((event: { kind: string }) => event.kind === 'TextViewportExposureTick')).not.toHaveProperty(
+      'chunkId',
     );
 
     controller.stop();
@@ -761,9 +828,9 @@ describe('startReadingCollector', () => {
     expect(batch.payload.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: 'TextBlockExposureTick',
+          kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
-            dwellMs: 500,
+            tickMs: 500,
             activeTab: true,
           }),
         }),
@@ -808,9 +875,9 @@ describe('startReadingCollector', () => {
     expect(mocks.sendMessage.mock.calls[1][0].payload.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: 'TextBlockExposureTick',
+          kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
-            dwellMs: 500,
+            tickMs: 500,
           }),
         }),
       ]),
@@ -845,7 +912,7 @@ describe('startReadingCollector', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
     const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map((event: { kind: string }) => event.kind);
-    expect(eventKinds).toEqual(['TextBlockVisible', 'TextBlockExposureTick', 'PageHidden']);
+    expect(eventKinds).toEqual(['TextBlockVisible', 'TextViewportExposureTick', 'PageHidden']);
   });
 
   it('emits PageHidden when stopping a visible page collector', async () => {

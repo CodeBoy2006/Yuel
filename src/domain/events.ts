@@ -5,7 +5,7 @@ export type ReadingEventKind =
   | 'PageHidden'
   | 'TextBlockVisible'
   | 'TextBlockHidden'
-  | 'TextBlockExposureTick'
+  | 'TextViewportExposureTick'
   | 'ScrollVelocityChanged'
   | 'UserIdle'
   | 'UserActive'

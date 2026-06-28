@@ -1,68 +1,189 @@
 import type { ReadingConfidence } from './events';
 
-export interface EffectiveReadingInput {
-  rawWords: number;
+export interface VisibleChunkBudgetInput {
+  chunkId: string;
+  wordCount: number;
   visibleRatio: number;
-  dwellMs: number;
-  activeTab: boolean;
+  centerDistance: number;
+  contentWeight: number;
+  sessionEffectiveWords: number;
+  todayEffectiveWords: number;
+  lifetimeEffectiveWords: number;
+}
+
+export interface ReadingBudgetInput {
+  tickMs: number;
+  baseWordsPerMinute: number;
+  isActiveTab: boolean;
+  isDocumentVisible: boolean;
   scrollSpeedWordsPerMinute: number;
-  idle: boolean;
-  interactionCount: number;
-  repeatViews: number;
+  idleAgeMs: number;
+  visibleChunks: VisibleChunkBudgetInput[];
 }
 
-export interface EffectiveReadingEstimate {
+export interface ChunkBudgetEstimate {
+  chunkId: string;
+  attentionShare: number;
   effectiveWords: number;
-  confidence: ReadingConfidence;
-  score: number;
+  newWords: number;
+  reviewWords: number;
+  effectiveReadingMs: number;
+  confidence: number;
 }
 
-const EXPECTED_READING_WPM = 220;
+export interface ReadingBudgetEstimate {
+  tickBudgetWords: number;
+  allocatedWords: number;
+  rawExposureMs: number;
+  effectiveReadingMs: number;
+  confidence: ReadingConfidence;
+  confidenceScore: number;
+  chunkEstimates: ChunkBudgetEstimate[];
+}
 
-export function estimateEffectiveWords(input: EffectiveReadingInput): EffectiveReadingEstimate {
-  const rawWords = Math.max(0, input.rawWords);
+export const DEFAULT_BASE_WORDS_PER_MINUTE = 220;
 
-  if (rawWords === 0) {
-    return { effectiveWords: 0, confidence: 'low', score: 0 };
+const MIN_VISIBLE_RATIO = 0.15;
+const MIN_CHUNK_WORDS = 5;
+const VIEWPORT_FULL_TEXT_SUPPLY_WORDS = 80;
+const MAX_CHUNK_VISIBLE_SUPPLY_WORDS = 120;
+
+export function allocateReadingBudget(input: ReadingBudgetInput): ReadingBudgetEstimate {
+  const tickMs = Math.max(0, finiteOr(input.tickMs, 0));
+  const baseWordsPerMinute = Math.max(1, finiteOr(input.baseWordsPerMinute, DEFAULT_BASE_WORDS_PER_MINUTE));
+  const eligibleChunks = input.visibleChunks.filter(isEligibleChunk);
+  const visibleWordSupply = eligibleChunks.reduce(
+    (sum, chunk) => sum + getVisibleWordSupply(chunk) * clamp(chunk.contentWeight, 0, 1),
+    0,
+  );
+  const textAvailabilityWeight = clamp(visibleWordSupply / VIEWPORT_FULL_TEXT_SUPPLY_WORDS, 0, 1);
+  const activeWeight = input.isActiveTab && input.isDocumentVisible ? 1 : 0;
+  const idle = idleWeight(input.idleAgeMs);
+  const scroll = scrollWeight(input.scrollSpeedWordsPerMinute, baseWordsPerMinute);
+  const confidenceScore = clamp(activeWeight * idle * scroll * textAvailabilityWeight, 0, 1);
+  const tickBudgetWords = (baseWordsPerMinute * tickMs * confidenceScore) / 60_000;
+  const attentionWeights = eligibleChunks.map((chunk) => ({
+    chunk,
+    weight: getAttentionWeight(chunk),
+  }));
+  const totalAttentionWeight = attentionWeights.reduce((sum, item) => sum + item.weight, 0);
+
+  if (tickBudgetWords <= 0 || totalAttentionWeight <= 0) {
+    return {
+      tickBudgetWords: 0,
+      allocatedWords: 0,
+      rawExposureMs: tickMs,
+      effectiveReadingMs: 0,
+      confidence: confidenceFromScore(confidenceScore),
+      confidenceScore,
+      chunkEstimates: input.visibleChunks.map((chunk) => createZeroChunkEstimate(chunk.chunkId, confidenceScore)),
+    };
   }
 
-  const expectedDwellMs = (rawWords / EXPECTED_READING_WPM) * 60_000;
-  const visibleWeight = clamp(input.visibleRatio, 0, 1);
-  const dwellWeight = clamp(input.dwellMs / Math.max(expectedDwellMs, 1), 0, 1);
-  const activeTabWeight = input.activeTab ? 1 : 0.25;
-  const scrollWeight = scrollSpeedWeight(input.scrollSpeedWordsPerMinute);
-  const idleWeight = input.idle ? 0.15 : 1;
-  const interactionBonus = 1 + Math.min(Math.max(input.interactionCount, 0), 3) * 0.03;
-  const repeatViewCap = 1 / (1 + Math.max(input.repeatViews - 1, 0) * 0.18);
+  const chunkEstimates = attentionWeights.map(({ chunk, weight }) => {
+    const attentionShare = weight / totalAttentionWeight;
+    const proposedWords = tickBudgetWords * attentionShare;
+    const sessionRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.sessionEffectiveWords));
+    const dayRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.todayEffectiveWords));
+    const effectiveWords = Math.max(0, Math.min(proposedWords, sessionRemaining, dayRemaining));
+    const lifetimeRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.lifetimeEffectiveWords));
+    const newWords = Math.min(effectiveWords, lifetimeRemaining);
 
-  const score = clamp(
-    visibleWeight * dwellWeight * activeTabWeight * scrollWeight * idleWeight * interactionBonus * repeatViewCap,
-    0,
-    1,
-  );
+    return {
+      chunkId: chunk.chunkId,
+      attentionShare,
+      effectiveWords,
+      newWords,
+      reviewWords: effectiveWords - newWords,
+      effectiveReadingMs: 0,
+      confidence: confidenceScore,
+    };
+  });
+  const allocatedWords = chunkEstimates.reduce((sum, chunk) => sum + chunk.effectiveWords, 0);
+  const allocationRatio = tickBudgetWords > 0 ? clamp(allocatedWords / tickBudgetWords, 0, 1) : 0;
+  const effectiveReadingMs = tickMs * confidenceScore * allocationRatio;
 
   return {
-    effectiveWords: Math.min(rawWords, Math.round(rawWords * score)),
-    confidence: confidenceFromScore(score),
-    score,
+    tickBudgetWords,
+    allocatedWords,
+    rawExposureMs: tickMs,
+    effectiveReadingMs,
+    confidence: confidenceFromScore(confidenceScore),
+    confidenceScore,
+    chunkEstimates: chunkEstimates.map((chunk) => ({
+      ...chunk,
+      effectiveReadingMs: allocatedWords > 0 ? effectiveReadingMs * (chunk.effectiveWords / allocatedWords) : 0,
+    })),
   };
 }
 
-function scrollSpeedWeight(wordsPerMinute: number): number {
-  if (wordsPerMinute <= 0) return 1;
-  if (wordsPerMinute <= 400) return 1;
-  if (wordsPerMinute >= 1_200) return 0.18;
+function isEligibleChunk(chunk: VisibleChunkBudgetInput): boolean {
+  return (
+    chunk.visibleRatio >= MIN_VISIBLE_RATIO &&
+    chunk.wordCount >= MIN_CHUNK_WORDS &&
+    chunk.contentWeight > 0 &&
+    chunk.todayEffectiveWords < chunk.wordCount &&
+    chunk.sessionEffectiveWords < chunk.wordCount
+  );
+}
 
-  const penalty = (wordsPerMinute - 400) / 800;
-  return 1 - penalty * 0.82;
+function getAttentionWeight(chunk: VisibleChunkBudgetInput): number {
+  const visibilityPart = Math.sqrt(Math.max(getVisibleWordSupply(chunk), 1));
+  const centerWeight = clamp(1 - finiteOr(chunk.centerDistance, 0) * 0.35, 0.7, 1.15);
+
+  return visibilityPart * centerWeight * clamp(chunk.contentWeight, 0, 1);
+}
+
+function getVisibleWordSupply(chunk: VisibleChunkBudgetInput): number {
+  return Math.min(Math.max(0, chunk.wordCount) * clamp(chunk.visibleRatio, 0, 1), MAX_CHUNK_VISIBLE_SUPPLY_WORDS);
+}
+
+function idleWeight(idleAgeMs: number): number {
+  const idleAge = Math.max(0, finiteOr(idleAgeMs, 0));
+
+  if (idleAge <= 45_000) return 1;
+  if (idleAge <= 120_000) return lerp(1, 0.35, (idleAge - 45_000) / 75_000);
+  if (idleAge <= 300_000) return lerp(0.35, 0.05, (idleAge - 120_000) / 180_000);
+  return 0;
+}
+
+function scrollWeight(wordsPerMinute: number, baseWordsPerMinute: number): number {
+  const scrollWpm = Math.max(0, finiteOr(wordsPerMinute, 0));
+  const normal = baseWordsPerMinute * 1.6;
+  const fast = baseWordsPerMinute * 5;
+
+  if (scrollWpm <= normal) return 1;
+  if (scrollWpm >= fast) return 0.08;
+
+  return lerp(1, 0.08, (scrollWpm - normal) / (fast - normal));
 }
 
 function confidenceFromScore(score: number): ReadingConfidence {
-  if (score >= 0.55) return 'high';
-  if (score >= 0.22) return 'medium';
+  if (score >= 0.75) return 'high';
+  if (score >= 0.45) return 'medium';
   return 'low';
+}
+
+function createZeroChunkEstimate(chunkId: string, confidence: number): ChunkBudgetEstimate {
+  return {
+    chunkId,
+    attentionShare: 0,
+    effectiveWords: 0,
+    newWords: 0,
+    reviewWords: 0,
+    effectiveReadingMs: 0,
+    confidence,
+  };
+}
+
+function lerp(start: number, end: number, amount: number): number {
+  return start + (end - start) * clamp(amount, 0, 1);
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+function finiteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
 }

@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { createEventId, createSessionId, hashText, type ReadingEvent, type TextChunkSnapshot } from '../domain/events';
+import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../domain/metrics';
 import { MESSAGE_TYPES } from '../messaging/contracts';
 import {
   collectTextBlocks,
@@ -20,7 +21,6 @@ interface CollectorOptions {
 
 interface VisibleBlockState {
   block: TextBlockCandidate;
-  visibleSince: number;
   maxVisibleRatio: number;
 }
 
@@ -51,6 +51,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   let pageHidden = document.visibilityState === 'hidden';
   let stopped = false;
   let lastInteractionAt = Date.now();
+  let lastViewportTickAt = Date.now();
   let idleStartedAt: number | undefined;
   let lastScrollSample: ScrollVelocitySample = {
     scrollY: getCurrentScrollY(),
@@ -84,9 +85,11 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
       if (isVisible) {
         const wasVisible = Boolean(existingState);
+        if (!wasVisible) {
+          closeCurrentViewportInterval(now);
+        }
         visibleBlocks.set(block.chunkId, {
           block,
-          visibleSince: existingState?.visibleSince ?? now,
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
 
@@ -106,16 +109,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
           });
         }
       } else if (existingState) {
-        appendExposureTick(
-          pendingEvents,
-          sessionId,
-          page.pageId,
-          existingState,
-          now,
-          latestScrollSpeedWordsPerMinute,
-          userIdle,
-          document.visibilityState === 'visible',
-        );
+        closeCurrentViewportInterval(now);
         visibleBlocks.delete(block.chunkId);
 
         pendingEvents.push({
@@ -140,8 +134,28 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   }
 
   const flushNow = async (): Promise<boolean> => {
-    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
+    closeCurrentViewportInterval();
     return flushEvents(page, blocks, pendingEvents);
+  };
+
+  const closeCurrentViewportInterval = (
+    now = Date.now(),
+    activeTab = document.visibilityState === 'visible',
+    documentVisible = document.visibilityState === 'visible',
+  ) => {
+    appendViewportExposureTick(
+      pendingEvents,
+      sessionId,
+      page.pageId,
+      visibleBlocks,
+      lastViewportTickAt,
+      now,
+      latestScrollSpeedWordsPerMinute,
+      activeTab,
+      documentVisible,
+      now - lastInteractionAt,
+    );
+    lastViewportTickAt = now;
   };
 
   const flushTimer = window.setInterval(() => {
@@ -223,7 +237,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 
   const flushHiddenPage = () => {
-    appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle, true);
+    closeCurrentViewportInterval(Date.now(), true, true);
     visibleBlocks.clear();
     appendPageHiddenOnce();
 
@@ -238,14 +252,16 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
     if (pageHidden) {
       pageHidden = false;
-      lastInteractionAt = Date.now();
+      const now = Date.now();
+      lastInteractionAt = now;
+      lastViewportTickAt = now;
       resetIdleTimer();
       pendingEvents.push({
-        id: createEventId('PageVisible'),
+        id: createEventId('PageVisible', now),
         sessionId,
         pageId: page.pageId,
         kind: 'PageVisible',
-        occurredAt: Date.now(),
+        occurredAt: now,
         confidence: 'medium',
       });
       restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
@@ -340,7 +356,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
-      appendOpenExposureTicks(pendingEvents, sessionId, page.pageId, visibleBlocks, latestScrollSpeedWordsPerMinute, userIdle);
+      closeCurrentViewportInterval();
       visibleBlocks.clear();
       appendPageHiddenOnce();
       void flushNow().then((delivered) => {
@@ -378,7 +394,6 @@ function restoreVisibleBlocksFromLayout(
 
     visibleBlocks.set(block.chunkId, {
       block,
-      visibleSince: now,
       maxVisibleRatio: visibleRatio,
     });
     pendingEvents.push({
@@ -411,54 +426,65 @@ function getViewportVisibleRatio(element: Element): number {
   return (visibleWidth * visibleHeight) / (rect.width * rect.height);
 }
 
-function appendOpenExposureTicks(
+function appendViewportExposureTick(
   pendingEvents: ReadingEvent[],
   sessionId: string,
   pageId: string,
   visibleBlocks: Map<string, VisibleBlockState>,
-  scrollSpeedWordsPerMinute: number,
-  idle: boolean,
-  activeTab = document.visibilityState === 'visible',
-): void {
-  const now = Date.now();
-  for (const state of visibleBlocks.values()) {
-    appendExposureTick(pendingEvents, sessionId, pageId, state, now, scrollSpeedWordsPerMinute, idle, activeTab);
-    state.visibleSince = now;
-  }
-}
-
-function appendExposureTick(
-  pendingEvents: ReadingEvent[],
-  sessionId: string,
-  pageId: string,
-  state: VisibleBlockState,
+  startedAt: number,
   now: number,
   scrollSpeedWordsPerMinute: number,
-  idle: boolean,
   activeTab: boolean,
+  documentVisible: boolean,
+  idleAgeMs: number,
 ): void {
-  const dwellMs = now - state.visibleSince;
-  if (dwellMs < 250) {
+  const tickMs = now - startedAt;
+  if (tickMs < 250 || visibleBlocks.size === 0) {
     return;
   }
 
+  const visibleChunks = Array.from(visibleBlocks.values()).map((state) => ({
+    chunkId: state.block.chunkId,
+    wordCount: state.block.wordCount,
+    visibleRatio: state.maxVisibleRatio,
+    centerDistance: getViewportCenterDistance(state.block.element),
+    contentWeight: getContentWeight(state.block.element),
+  }));
+
   pendingEvents.push({
-    id: createEventId('TextBlockExposureTick', now),
+    id: createEventId('TextViewportExposureTick', now),
     sessionId,
     pageId,
-    chunkId: state.block.chunkId,
-    kind: 'TextBlockExposureTick',
+    kind: 'TextViewportExposureTick',
     occurredAt: now,
-    confidence: state.maxVisibleRatio > 0.65 ? 'high' : 'medium',
+    confidence: visibleChunks.some((chunk) => chunk.visibleRatio > 0.65) ? 'high' : 'medium',
     value: {
-      dwellMs,
-      visibleRatio: state.maxVisibleRatio,
-      wordCount: state.block.wordCount,
+      tickMs,
+      baseWordsPerMinute: DEFAULT_BASE_WORDS_PER_MINUTE,
       activeTab,
+      documentVisible,
       scrollSpeedWordsPerMinute,
-      idle,
+      idleAgeMs: Math.max(0, idleAgeMs),
+      visibleChunks,
     },
   });
+}
+
+function getViewportCenterDistance(element: Element): number {
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
+  const elementCenterY = rect.top + rect.height / 2;
+  const viewportCenterY = viewportHeight / 2;
+
+  return Math.max(0, Math.abs(elementCenterY - viewportCenterY) / Math.max(1, viewportHeight));
+}
+
+function getContentWeight(element: HTMLElement): number {
+  const tagName = element.tagName.toLowerCase();
+  if (element.closest('pre, code')) return 0.2;
+  if (tagName === 'li') return 0.8;
+  if (/^h[1-6]$/.test(tagName)) return 0.6;
+  return 1;
 }
 
 function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: number): ScrollVelocityMeasurement | undefined {

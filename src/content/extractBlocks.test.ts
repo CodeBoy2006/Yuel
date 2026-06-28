@@ -80,6 +80,19 @@ describe('collectTextBlocks', () => {
     });
   });
 
+  it('collects readable headings and code blocks inside primary article content', () => {
+    document.body.innerHTML = `
+      <article>
+        <h2 id="heading">Budgeted exposure model allocates viewport attention across visible text blocks.</h2>
+        <pre id="snippet">retry storage writes after extension service worker restarts without duplicating exposure analytics</pre>
+      </article>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks.map((block) => block.selector)).toEqual(['h2#heading', 'pre#snippet']);
+  });
+
   it('skips non-reading ancestors even when they match primary content selectors', () => {
     document.body.innerHTML = `
       <main>

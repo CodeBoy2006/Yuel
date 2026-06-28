@@ -23,9 +23,9 @@ Included:
 
 - WXT Chrome MV3 scaffold.
 - React popup, side panel, and dashboard entrypoints.
-- Text block extraction for article, main, docs, markdown, list, and blockquote content.
-- Reading event contracts for page visibility, block visibility, and selection.
-- Dexie schema for pages, chunks, events, vocabulary exposures, saved items, and daily stats.
+- Text block extraction for article, main, docs, markdown, heading, code, list, and blockquote content.
+- Reading event contracts for page visibility, block visibility, viewport exposure, scroll velocity, idle/activity, and selection.
+- Dexie schema for pages, chunks, chunk session/day caps, events, vocabulary exposures, saved items, and daily stats.
 - Lightweight English tokenization using browser-native `Intl.Segmenter` for sentence splitting where available.
 - Data-only Pack validation and matching for lexicon and phrase rules.
 
@@ -54,9 +54,17 @@ The local database uses event sourcing plus aggregate-ready tables:
 - `readingEvents`: short-lived behavior events.
 - `pages`: hashed page identity and page-level counters.
 - `textChunks`: hashed chunk identity and aggregate exposure fields.
+- `chunkSessions`: per-session chunk effective-word caps.
+- `chunkDays`: per-day chunk effective-word caps and raw/effective exposure fields.
 - `vocabExposures`: long-lived lemma exposure memory.
 - `savedItems`: only stores raw text when the user intentionally saves an item.
 - `dailyStats`: report-facing daily aggregates.
+
+## Effective Reading Model
+
+Yuel uses a Budgeted Exposure Model instead of scoring each visible chunk independently. The content script closes a viewport interval on timer flushes, visibility changes, page hide, stop, and visible-block composition changes. Each `TextViewportExposureTick` carries one `tickMs` budget, base WPM, active/document visibility, scroll WPM, idle age, and visible chunk snapshots with visible ratio, viewport-center distance, and content weight.
+
+The storage layer allocates the single tick budget across eligible chunks by attention weight, applies session and day caps before counting effective words, and uses lifetime coverage only to split new words from review words. Reading minutes are computed at tick level from allocated budget rather than by summing chunk dwell time, so multiple visible blocks cannot multiply reading time.
 
 ## Pack Boundary
 

@@ -39,7 +39,7 @@ The extension can collect reading activity in two ways:
 - Starter static matches: MDN, GitHub, Medium, Wikipedia, and arXiv load the content script without asking for broad host access.
 - User-enabled sites: open the popup on an `http` or `https` page, choose "Enable current site", and Yuel requests optional host permission only for that origin. Enabled sites are persisted and re-registered on startup.
 
-Once enabled, the content script emits local reading events as visible text blocks enter and leave view. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, aggregates effective words and reading minutes, and tags matched vocabulary with the bundled Tech English Pack.
+Once enabled, the content script emits local reading events as visible text blocks enter and leave view. Viewport exposure is measured with a Budgeted Exposure Model: each tick gets one WPM-based reading budget, then allocates that budget across visible chunks by visibility, viewport position, and content weight. The background worker writes batches to IndexedDB, retries failed collector flushes on the next interval, applies session/day/lifetime caps, records raw exposure separately from effective reading time, and tags matched vocabulary by effective chunk coverage with the bundled Tech English Pack.
 
 Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag, and increments local vocabulary saved counts for trackable English words; ordinary text selection events remain hashed telemetry and do not store raw text.
 

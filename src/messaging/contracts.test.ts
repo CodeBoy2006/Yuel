@@ -7,6 +7,22 @@ const validPageUrl = 'https://example.com/articles/local-reading';
 const validPageId = createPageId(validPageUrl);
 const validChunkText = 'Mitigate memory overhead and fail gracefully during rollout.';
 const validChunkId = createChunkId(validPageId, validChunkText);
+const validVisibleChunk = {
+  chunkId: validChunkId,
+  wordCount: 8,
+  visibleRatio: 1,
+  centerDistance: 0,
+  contentWeight: 1,
+};
+const validViewportTickValue = {
+  tickMs: 30_000,
+  baseWordsPerMinute: 220,
+  activeTab: true,
+  documentVisible: true,
+  scrollSpeedWordsPerMinute: 180,
+  idleAgeMs: 0,
+  visibleChunks: [validVisibleChunk],
+};
 
 const validMessage: ReadingEventBatchMessage = {
   type: MESSAGE_TYPES.readingEventsBatch,
@@ -33,21 +49,13 @@ const validMessage: ReadingEventBatchMessage = {
     ],
     events: [
       {
-        id: 'TextBlockExposureTick_event-1',
+        id: 'TextViewportExposureTick_event-1',
         sessionId: 'session_1',
         pageId: validPageId,
-        chunkId: validChunkId,
-        kind: 'TextBlockExposureTick',
+        kind: 'TextViewportExposureTick',
         occurredAt: Date.UTC(2026, 5, 27, 12, 0, 10),
         confidence: 'high',
-        value: {
-          dwellMs: 30_000,
-          visibleRatio: 1,
-          wordCount: 8,
-          activeTab: true,
-          scrollSpeedWordsPerMinute: 180,
-          idle: false,
-        },
+        value: validViewportTickValue,
       },
     ],
   },
@@ -345,7 +353,7 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects exposure ticks without positive dwell time', () => {
+  it('rejects viewport exposure ticks without positive tick duration', () => {
     expect(
       isReadingEventBatchMessage({
         ...validMessage,
@@ -355,7 +363,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                visibleRatio: 1,
+                ...validViewportTickValue,
+                tickMs: undefined,
               },
             },
           ],
@@ -372,8 +381,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 0,
-                visibleRatio: 1,
+                ...validViewportTickValue,
+                tickMs: 0,
               },
             },
           ],
@@ -382,7 +391,7 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects exposure ticks without collector-shaped reading metadata', () => {
+  it('rejects viewport exposure ticks without collector-shaped reading metadata', () => {
     expect(
       isReadingEventBatchMessage({
         ...validMessage,
@@ -392,11 +401,9 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
+                ...validViewportTickValue,
+                baseWordsPerMinute: undefined,
                 activeTab: true,
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
               },
             },
           ],
@@ -413,12 +420,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
-                wordCount: 6,
+                ...validViewportTickValue,
                 activeTab: 'yes',
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
               },
             },
           ],
@@ -435,12 +438,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
-                wordCount: 6,
-                activeTab: true,
+                ...validViewportTickValue,
                 scrollSpeedWordsPerMinute: -1,
-                idle: false,
               },
             },
           ],
@@ -449,7 +448,7 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects exposure ticks below the collector visibility threshold', () => {
+  it('rejects viewport exposure ticks below the collector visibility threshold', () => {
     expect(
       isReadingEventBatchMessage({
         ...validMessage,
@@ -459,12 +458,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 30_000,
-                visibleRatio: 0.14,
-                wordCount: validMessage.payload.chunks[0].wordCount,
-                activeTab: true,
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
+                ...validViewportTickValue,
+                visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
               },
             },
           ],
@@ -611,7 +606,7 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects chunk visibility events whose word counts differ from the linked chunk', () => {
+  it('rejects viewport visible chunk entries whose word counts differ from the linked chunk', () => {
     expect(
       isReadingEventBatchMessage({
         ...validMessage,
@@ -621,12 +616,8 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
-                wordCount: validMessage.payload.chunks[0].wordCount + 1,
-                activeTab: true,
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
+                ...validViewportTickValue,
+                visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
               },
             },
           ],
@@ -1110,7 +1101,7 @@ describe('isReadingEventBatchMessage', () => {
           events: [
             {
               ...validMessage.payload.events[0],
-              id: 'TextBlockExposureTick_',
+              id: 'TextViewportExposureTick_',
             },
           ],
         },
@@ -1160,7 +1151,7 @@ describe('isReadingEventBatchMessage', () => {
             validMessage.payload.events[0],
             {
               ...validMessage.payload.events[0],
-              id: 'TextBlockExposureTick_event-2',
+              id: 'TextViewportExposureTick_event-2',
               occurredAt: validMessage.payload.events[0].occurredAt - 1,
             },
           ],
@@ -1196,7 +1187,7 @@ describe('isReadingEventBatchMessage', () => {
             validMessage.payload.events[0],
             {
               ...validMessage.payload.events[0],
-              id: 'TextBlockExposureTick_event-2',
+              id: 'TextViewportExposureTick_event-2',
               sessionId: 'session_2',
             },
           ],
@@ -1226,7 +1217,13 @@ describe('isReadingEventBatchMessage', () => {
           events: [
             {
               ...validMessage.payload.events[0],
+              id: 'TextBlockVisible_event-1',
+              kind: 'TextBlockVisible',
               chunkId: undefined,
+              value: {
+                visibleRatio: 1,
+                wordCount: validMessage.payload.chunks[0].wordCount,
+              },
             },
           ],
         },
@@ -1240,7 +1237,15 @@ describe('isReadingEventBatchMessage', () => {
         ...validMessage,
         payload: {
           ...validMessage.payload,
-          events: [{ ...validMessage.payload.events[0], chunkId: 'chunk-2' }],
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                ...validViewportTickValue,
+                visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
+              },
+            },
+          ],
         },
       }),
     ).toBe(false);

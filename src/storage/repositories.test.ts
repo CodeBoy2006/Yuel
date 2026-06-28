@@ -14,6 +14,16 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(),
     bulkPut: vi.fn(),
   };
+  const chunkSessions = {
+    clear: vi.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+  };
+  const chunkDays = {
+    clear: vi.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+  };
   const readingEvents = {
     bulkGet: vi.fn(),
     bulkPut: vi.fn(),
@@ -36,6 +46,8 @@ const mocks = vi.hoisted(() => {
   const db = {
     pages,
     textChunks,
+    chunkSessions,
+    chunkDays,
     readingEvents,
     vocabExposures,
     savedItems,
@@ -48,7 +60,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { db, dailyStats, pages, readingEvents, savedItems, textChunks, vocabExposures };
+  return { chunkDays, chunkSessions, db, dailyStats, pages, readingEvents, savedItems, textChunks, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -81,18 +93,28 @@ function createPayload(): ReadingEventBatchPayload {
     ],
     events: [
       {
-        id: 'event-1',
+        id: 'TextViewportExposureTick_event-1',
         sessionId: 'session-1',
         pageId: 'page-1',
-        chunkId: 'chunk-1',
-        kind: 'TextBlockExposureTick',
+        kind: 'TextViewportExposureTick',
         occurredAt: capturedAt,
         confidence: 'high',
         value: {
-          visibleRatio: 1,
-          dwellMs: 30_000,
-          wordCount: 8,
+          tickMs: 30_000,
+          baseWordsPerMinute: 220,
           activeTab: true,
+          documentVisible: true,
+          scrollSpeedWordsPerMinute: 0,
+          idleAgeMs: 0,
+          visibleChunks: [
+            {
+              chunkId: 'chunk-1',
+              wordCount: 8,
+              visibleRatio: 1,
+              centerDistance: 0,
+              contentWeight: 1,
+            },
+          ],
         },
       },
     ],
@@ -105,6 +127,8 @@ describe('recordReadingEventBatch', () => {
     vi.spyOn(Date, 'now').mockReturnValue(capturedAt + 60_000);
     mocks.pages.get.mockResolvedValue(undefined);
     mocks.textChunks.get.mockResolvedValue(undefined);
+    mocks.chunkSessions.get.mockResolvedValue(undefined);
+    mocks.chunkDays.get.mockResolvedValue(undefined);
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
     mocks.readingEvents.bulkGet.mockResolvedValue([]);
@@ -258,7 +282,7 @@ describe('recordReadingEventBatch', () => {
         value: {
           ...payload.events[0].value,
           activeTab: false,
-          idle: true,
+          documentVisible: true,
           scrollSpeedWordsPerMinute: 1_500,
         },
       },
@@ -290,7 +314,7 @@ describe('recordReadingEventBatch', () => {
         value: {
           ...payload.events[0].value,
           activeTab: false,
-          idle: true,
+          documentVisible: true,
           scrollSpeedWordsPerMinute: 1_500,
         },
       },
@@ -319,13 +343,29 @@ describe('recordReadingEventBatch', () => {
       exposureSeconds: 30,
       effectiveWords: 8,
     });
+    mocks.chunkSessions.get.mockResolvedValueOnce({
+      id: 'session-1:chunk-1',
+      sessionId: 'session-1',
+      chunkId: 'chunk-1',
+      effectiveWords: 8,
+    });
+    mocks.chunkDays.get.mockResolvedValueOnce({
+      id: '2026-06-27:chunk-1',
+      date: '2026-06-27',
+      chunkId: 'chunk-1',
+      effectiveWords: 8,
+      newWords: 8,
+      reviewWords: 0,
+      rawExposureMs: 30_000,
+      effectiveReadingMs: 30_000,
+    });
 
     await recordReadingEventBatch(createPayload());
 
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
   });
 
-  it('does not record duplicate vocabulary exposure when an already credited chunk gains more effective words', async () => {
+  it('records proportional vocabulary exposure when a partially credited chunk gains effective coverage', async () => {
     mocks.textChunks.get.mockResolvedValueOnce({
       chunkId: 'chunk-1',
       pageId: 'page-1',
@@ -336,10 +376,53 @@ describe('recordReadingEventBatch', () => {
       exposureSeconds: 10,
       effectiveWords: 4,
     });
+    mocks.chunkSessions.get.mockResolvedValueOnce({
+      id: 'session-1:chunk-1',
+      sessionId: 'session-1',
+      chunkId: 'chunk-1',
+      effectiveWords: 4,
+    });
+    mocks.chunkDays.get.mockResolvedValueOnce({
+      id: '2026-06-27:chunk-1',
+      date: '2026-06-27',
+      chunkId: 'chunk-1',
+      effectiveWords: 4,
+      newWords: 4,
+      reviewWords: 0,
+      rawExposureMs: 10_000,
+      effectiveReadingMs: 10_000,
+    });
 
     await recordReadingEventBatch(createPayload());
 
-    expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lemma: 'mitigate',
+        seenCount: 0.5,
+        effectiveSeenCount: 0.5,
+      }),
+    );
+  });
+
+  it('stores session and day chunk caps from budgeted effective allocation', async () => {
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.chunkSessions.put).toHaveBeenCalledWith({
+      id: 'session-1:chunk-1',
+      sessionId: 'session-1',
+      chunkId: 'chunk-1',
+      effectiveWords: 8,
+    });
+    expect(mocks.chunkDays.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '2026-06-27:chunk-1',
+        date: '2026-06-27',
+        chunkId: 'chunk-1',
+        effectiveWords: 8,
+        newWords: 8,
+        reviewWords: 0,
+      }),
+    );
   });
 
   it('does not aggregate duplicate reading events that are already stored locally', async () => {
@@ -348,7 +431,7 @@ describe('recordReadingEventBatch', () => {
 
     await recordReadingEventBatch(payload);
 
-    expect(mocks.readingEvents.bulkGet).toHaveBeenCalledWith(['event-1']);
+    expect(mocks.readingEvents.bulkGet).toHaveBeenCalledWith(['TextViewportExposureTick_event-1']);
     expect(mocks.pages.put).not.toHaveBeenCalled();
     expect(mocks.textChunks.bulkPut).not.toHaveBeenCalled();
     expect(mocks.readingEvents.bulkPut).not.toHaveBeenCalled();
@@ -393,6 +476,8 @@ describe('recordReadingEventBatch', () => {
 
     expect(mocks.pages.clear).toHaveBeenCalledOnce();
     expect(mocks.textChunks.clear).toHaveBeenCalledOnce();
+    expect(mocks.chunkSessions.clear).toHaveBeenCalledOnce();
+    expect(mocks.chunkDays.clear).toHaveBeenCalledOnce();
     expect(mocks.readingEvents.clear).toHaveBeenCalledOnce();
     expect(mocks.vocabExposures.clear).toHaveBeenCalledOnce();
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();

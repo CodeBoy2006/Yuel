@@ -3,8 +3,8 @@ import type { ReadingEvent } from '../domain/events';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import techEnglishPack from '../packs/tech-english.pack.json';
-import { db, type PageRecord, type TextChunkRecord, type VocabExposureRecord } from './schema';
-import { summarizeReadingEventBatch } from './aggregateReading';
+import { db, type ChunkDayRecord, type ChunkSessionRecord, type PageRecord, type TextChunkRecord, type VocabExposureRecord } from './schema';
+import { summarizeReadingEventBatch, type ChunkDayReadingState, type ChunkReadingState } from './aggregateReading';
 
 const ACTIVE_PACKS: YuelPack[] = [techEnglishPack as YuelPack];
 const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -12,7 +12,7 @@ const READING_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
 
-  await db.transaction('rw', db.pages, db.textChunks, db.readingEvents, db.vocabExposures, db.dailyStats, async () => {
+  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats], async () => {
     const newEvents = await getNewReadingEvents(payload.events);
     if (payload.events.length > 0 && newEvents.length === 0) {
       await pruneExpiredReadingEvents(now);
@@ -20,25 +20,49 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     }
 
     const batchPayload = newEvents.length === payload.events.length ? payload : { ...payload, events: newEvents };
-    const summary = summarizeReadingEventBatch(batchPayload);
+    const existingChunks = new Map<string, TextChunkRecord | undefined>();
+    const existingSessionChunks = new Map<string, ChunkSessionRecord | undefined>();
+    const existingDayChunks = new Map<string, ChunkDayRecord | undefined>();
+    const eventDates = getEventDates(batchPayload);
+    const sessionId = batchPayload.events[0]?.sessionId;
+    const chunkStates = new Map<string, ChunkReadingState>();
+    const chunkDayStates = new Map<string, Map<string, ChunkDayReadingState>>();
+
+    for (const chunk of payload.chunks) {
+      const existingChunk = await db.textChunks.get(chunk.chunkId);
+      const existingSessionChunk = sessionId ? await db.chunkSessions.get(createChunkSessionId(sessionId, chunk.chunkId)) : undefined;
+      existingChunks.set(chunk.chunkId, existingChunk);
+      existingSessionChunks.set(chunk.chunkId, existingSessionChunk);
+      chunkStates.set(chunk.chunkId, {
+        sessionEffectiveWords: existingSessionChunk?.effectiveWords ?? 0,
+        todayEffectiveWords: 0,
+        lifetimeEffectiveWords: existingChunk?.effectiveWords ?? 0,
+      });
+
+      for (const date of eventDates) {
+        const existingDayChunk = await db.chunkDays.get(createChunkDayId(date, chunk.chunkId));
+        existingDayChunks.set(createChunkDayId(date, chunk.chunkId), existingDayChunk);
+        const dayStates = chunkDayStates.get(date) ?? new Map();
+        dayStates.set(chunk.chunkId, {
+          effectiveWords: existingDayChunk?.effectiveWords ?? 0,
+        });
+        chunkDayStates.set(date, dayStates);
+      }
+    }
+
+    const summary = summarizeReadingEventBatch(batchPayload, { chunkStates, chunkDayStates });
     const chunkUpdatesById = new Map(summary.chunkUpdates.map((update) => [update.chunkId, update]));
-    const firstEffectiveReadChunkIds = new Set<string>();
 
     const existingPage = await db.pages.get(payload.page.pageId);
-    let effectiveWordsDelta = 0;
 
     const chunkRecords: TextChunkRecord[] = [];
     for (const chunk of payload.chunks) {
-      const existingChunk = await db.textChunks.get(chunk.chunkId);
+      const existingChunk = existingChunks.get(chunk.chunkId);
       const update = chunkUpdatesById.get(chunk.chunkId);
-      const priorEffectiveWords = existingChunk?.effectiveWords ?? 0;
-      const nextEffectiveWords = Math.min(chunk.wordCount, priorEffectiveWords + (update?.effectiveWords ?? 0));
-      const newEffectiveWords = nextEffectiveWords - priorEffectiveWords;
-
-      effectiveWordsDelta += newEffectiveWords;
-      if (priorEffectiveWords === 0 && newEffectiveWords > 0) {
-        firstEffectiveReadChunkIds.add(chunk.chunkId);
-      }
+      const priorLifetimeEffectiveWords = existingChunk?.effectiveWords ?? 0;
+      const nextLifetimeEffectiveWords = Math.min(chunk.wordCount, priorLifetimeEffectiveWords + (update?.newWords ?? 0));
+      const priorRawExposureMs = existingChunk?.rawExposureMs ?? (existingChunk?.exposureSeconds ?? 0) * 1_000;
+      const nextRawExposureMs = priorRawExposureMs + (update?.rawExposureMs ?? 0);
       chunkRecords.push({
         chunkId: chunk.chunkId,
         pageId: chunk.pageId,
@@ -46,13 +70,24 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
         wordCount: chunk.wordCount,
         sentenceCount: chunk.sentenceCount,
         difficulty: existingChunk?.difficulty ?? 0,
-        exposureSeconds: (existingChunk?.exposureSeconds ?? 0) + (update?.exposureSeconds ?? 0),
-        effectiveWords: nextEffectiveWords,
+        exposureSeconds: nextRawExposureMs / 1_000,
+        rawExposureMs: nextRawExposureMs,
+        effectiveReadingMs: (existingChunk?.effectiveReadingMs ?? 0) + (update?.effectiveReadingMs ?? 0),
+        effectiveWords: nextLifetimeEffectiveWords,
+        newWords: (existingChunk?.newWords ?? 0) + (update?.newWords ?? 0),
+        reviewWords: (existingChunk?.reviewWords ?? 0) + (update?.reviewWords ?? 0),
+        confidence: weightedAverageConfidence(
+          existingChunk?.confidence ?? 0,
+          existingChunk?.effectiveWords ?? 0,
+          update?.confidence ?? 0,
+          update?.effectiveWords ?? 0,
+        ),
       });
     }
     const vocabUpdates = payload.chunks.flatMap((chunk) => {
-      if (!chunk.text || !firstEffectiveReadChunkIds.has(chunk.chunkId)) return [];
-      return extractVocabExposureUpdates(chunk.text, now);
+      const update = chunkUpdatesById.get(chunk.chunkId);
+      if (!chunk.text || !update || update.effectiveWords <= 0) return [];
+      return extractVocabExposureUpdates(chunk.text, now, update.effectiveWords / chunk.wordCount);
     });
     const lastReadAt = summary.dailyUpdates.length > 0 ? now : (existingPage?.lastReadAt ?? now);
     const pageDomain = normalizeStoredDomain(payload.page.domain);
@@ -64,7 +99,11 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       urlHash: payload.page.urlHash,
       language: payload.page.language,
       totalWords: payload.page.totalWords,
-      effectiveWords: (existingPage?.effectiveWords ?? 0) + effectiveWordsDelta,
+      effectiveWords: (existingPage?.effectiveWords ?? 0) + summary.pageEffectiveWords,
+      newWords: (existingPage?.newWords ?? 0) + summary.pageNewWords,
+      reviewWords: (existingPage?.reviewWords ?? 0) + summary.pageReviewWords,
+      rawExposureMs: (existingPage?.rawExposureMs ?? 0) + summary.totalRawExposureMs,
+      effectiveReadingMs: (existingPage?.effectiveReadingMs ?? 0) + summary.totalEffectiveReadingMs,
       difficultyScore: existingPage?.difficultyScore ?? 0,
       firstSeenAt: existingPage?.firstSeenAt ?? payload.page.capturedAt,
       lastReadAt,
@@ -77,7 +116,8 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     if (newEvents.length > 0) {
       await db.readingEvents.bulkPut(newEvents);
     }
-    await recordDailyStatIncrements(summary.dailyUpdates, effectiveWordsDelta, pageDomain);
+    await recordChunkCapIncrements(summary, existingSessionChunks, existingDayChunks, sessionId);
+    await recordDailyStatIncrements(summary.dailyUpdates, pageDomain);
 
     for (const update of vocabUpdates) {
       const existing = await db.vocabExposures.get(update.lemma);
@@ -130,11 +170,13 @@ export async function pruneExpiredReadingEvents(now = Date.now()): Promise<void>
 export async function clearLocalReadingData(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.pages, db.textChunks, db.readingEvents, db.vocabExposures, db.savedItems, db.dailyStats],
+    [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.savedItems, db.dailyStats],
     async () => {
       await Promise.all([
         db.pages.clear(),
         db.textChunks.clear(),
+        db.chunkSessions.clear(),
+        db.chunkDays.clear(),
         db.readingEvents.clear(),
         db.vocabExposures.clear(),
         db.savedItems.clear(),
@@ -146,29 +188,64 @@ export async function clearLocalReadingData(): Promise<void> {
 
 async function recordDailyStatIncrements(
   updates: ReturnType<typeof summarizeReadingEventBatch>['dailyUpdates'],
-  effectiveWordsDelta: number,
   domain: string,
 ): Promise<void> {
-  let remainingEffectiveWords = effectiveWordsDelta;
-  const proposedEffectiveWords = updates.reduce((sum, update) => sum + update.effectiveWords, 0);
-
-  for (const [index, update] of updates.entries()) {
-    const isLast = index === updates.length - 1;
-    const effectiveWords =
-      isLast || proposedEffectiveWords === 0
-        ? remainingEffectiveWords
-        : Math.min(remainingEffectiveWords, Math.round((update.effectiveWords / proposedEffectiveWords) * effectiveWordsDelta));
-    remainingEffectiveWords -= effectiveWords;
-
+  for (const update of updates) {
     const existing = await db.dailyStats.get(update.date);
     await db.dailyStats.put({
       date: update.date,
-      effectiveWords: (existing?.effectiveWords ?? 0) + effectiveWords,
+      effectiveWords: (existing?.effectiveWords ?? 0) + update.effectiveWords,
+      newWords: (existing?.newWords ?? 0) + update.newWords,
+      reviewWords: (existing?.reviewWords ?? 0) + update.reviewWords,
       minutes: (existing?.minutes ?? 0) + update.minutes,
+      rawExposureMs: (existing?.rawExposureMs ?? 0) + update.rawExposureMs,
+      effectiveReadingMs: (existing?.effectiveReadingMs ?? 0) + update.effectiveReadingMs,
       advancedWords: existing?.advancedWords ?? 0,
       expressions: existing?.expressions ?? 0,
       streak: existing?.streak ?? 0,
       topDomains: mergeTopDomains(existing?.topDomains ?? [], domain),
+    });
+  }
+}
+
+async function recordChunkCapIncrements(
+  summary: ReturnType<typeof summarizeReadingEventBatch>,
+  existingSessionChunks: Map<string, ChunkSessionRecord | undefined>,
+  existingDayChunks: Map<string, ChunkDayRecord | undefined>,
+  sessionId: string | undefined,
+): Promise<void> {
+  if (sessionId) {
+    for (const update of summary.chunkUpdates) {
+      if (update.effectiveWords <= 0) {
+        continue;
+      }
+
+      const existing = existingSessionChunks.get(update.chunkId);
+      await db.chunkSessions.put({
+        id: createChunkSessionId(sessionId, update.chunkId),
+        sessionId,
+        chunkId: update.chunkId,
+        effectiveWords: (existing?.effectiveWords ?? 0) + update.effectiveWords,
+      });
+    }
+  }
+
+  for (const update of summary.chunkDayUpdates) {
+    if (update.rawExposureMs <= 0) {
+      continue;
+    }
+
+    const id = createChunkDayId(update.date, update.chunkId);
+    const existing = existingDayChunks.get(id);
+    await db.chunkDays.put({
+      id,
+      date: update.date,
+      chunkId: update.chunkId,
+      effectiveWords: (existing?.effectiveWords ?? 0) + update.effectiveWords,
+      newWords: (existing?.newWords ?? 0) + update.newWords,
+      reviewWords: (existing?.reviewWords ?? 0) + update.reviewWords,
+      rawExposureMs: (existing?.rawExposureMs ?? 0) + update.rawExposureMs,
+      effectiveReadingMs: (existing?.effectiveReadingMs ?? 0) + update.effectiveReadingMs,
     });
   }
 }
@@ -188,7 +265,46 @@ function normalizeExistingTopDomain(domain: string): string | undefined {
   return normalized || undefined;
 }
 
-function extractVocabExposureUpdates(text: string, now: number): VocabExposureRecord[] {
+function getEventDates(payload: ReadingEventBatchPayload): string[] {
+  return Array.from(new Set(payload.events.map((event) => formatLocalDate(event.occurredAt))));
+}
+
+function createChunkSessionId(sessionId: string, chunkId: string): string {
+  return `${sessionId}:${chunkId}`;
+}
+
+function createChunkDayId(date: string, chunkId: string): string {
+  return `${date}:${chunkId}`;
+}
+
+function weightedAverageConfidence(
+  existingConfidence: number,
+  existingWords: number,
+  nextConfidence: number,
+  nextWords: number,
+): number {
+  const totalWords = existingWords + nextWords;
+  if (totalWords <= 0) {
+    return nextConfidence;
+  }
+
+  return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
+}
+
+function formatLocalDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function extractVocabExposureUpdates(text: string, now: number, coverage: number): VocabExposureRecord[] {
+  const boundedCoverage = Math.min(1, Math.max(0, Number.isFinite(coverage) ? coverage : 0));
+  if (boundedCoverage <= 0) {
+    return [];
+  }
+
   const counts = new Map<string, number>();
   const packTagsByLemma = collectPackTagsByLemma(text);
   const analysis = analyzeEnglishText(text);
@@ -204,8 +320,8 @@ function extractVocabExposureUpdates(text: string, now: number): VocabExposureRe
   return Array.from(counts, ([lemma, seenCount]) => ({
     lemma,
     language: 'en',
-    seenCount,
-    effectiveSeenCount: seenCount,
+    seenCount: seenCount * boundedCoverage,
+    effectiveSeenCount: seenCount * boundedCoverage,
     lookupCount: 0,
     savedCount: 0,
     lastSeenAt: now,

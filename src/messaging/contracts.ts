@@ -31,7 +31,7 @@ const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageHidden',
   'TextBlockVisible',
   'TextBlockHidden',
-  'TextBlockExposureTick',
+  'TextViewportExposureTick',
   'ScrollVelocityChanged',
   'UserIdle',
   'UserActive',
@@ -42,11 +42,11 @@ const MIN_TEXT_CHUNK_WORD_COUNT = 8;
 const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
   'TextBlockHidden',
-  'TextBlockExposureTick',
 ]);
 const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',
+  'TextViewportExposureTick',
   'ScrollVelocityChanged',
   'UserIdle',
   'UserActive',
@@ -55,7 +55,6 @@ const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
 const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
   'TextBlockHidden',
-  'TextBlockExposureTick',
 ]);
 const PAYLOAD_FREE_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
@@ -115,7 +114,11 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       }
 
       if (PAGE_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
-        return event.chunkId === undefined;
+        if (event.chunkId !== undefined) {
+          return false;
+        }
+
+        return event.kind !== 'TextViewportExposureTick' || hasConsistentViewportTickLinks(event.value, chunksById);
       }
 
       if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
@@ -130,6 +133,31 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       return false;
     })
   );
+}
+
+function hasConsistentViewportTickLinks(
+  value: Record<string, unknown> | undefined,
+  chunksById: Map<string, TextChunkSnapshot>,
+): boolean {
+  const visibleChunks = value?.visibleChunks;
+  if (!Array.isArray(visibleChunks)) {
+    return false;
+  }
+
+  const visibleChunkIds = new Set<string>();
+  return visibleChunks.every((candidate) => {
+    if (!isObject(candidate) || !isNonBlankString(candidate.chunkId)) {
+      return false;
+    }
+
+    if (visibleChunkIds.has(candidate.chunkId)) {
+      return false;
+    }
+
+    visibleChunkIds.add(candidate.chunkId);
+    const chunk = chunksById.get(candidate.chunkId);
+    return Boolean(chunk && candidate.wordCount === chunk.wordCount);
+  });
 }
 
 function hasChronologicalEvents(events: ReadingEvent[]): boolean {
@@ -209,16 +237,18 @@ function hasCollectorSessionIdShape(sessionId: string): boolean {
 }
 
 function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {
-  if (kind === 'TextBlockExposureTick') {
+  if (kind === 'TextViewportExposureTick') {
     return (
       isObject(value) &&
-      isPositiveFiniteNumber(value.dwellMs) &&
-      isUnitIntervalFiniteNumber(value.visibleRatio) &&
-      value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO &&
-      isPositiveFiniteNumber(value.wordCount) &&
+      isPositiveFiniteNumber(value.tickMs) &&
+      isPositiveFiniteNumber(value.baseWordsPerMinute) &&
       isBoolean(value.activeTab) &&
+      isBoolean(value.documentVisible) &&
       isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute) &&
-      isBoolean(value.idle)
+      isNonNegativeFiniteNumber(value.idleAgeMs) &&
+      Array.isArray(value.visibleChunks) &&
+      value.visibleChunks.length > 0 &&
+      value.visibleChunks.every(isVisibleChunkExposureSnapshot)
     );
   }
 
@@ -265,6 +295,20 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
   }
 
   return false;
+}
+
+function isVisibleChunkExposureSnapshot(value: unknown): boolean {
+  return (
+    isObject(value) &&
+    isNonBlankString(value.chunkId) &&
+    isPositiveFiniteNumber(value.wordCount) &&
+    isUnitIntervalFiniteNumber(value.visibleRatio) &&
+    value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO &&
+    isNonNegativeFiniteNumber(value.centerDistance) &&
+    isFiniteNumber(value.contentWeight) &&
+    value.contentWeight > 0 &&
+    value.contentWeight <= 1
+  );
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
