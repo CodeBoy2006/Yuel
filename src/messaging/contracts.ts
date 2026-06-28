@@ -198,6 +198,7 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
       isObject(value) &&
       isPositiveFiniteNumber(value.dwellMs) &&
       isUnitIntervalFiniteNumber(value.visibleRatio) &&
+      value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO &&
       isPositiveFiniteNumber(value.wordCount) &&
       isBoolean(value.activeTab) &&
       isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute) &&

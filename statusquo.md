@@ -783,3 +783,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
 - **Context:** Hidden-block events now represent the below-threshold side of the collector split, while exposure ticks retain their existing bounded ratio semantics.
+
+## [2026-06-28 14:14] Exposure Threshold Contract Guard
+- **Changes:** Rejected `TextBlockExposureTick` events below the collector's 0.15 visibility threshold at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector-to-background contract invariants before broadening MVP flows.
+- **Context:** Exposure ticks are derived from visible-block state, so below-threshold exposure can no longer enter raw local storage through malformed messages.

@@ -449,6 +449,30 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects exposure ticks below the collector visibility threshold', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: 0.14,
+                wordCount: validMessage.payload.chunks[0].wordCount,
+                activeTab: true,
+                scrollSpeedWordsPerMinute: 180,
+                idle: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects visibility events without bounded visible ratios', () => {
     expect(
       isReadingEventBatchMessage({
