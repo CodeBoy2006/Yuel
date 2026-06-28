@@ -579,3 +579,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
 - **Context:** Text-block visibility events now match the collector payload shape before entering the raw reading-event stream.
+
+## [2026-06-28 11:41] Duplicate Chunk ID Guard
+- **Changes:** Rejected reading batches containing duplicate `chunkId` values before local aggregate and text-chunk writes.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local batch identity hygiene and remaining reading event payload boundaries.
+- **Context:** Ambiguous chunk snapshots no longer reach Map-based aggregation or IndexedDB `textChunks` primary-key writes.

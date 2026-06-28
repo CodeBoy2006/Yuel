@@ -618,6 +618,25 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects duplicate chunk IDs in a batch', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          chunks: [
+            validMessage.payload.chunks[0],
+            {
+              ...validMessage.payload.chunks[0],
+              textHash: 'chunk-text-copy',
+              text: 'A duplicate chunk identity would make local aggregate writes ambiguous.',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects events linked to a different page', () => {
     expect(
       isReadingEventBatchMessage({
