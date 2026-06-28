@@ -603,3 +603,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
 - **Context:** Each content collector lifecycle emits one session, so mixed-session batches are now treated as malformed instead of merging distinct reading sessions.
+
+## [2026-06-28 11:55] Empty Reading Batch Guard
+- **Changes:** Rejected reading event batch messages with an empty `events` array at the message contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event chronology and remaining reading event payload boundaries.
+- **Context:** The collector does not send empty event batches, so malformed runtime messages can no longer create page records without a raw reading event.

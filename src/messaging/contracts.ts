@@ -63,6 +63,7 @@ function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBa
     !Array.isArray(chunks) ||
     !chunks.every(isTextChunkSnapshot) ||
     !Array.isArray(events) ||
+    events.length === 0 ||
     !events.every(isReadingEvent)
   ) {
     return false;

@@ -66,6 +66,18 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects reading event batches without events', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects batches containing malformed page, chunk, or event records', () => {
     expect(
       isReadingEventBatchMessage({
