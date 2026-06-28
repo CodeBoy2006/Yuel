@@ -200,7 +200,8 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
 }
 
 function hasMatchingEventIdKindPrefix(id: string, kind: ReadingEventKind): boolean {
-  return id.startsWith(`${kind}_`);
+  const prefix = `${kind}_`;
+  return id.startsWith(prefix) && id.length > prefix.length;
 }
 
 function hasCollectorSessionIdShape(sessionId: string): boolean {

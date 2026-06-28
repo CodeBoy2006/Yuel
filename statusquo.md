@@ -867,3 +867,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
 - **Context:** Collector sessions still pass, while manual or empty `session_` values are rejected at the message contract boundary.
+
+## [2026-06-28 15:08] Reading Event ID Suffix Guard
+- **Changes:** Required reading event IDs to include a non-empty unique suffix after the event-kind prefix.
+- **Status:** Completed
+- **Next Steps:** Continue tightening event identity and payload boundaries before broadening MVP behavior.
+- **Context:** Collector-shaped IDs such as `TextBlockExposureTick_*` still pass, while bare kind prefixes like `TextBlockExposureTick_` are rejected before local storage writes.

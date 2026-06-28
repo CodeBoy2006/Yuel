@@ -1101,6 +1101,23 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects event IDs without a unique suffix after the kind prefix', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              id: 'TextBlockExposureTick_',
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects session IDs that do not match the collector session shape', () => {
     expect(
       isReadingEventBatchMessage({
