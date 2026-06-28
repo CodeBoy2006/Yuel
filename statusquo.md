@@ -615,3 +615,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local text snapshot and event payload boundaries.
 - **Context:** Collector-emitted chunk text is normalized before batching, so malformed messages no longer carry unusable raw text into vocabulary analysis.
+
+## [2026-06-28 12:02] Page Event Chunk Link Guard
+- **Changes:** Rejected page-level reading events carrying `chunkId` values and required every reading event kind to be explicitly classified as page-scoped or chunk-scoped.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event classification and remaining payload boundaries.
+- **Context:** Page lifecycle, scroll, activity, selection, lookup, and exclusion events now match the collector shape instead of borrowing a known text chunk link.

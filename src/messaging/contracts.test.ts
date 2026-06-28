@@ -576,6 +576,24 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects page-level events linked to chunks', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'PageVisible',
+              value: undefined,
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({

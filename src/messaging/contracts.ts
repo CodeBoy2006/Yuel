@@ -38,6 +38,16 @@ const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockExposureTick',
   'ChunkSaved',
 ]);
+const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
+  'PageVisible',
+  'PageHidden',
+  'ScrollVelocityChanged',
+  'UserIdle',
+  'UserActive',
+  'TextSelected',
+  'LookupTriggered',
+  'PageExcluded',
+]);
 const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
   'TextBlockHidden',
@@ -91,11 +101,15 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
         return false;
       }
 
+      if (PAGE_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
+        return event.chunkId === undefined;
+      }
+
       if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
         return event.chunkId !== undefined && chunkIds.has(event.chunkId);
       }
 
-      return event.chunkId === undefined || chunkIds.has(event.chunkId);
+      return false;
     })
   );
 }
