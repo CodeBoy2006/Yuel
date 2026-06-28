@@ -555,3 +555,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
 - **Context:** Malformed scroll telemetry no longer enters the raw reading-event stream with missing or impossible movement values.
+
+## [2026-06-28 11:25] Activity Idle Duration Guard
+- **Changes:** Required `UserIdle` and `UserActive` events to carry finite nonnegative `idleMs` values at the reading batch contract boundary.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
+- **Context:** Malformed activity telemetry no longer enters the raw reading-event stream without usable idle-duration metadata.

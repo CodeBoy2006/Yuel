@@ -165,6 +165,10 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     );
   }
 
+  if (kind === 'UserIdle' || kind === 'UserActive') {
+    return isObject(value) && isNonNegativeFiniteNumber(value.idleMs);
+  }
+
   return true;
 }
 

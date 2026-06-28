@@ -354,6 +354,44 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects activity events without nonnegative idle duration metadata', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'UserIdle',
+              value: {},
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'UserActive',
+              value: {
+                idleMs: -1,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({
