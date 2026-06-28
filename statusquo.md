@@ -549,3 +549,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and explicit saved-selection boundaries.
 - **Context:** Ordinary selection telemetry now enforces the README privacy posture: raw selected text only belongs in explicit saved-item records.
+
+## [2026-06-28 11:22] Scroll Velocity Payload Guard
+- **Changes:** Required `ScrollVelocityChanged` events to carry collector-shaped movement metadata: at least 1px scroll delta, at least 100ms elapsed time, and nonnegative scroll speed.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and remaining reading event payload boundaries.
+- **Context:** Malformed scroll telemetry no longer enters the raw reading-event stream with missing or impossible movement values.

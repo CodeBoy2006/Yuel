@@ -290,6 +290,70 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects scroll velocity events without valid movement metadata', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'ScrollVelocityChanged',
+              value: {
+                scrollDeltaPx: 12,
+                scrollSpeedWordsPerMinute: 240,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'ScrollVelocityChanged',
+              value: {
+                scrollDeltaPx: 0.5,
+                elapsedMs: 100,
+                scrollSpeedWordsPerMinute: 240,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              chunkId: undefined,
+              kind: 'ScrollVelocityChanged',
+              value: {
+                scrollDeltaPx: 12,
+                elapsedMs: 99,
+                scrollSpeedWordsPerMinute: -1,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({

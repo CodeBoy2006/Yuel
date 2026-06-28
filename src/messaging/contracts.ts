@@ -156,6 +156,15 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     );
   }
 
+  if (kind === 'ScrollVelocityChanged') {
+    return (
+      isObject(value) &&
+      isFiniteNumberAtLeast(value.scrollDeltaPx, 1) &&
+      isFiniteNumberAtLeast(value.elapsedMs, 100) &&
+      isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute)
+    );
+  }
+
   return true;
 }
 
@@ -185,4 +194,8 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function isUnitIntervalFiniteNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0 && value <= 1;
+}
+
+function isFiniteNumberAtLeast(value: unknown, minimum: number): value is number {
+  return isFiniteNumber(value) && value >= minimum;
 }
