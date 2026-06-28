@@ -169,6 +169,43 @@ describe('recordReadingEventBatch', () => {
     });
   });
 
+  it('does not refresh ignored vocabulary from passive reading exposure', async () => {
+    mocks.vocabExposures.get.mockImplementation(async (lemma: string) =>
+      lemma === 'mitigate'
+        ? {
+            lemma: 'mitigate',
+            language: 'en',
+            seenCount: 5,
+            effectiveSeenCount: 5,
+            lookupCount: 0,
+            savedCount: 0,
+            lastSeenAt: capturedAt - 1_000,
+            packTags: ['architecture'],
+            userStatus: 'ignored',
+          }
+        : undefined,
+    );
+
+    await recordReadingEventBatch(createPayload());
+
+    const vocabRecords = mocks.vocabExposures.put.mock.calls.map(([record]) => record);
+
+    expect(vocabRecords).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          lemma: 'mitigate',
+        }),
+      ]),
+    );
+    expect(vocabRecords).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          lemma: 'overhead',
+        }),
+      ]),
+    );
+  });
+
   it('normalizes blank page domains before storing page and daily aggregates', async () => {
     const payload = createPayload();
     payload.page = {

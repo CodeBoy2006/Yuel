@@ -81,6 +81,10 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
 
     for (const update of vocabUpdates) {
       const existing = await db.vocabExposures.get(update.lemma);
+      if (existing?.userStatus === 'ignored') {
+        continue;
+      }
+
       await db.vocabExposures.put(
         existing
           ? {

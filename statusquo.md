@@ -765,3 +765,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening dashboard read-model boundaries around user vocabulary status.
 - **Context:** Explicit saves already reactivate ignored words as learning, so still-ignored memories should stay out of user-facing vocabulary surfaces.
+
+## [2026-06-28 14:04] Ignored Vocabulary Passive Update Guard
+- **Changes:** Prevented passive reading exposure from refreshing ignored vocabulary memories while leaving active and newly discovered vocabulary updates intact.
+- **Status:** Completed
+- **Next Steps:** Continue tightening vocabulary status boundaries across storage and dashboard surfaces.
+- **Context:** Ignored words should remain quiet until the user explicitly saves them again, which already reactivates them through the saved-selection path.
