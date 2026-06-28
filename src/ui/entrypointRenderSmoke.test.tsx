@@ -1134,6 +1134,21 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('Time0 min read');
   });
 
+  it('does not show side panel top-domain empty state while local summary is loading', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: () => new Promise(() => undefined),
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('Loading local data');
+    expect(container.textContent).toContain('Top domainLoading');
+    expect(container.textContent).not.toContain('No top domain yet');
+  });
+
   it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
     const container = await renderForSmoke(
       <SidePanelApp

@@ -50,7 +50,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
 
   const hasLoaded = Boolean(summary) || loadFailed;
   const statusText = loadFailed ? 'Local data unavailable' : summary?.hasData ? 'Reading data loaded' : hasLoaded ? 'No reading data yet' : 'Loading local data';
-  const topDomain = loadFailed ? 'Unavailable' : summary?.topDomains[0] ?? 'No top domain yet';
+  const topDomain = loadFailed ? 'Unavailable' : summary ? summary.topDomains[0] ?? 'No top domain yet' : 'Loading';
   const todayValue = loadFailed ? 'Unavailable' : summary ? formatWords(summary.effectiveWords) : 'Loading';
   const timeValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
   const pagesValue = loadFailed ? 'Unavailable' : summary ? `${summary.readPages} pages` : 'Loading';

@@ -921,3 +921,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening permission-state UX for the local-first MVP loop.
 - **Context:** The popup no longer shows "No custom sites enabled" before persisted site access records have loaded or when that load fails.
+
+## [2026-06-28 16:36] Side Panel Top Domain Loading State
+- **Changes:** Rendered a loading value for the side-panel top-domain card until local reading summary data is available.
+- **Status:** Completed
+- **Next Steps:** Run a bounded final MVP audit before deciding whether more true blockers remain.
+- **Context:** The side panel no longer shows "No top domain yet" while local summary data is still loading, but keeps that copy for genuine loaded empty summaries.
