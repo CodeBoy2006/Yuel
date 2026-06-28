@@ -35,6 +35,7 @@ const payload: ReadingEventBatchPayload = {
       confidence: 'high',
       value: {
         dwellMs: 1_000,
+        visibleRatio: 1,
         wordCount: 12,
       },
     },

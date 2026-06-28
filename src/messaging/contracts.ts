@@ -38,6 +38,11 @@ const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockExposureTick',
   'ChunkSaved',
 ]);
+const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
+  'TextBlockVisible',
+  'TextBlockHidden',
+  'TextBlockExposureTick',
+]);
 
 export function isReadingEventBatchMessage(message: unknown): message is ReadingEventBatchMessage {
   return (
@@ -135,7 +140,11 @@ function isReadingEvent(value: unknown): value is ReadingEvent {
 
 function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): boolean {
   if (kind === 'TextBlockExposureTick') {
-    return isObject(value) && isPositiveFiniteNumber(value.dwellMs);
+    return isObject(value) && isPositiveFiniteNumber(value.dwellMs) && isUnitIntervalFiniteNumber(value.visibleRatio);
+  }
+
+  if (VISIBILITY_RATIO_READING_EVENT_KINDS.has(kind)) {
+    return isObject(value) && isUnitIntervalFiniteNumber(value.visibleRatio);
   }
 
   return true;
@@ -163,4 +172,8 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
 
 function isPositiveFiniteNumber(value: unknown): value is number {
   return isFiniteNumber(value) && value > 0;
+}
+
+function isUnitIntervalFiniteNumber(value: unknown): value is number {
+  return isFiniteNumber(value) && value >= 0 && value <= 1;
 }

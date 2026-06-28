@@ -537,3 +537,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
 - **Context:** Malformed exposure ticks that cannot contribute to aggregates no longer enter the raw reading-event table.
+
+## [2026-06-28 11:16] Visibility Ratio Event Guard
+- **Changes:** Required text-block visibility and exposure events to carry finite `visibleRatio` values between 0 and 1, with contract and background fixture coverage.
+- **Status:** Completed
+- **Next Steps:** Continue tightening local event-write hygiene and dashboard presentation edge cases.
+- **Context:** Malformed visibility telemetry no longer enters the raw event stream with unusable or out-of-range visibility ratios.

@@ -169,6 +169,63 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects visibility events without bounded visible ratios', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'TextBlockVisible',
+              value: {
+                wordCount: 6,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              kind: 'TextBlockHidden',
+              value: {
+                visibleRatio: 1.2,
+                wordCount: 6,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          events: [
+            {
+              ...validMessage.payload.events[0],
+              value: {
+                dwellMs: 30_000,
+                visibleRatio: -0.1,
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
       isReadingEventBatchMessage({
