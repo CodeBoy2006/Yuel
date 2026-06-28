@@ -74,25 +74,28 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       const existingState = visibleBlocks.get(block.chunkId);
 
       if (isVisible) {
+        const wasVisible = Boolean(existingState);
         visibleBlocks.set(block.chunkId, {
           block,
           visibleSince: existingState?.visibleSince ?? now,
           maxVisibleRatio: Math.max(existingState?.maxVisibleRatio ?? 0, entry.intersectionRatio),
         });
 
-        pendingEvents.push({
-          id: createEventId('TextBlockVisible'),
-          sessionId,
-          pageId: page.pageId,
-          chunkId: block.chunkId,
-          kind: 'TextBlockVisible',
-          occurredAt: now,
-          confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
-          value: {
-            visibleRatio: entry.intersectionRatio,
-            wordCount: block.wordCount,
-          },
-        });
+        if (!wasVisible) {
+          pendingEvents.push({
+            id: createEventId('TextBlockVisible'),
+            sessionId,
+            pageId: page.pageId,
+            chunkId: block.chunkId,
+            kind: 'TextBlockVisible',
+            occurredAt: now,
+            confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
+            value: {
+              visibleRatio: entry.intersectionRatio,
+              wordCount: block.wordCount,
+            },
+          });
+        }
       } else if (existingState) {
         appendExposureTick(
           pendingEvents,

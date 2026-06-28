@@ -795,3 +795,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening raw collector event lifecycle coherence before broadening MVP flows.
 - **Context:** Below-threshold observer callbacks no longer create standalone hidden events; hidden events now close an actual prior visible interval.
+
+## [2026-06-28 14:21] Duplicate Visible Event Guard
+- **Changes:** Prevented repeated visible observer updates for the same block from emitting duplicate `TextBlockVisible` lifecycle events.
+- **Status:** Completed
+- **Next Steps:** Continue tightening collector lifecycle coherence and end-to-end local reading accuracy.
+- **Context:** A visible block now emits one visible lifecycle event per visible interval while repeated observer updates still raise the exposure tick's max visible ratio.

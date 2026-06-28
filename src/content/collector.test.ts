@@ -323,6 +323,61 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('does not duplicate visible block events while a block stays visible', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Repeated visible observer updates should update exposure state without duplicating lifecycle events.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 0.2,
+        },
+      ]);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 0.9,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map(
+        (event: { kind: string }) => event.kind,
+      );
+      expect(eventKinds).toEqual(['TextBlockVisible', 'TextBlockExposureTick']);
+      expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'TextBlockExposureTick',
+            value: expect.objectContaining({
+              visibleRatio: 0.9,
+            }),
+          }),
+        ]),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('ignores scroll velocity updates while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
