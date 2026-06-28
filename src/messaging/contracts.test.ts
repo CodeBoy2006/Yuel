@@ -184,6 +184,21 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
+  it('rejects non-English page snapshots before local English analysis', () => {
+    expect(
+      isReadingEventBatchMessage({
+        ...validMessage,
+        payload: {
+          ...validMessage.payload,
+          page: {
+            ...validMessage.payload.page,
+            language: 'fr',
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects chunks below the collector word threshold', () => {
     expect(
       isReadingEventBatchMessage({

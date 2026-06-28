@@ -681,3 +681,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue tightening page identity and local aggregate boundaries before broadening user-facing MVP flows.
 - **Context:** Collector-emitted page IDs include the normalized domain prefix, so malformed batches can no longer attribute one page identity to a different daily top-domain bucket.
+
+## [2026-06-28 13:08] English Page Language Guard
+- **Changes:** Rejected reading batch page snapshots whose `language` is not `en`.
+- **Status:** Completed
+- **Next Steps:** Continue tightening page identity and local aggregate boundaries before broadening user-facing MVP flows.
+- **Context:** The MVP collector and analysis pipeline are English-only, so malformed batches can no longer store non-English page records while still running English tokenization and Pack matching.

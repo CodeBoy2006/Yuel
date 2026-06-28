@@ -140,7 +140,7 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
     value.pageId.startsWith(`${value.domain}_`) &&
     isNonBlankString(value.titleHash) &&
     isNonBlankString(value.urlHash) &&
-    isNonBlankString(value.language) &&
+    value.language === 'en' &&
     isNonNegativeFiniteNumber(value.totalWords) &&
     isNonNegativeFiniteNumber(value.capturedAt)
   );
