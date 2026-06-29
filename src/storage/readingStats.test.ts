@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
+import { getCurrentPageReadingSummary, getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
 import type { PageRecord, SavedItemRecord, VocabExposureRecord } from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
@@ -15,6 +15,7 @@ function createStore({
   recentPages = [],
   recentVocabulary = [],
   recentSavedItems = [],
+  pagesById = new Map<string, PageRecord>(),
 }: {
   dailyStat?: {
     effectiveWords: number;
@@ -32,6 +33,7 @@ function createStore({
   recentPages?: PageRecord[];
   recentVocabulary?: VocabExposureRecord[];
   recentSavedItems?: SavedItemRecord[];
+  pagesById?: Map<string, PageRecord>;
 }): ReadingStatsStore {
   return {
     dailyStats: {
@@ -41,6 +43,9 @@ function createStore({
       },
     },
     pages: {
+      async get(pageId: string) {
+        return pagesById.get(pageId);
+      },
       where(index: string) {
         expect(index).toBe('lastReadAt');
         return {
@@ -676,6 +681,53 @@ describe('getReadingDashboardDetails', () => {
     const details = await getReadingDashboardDetails(createStore({}), morningOnJune27);
 
     expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
+  });
+});
+
+describe('getCurrentPageReadingSummary', () => {
+  it('loads measured progress for the current tab page without exposing raw URL data', async () => {
+    const summary = await getCurrentPageReadingSummary(
+      'https://developer.mozilla.org/en-US/docs/Web/API#reading',
+      createStore({
+        pagesById: new Map([
+          [
+            'developer.mozilla.org_yfw3uh',
+            createPageRecord({
+              pageId: 'developer.mozilla.org_yfw3uh',
+              domain: 'developer.mozilla.org',
+              totalWords: 1200,
+              effectiveWords: 420,
+              effectiveReadingMs: 180_000,
+              confidence: 0.82,
+            }),
+          ],
+        ]),
+      }),
+    );
+
+    expect(summary).toEqual({
+      pageId: 'developer.mozilla.org_yfw3uh',
+      domain: 'developer.mozilla.org',
+      totalWords: 1200,
+      effectiveWords: 420,
+      effectiveMinutes: 3,
+      confidence: 0.82,
+      lastReadAt: morningOnJune27,
+      hasData: true,
+    });
+  });
+
+  it('returns a current-page empty state when the page has not produced local reading data', async () => {
+    const summary = await getCurrentPageReadingSummary('https://docs.example.com/guide', createStore({}));
+
+    expect(summary).toEqual({
+      pageId: 'docs.example.com_1fqiyv5',
+      domain: 'docs.example.com',
+      totalWords: 0,
+      effectiveWords: 0,
+      effectiveMinutes: 0,
+      hasData: false,
+    });
   });
 });
 

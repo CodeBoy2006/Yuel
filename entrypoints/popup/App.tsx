@@ -1,4 +1,13 @@
-import { BarChart3, BookOpen, ExternalLink, PanelRightOpen, ShieldCheck, ToggleRight } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  ChevronDown,
+  ExternalLink,
+  Globe2,
+  PanelRightOpen,
+  PauseCircle,
+  ShieldCheck,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 
@@ -43,6 +52,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [enabledSites, setEnabledSites] = useState<EnabledSiteRecord[]>([]);
   const [enabledSitesLoaded, setEnabledSitesLoaded] = useState(false);
   const [enabledSitesFailed, setEnabledSitesFailed] = useState(false);
+  const [enabledSitesExpanded, setEnabledSitesExpanded] = useState(false);
   const [siteAccessBusy, setSiteAccessBusy] = useState(false);
   const [siteAccessDenied, setSiteAccessDenied] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
@@ -210,126 +220,174 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   };
 
   const hasLoaded = Boolean(summary) || loadFailed;
-  const todayValue = loadFailed ? 'Unavailable' : summary ? formatWords(summary.effectiveWords) : 'Loading';
-  const confidenceValue = loadFailed ? 'Unavailable' : summary?.hasData ? `${formatMinutes(summary.minutes)} read` : hasLoaded ? 'No data' : 'Loading';
-  const pagesValue = loadFailed ? 'Unavailable' : summary ? `${summary.readPages} pages` : 'Loading';
-  const learningValue = loadFailed ? 'Unavailable' : summary ? `${summary.learningWords} words` : 'Loading';
   const currentSiteEnabled = siteAccess?.supported ? siteAccess.enabled : false;
   const canEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled && !siteAccessBusy);
+  const canPauseCurrentSite = Boolean(siteAccess?.supported && siteAccess.enabled && !siteAccess.starterSite && !siteAccessBusy);
+  const showStarterSites = enabledSitesLoaded && enabledSites.length === 0 && (!summary?.hasData || siteAccess?.supported === false);
+  const primaryAction = canEnableCurrentSite ? enableSite : openSidePanel;
+  const primaryActionDisabled = canEnableCurrentSite ? siteAccessBusy : sidePanelBusy || !currentSiteEnabled;
 
   return (
-    <main className="w-[360px] bg-neutral-950 text-neutral-100">
-      <section className="border-b border-neutral-800 px-4 py-3">
-        <div className="flex items-center justify-between">
+    <main className="w-[360px] bg-[#F7F5EF] p-3 text-[#111827]">
+      <section className="rounded-[24px] border border-[#E5E7EB] bg-white p-4 shadow-[0_18px_45px_rgba(16,24,39,0.08)]">
+        <header className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-base font-semibold">Yuel Reading</h1>
-            <p className="text-xs text-neutral-400">Local-first reading telemetry</p>
+            <p className="text-[11px] font-semibold uppercase text-[#2F9B74]">Moonlight Reading</p>
+            <h1 className="mt-1 text-xl font-bold">阅量 Yuel</h1>
+            <p className="mt-1 text-xs text-[#6B7280]">本地优先的外语阅读追踪器</p>
           </div>
-          <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
-        </div>
-        <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-900 p-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Enabled sites</p>
-          {!enabledSitesLoaded && !enabledSitesFailed ? (
-            <p className="text-sm text-neutral-500">Loading enabled sites</p>
-          ) : enabledSites.length > 0 ? (
-            <div className="grid gap-2">
-              {enabledSites.map((site) => (
-                <div key={site.origin} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-sm text-neutral-200">{site.host}</span>
-                  <button
-                    type="button"
-                    disabled={removingOrigin === site.origin}
-                    onClick={() => void removeEnabledSite(site.origin)}
-                    className="shrink-0 rounded border border-neutral-700 px-2 py-1 text-xs font-semibold text-neutral-300 hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {removingOrigin === site.origin ? 'Removing' : 'Remove'}
-                  </button>
-                </div>
-              ))}
+          <div className="inline-flex items-center gap-1 rounded-full border border-[#DDE7DF] bg-[#F1F5F0] px-2.5 py-1 text-[11px] font-semibold text-[#1F7A5B]">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            本地保存
+          </div>
+        </header>
+
+        <section className="mt-4 rounded-[20px] bg-[#101827] p-4 text-white shadow-[0_12px_30px_rgba(16,24,39,0.18)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#D8B46A]">当前站点</p>
+              <h2 className="mt-2 truncate text-lg font-bold">{formatSiteAccessTitle(siteAccess, siteAccessFailed)}</h2>
             </div>
-          ) : enabledSitesFailed ? null : (
-            <p className="text-sm text-neutral-500">No custom sites enabled</p>
-          )}
-          {enabledSitesFailed ? <p className="mt-2 text-xs font-medium text-red-300">Enabled sites unavailable</p> : null}
-          {removeFailed ? <p className="mt-2 text-xs font-medium text-red-300">Remove failed; site is still enabled.</p> : null}
-        </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-2 px-4 py-3">
-        <Metric icon={<BookOpen className="h-4 w-4" />} label="Today" value={todayValue} />
-        <Metric icon={<BarChart3 className="h-4 w-4" />} label="Time" value={confidenceValue} />
-        <Metric icon={<BookOpen className="h-4 w-4" />} label="Pages" value={pagesValue} />
-        <Metric icon={<BarChart3 className="h-4 w-4" />} label="Learning" value={learningValue} />
-      </section>
-      {loadFailed ? <p className="px-4 pb-3 text-xs font-medium text-red-300">Local data unavailable</p> : null}
-
-      <section className="px-4 pb-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-500">Starter sites</p>
-        <div className="flex flex-wrap gap-1.5">
-          {trackedHosts.map((host) => (
-            <span key={host} className="rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-300">
-              {host}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-t border-neutral-800 px-4 py-3">
-        <div className="mb-2 flex items-center gap-2">
-          <ToggleRight className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Current site</p>
-        </div>
-        <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
-          <p className="text-sm font-semibold">{formatSiteAccessTitle(siteAccess, siteAccessFailed)}</p>
-          <p className="mt-1 text-xs text-neutral-500">
+            <StatusChip label={formatSiteAccessStatus(siteAccess, siteAccessFailed, siteAccessDenied)} />
+          </div>
+          <p className="mt-2 text-sm leading-5 text-slate-300">
             {currentTabInjectionMissed
-              ? 'Enabled for future pages; reload this tab to start tracking'
+              ? '已为后续页面启用，重新加载当前标签后开始记录。'
               : formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied)}
           </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={!canPauseCurrentSite}
+              onClick={() => {
+                if (siteAccess?.supported) {
+                  void removeEnabledSite(siteAccess.origin);
+                }
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-[10px] border border-white/15 px-3 py-2 text-sm font-semibold text-white hover:border-[#D8B46A] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <PauseCircle className="h-4 w-4" aria-hidden="true" />
+              {canPauseCurrentSite ? (removingOrigin === (siteAccess?.supported ? siteAccess.origin : undefined) ? '暂停中...' : '暂停记录') : currentSiteEnabled ? '默认记录中' : '未启用'}
+            </button>
+          </div>
+          {siteAccessFailed ? <p className="mt-3 text-xs font-medium text-red-200">权限状态暂时不可用。</p> : null}
+          {removeFailed ? <p className="mt-3 text-xs font-medium text-red-200">移除失败，此网站仍保持启用。</p> : null}
+        </section>
+
+        <section className="mt-3 rounded-[18px] border border-[#E5E7EB] bg-[#F8FAF7] p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-[#6B7280]">今日有效阅读</p>
+            <BookOpen className="h-4 w-4 text-[#2F9B74]" aria-hidden="true" />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Metric label="有效阅读" value={loadFailed ? '不可用' : summary ? formatWords(summary.effectiveWords) : '读取中'} />
+            <Metric label="阅读时间" value={loadFailed ? '不可用' : summary?.hasData ? formatMinutes(summary.minutes) : hasLoaded ? '0 min' : '读取中'} />
+            <Metric label="页面" value={loadFailed ? '不可用' : summary ? `${summary.readPages} pages` : '读取中'} />
+            <Metric label="学习中词汇" value={loadFailed ? '不可用' : summary ? `${summary.learningWords} words` : '读取中'} />
+          </div>
+          {loadFailed ? <p className="mt-3 text-xs font-medium text-red-700">本地数据暂时不可用。</p> : null}
+        </section>
+
+        <section className="mt-3 grid gap-2">
           <button
             type="button"
-            disabled={!canEnableCurrentSite}
-            onClick={() => void enableSite()}
-            className="mt-3 flex w-full items-center justify-center rounded-md border border-neutral-700 px-3 py-2 text-sm font-semibold text-neutral-100 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+            disabled={primaryActionDisabled}
+            onClick={() => void primaryAction()}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#2F9B74] px-3 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_rgba(47,155,116,0.28)] hover:bg-[#1F7A5B] disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {siteAccessBusy ? 'Enabling...' : currentSiteEnabled ? 'Enabled' : 'Enable current site'}
+            {canEnableCurrentSite ? (
+              <Globe2 className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+            )}
+            {canEnableCurrentSite ? (siteAccessBusy ? '启用中...' : '启用当前网站') : sidePanelBusy ? '打开中...' : '打开侧栏'}
           </button>
-        </div>
-      </section>
+          <button
+            type="button"
+            disabled={dashboardBusy}
+            onClick={() => void openDashboard()}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#D7DDD8] bg-white px-3 py-2.5 text-sm font-bold text-[#111827] hover:border-[#2F9B74] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            {dashboardBusy ? '打开中...' : '查看仪表盘'}
+          </button>
+          {sidePanelFailed ? <p className="text-center text-xs text-red-700">侧栏暂时不可用。</p> : null}
+          {dashboardFailed ? <p className="text-center text-xs text-red-700">仪表盘暂时不可用。</p> : null}
+        </section>
 
-      <section className="grid gap-2 border-t border-neutral-800 px-4 py-3">
-        <button
-          type="button"
-          disabled={sidePanelBusy}
-          onClick={() => void openSidePanel()}
-          className="flex w-full items-center justify-center gap-2 rounded-md border border-neutral-700 px-3 py-2 text-sm font-semibold text-neutral-100 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
-          {sidePanelBusy ? 'Opening side panel' : 'Open side panel'}
-        </button>
-        <button
-          type="button"
-          disabled={dashboardBusy}
-          onClick={() => void openDashboard()}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          {dashboardBusy ? 'Opening dashboard' : 'Open dashboard'}
-        </button>
-        {sidePanelFailed ? <p className="text-center text-xs text-red-300">Side panel unavailable</p> : null}
-        {dashboardFailed ? <p className="text-center text-xs text-red-300">Dashboard unavailable</p> : null}
+        {showStarterSites ? (
+          <section className="mt-3 rounded-[16px] border border-dashed border-[#D7DDD8] bg-white p-3">
+            <p className="text-xs font-semibold text-[#6B7280]">推荐开始记录</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {trackedHosts.map((host) => (
+                <span key={host} className="rounded-full border border-[#DDE7DF] bg-[#F1F5F0] px-2.5 py-1 text-xs font-semibold text-[#1F7A5B]">
+                  {host}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mt-3">
+          <button
+            type="button"
+            onClick={() => setEnabledSitesExpanded((expanded) => !expanded)}
+            className="flex w-full items-center justify-between rounded-[14px] border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-semibold text-[#111827] hover:border-[#2F9B74]"
+          >
+            <span>
+              已启用网站{' '}
+              <span className="text-[#6B7280]">
+                {!enabledSitesLoaded && !enabledSitesFailed ? '读取中' : enabledSitesFailed ? '不可用' : `${enabledSites.length} 个`}
+              </span>
+            </span>
+            <ChevronDown className={`h-4 w-4 text-[#6B7280] transition ${enabledSitesExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+          {enabledSitesExpanded ? (
+            <div className="mt-2 rounded-[16px] border border-[#E5E7EB] bg-[#F8FAF7] p-3">
+              {!enabledSitesLoaded && !enabledSitesFailed ? (
+                <p className="text-sm text-[#6B7280]">正在读取已启用网站。</p>
+              ) : enabledSites.length > 0 ? (
+                <div className="grid gap-2">
+                  {enabledSites.map((site) => (
+                    <div key={site.origin} className="flex items-center justify-between gap-2 rounded-[12px] bg-white px-3 py-2">
+                      <span className="min-w-0 truncate text-sm font-semibold text-[#111827]">{site.host}</span>
+                      <button
+                        type="button"
+                        disabled={removingOrigin === site.origin}
+                        onClick={() => void removeEnabledSite(site.origin)}
+                        className="shrink-0 rounded-[10px] border border-[#E5E7EB] px-2.5 py-1 text-xs font-semibold text-[#6B7280] hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {removingOrigin === site.origin ? '移除中' : '移除'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : enabledSitesFailed ? null : (
+                <p className="text-sm text-[#6B7280]">还没有手动启用的网站。</p>
+              )}
+              {enabledSitesFailed ? <p className="text-sm font-medium text-red-700">已启用网站暂时不可用。</p> : null}
+            </div>
+          ) : null}
+        </section>
       </section>
     </main>
   );
 }
 
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-neutral-800 bg-neutral-900 p-3">
-      <div className="mb-2 text-emerald-400">{icon}</div>
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className="text-sm font-semibold">{value}</p>
+    <div className="rounded-[14px] border border-[#E5E7EB] bg-white p-3">
+      <p className="text-[11px] font-semibold text-[#9CA3AF]">{label}</p>
+      <p className="mt-1 font-mono text-sm font-bold tabular-nums text-[#111827]">{value}</p>
     </div>
+  );
+}
+
+function StatusChip({ label }: { label: string }) {
+  return (
+    <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-[#BCE9D8]">
+      {label}
+    </span>
   );
 }
 
@@ -346,21 +404,30 @@ function formatMinutes(minutes: number): string {
 }
 
 function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: boolean): string {
-  if (failed) return 'Permission status unavailable';
-  if (!siteAccess) return 'Checking page';
-  if (!siteAccess.supported) return siteAccess.reason;
+  if (failed) return '权限状态不可用';
+  if (!siteAccess) return '正在检查页面';
+  if (!siteAccess.supported) return '当前页面无法记录';
   return siteAccess.host;
 }
 
+function formatSiteAccessStatus(siteAccess: SiteAccessState | undefined, failed: boolean, denied = false): string {
+  if (failed) return '错误';
+  if (denied) return '未授权';
+  if (!siteAccess) return '检查中';
+  if (!siteAccess.supported) return '不可用';
+  if (siteAccess.enabled) return '已启用';
+  return '未启用';
+}
+
 function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: boolean, denied = false): string {
-  if (busy) return 'Requesting optional host permission';
-  if (denied) return 'Permission was not granted';
-  if (!siteAccess) return 'Loading current tab';
-  if (!siteAccess.supported) return 'Open an http or https page to enable tracking';
-  if (siteAccess.starterSite) return 'Starter site tracked by default';
-  if (siteAccess.enabled) return 'Yuel can collect reading events on this site';
-  if (siteAccess.granted) return 'Permission is granted; click to enable tracking';
-  return 'Grant permission only for this site';
+  if (busy) return '正在请求当前网站的可选权限。';
+  if (denied) return '权限未授予，此网站尚未启用。';
+  if (!siteAccess) return '正在读取当前标签。';
+  if (!siteAccess.supported) return 'Chrome 内部页面、商店页或空白页不可访问。';
+  if (siteAccess.starterSite) return '这是默认记录站点，阅量会在本地记录英文阅读。';
+  if (siteAccess.enabled) return '正在记录此网站的英文阅读。';
+  if (siteAccess.granted) return '权限已授予，点击即可启用记录。';
+  return '只为当前网站授予记录权限。';
 }
 
 async function openExtensionSidePanel(): Promise<void> {

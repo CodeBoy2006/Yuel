@@ -7,6 +7,118 @@ import { SidePanelApp } from '../../entrypoints/sidepanel/App';
 import { renderForSmoke } from './renderTest';
 
 describe('extension UI entrypoint smoke rendering', () => {
+  it('renders the popup as a current-site control center first', async () => {
+    const container = await renderForSmoke(
+      <PopupApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1280,
+            minutes: 14,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: [],
+            readPages: 3,
+            learningWords: 9,
+            hasData: true,
+          }),
+          getCurrentTabSiteAccess: async () => ({
+            supported: true,
+            tabId: 1,
+            url: 'https://example.com/article',
+            origin: 'https://example.com/*',
+            host: 'example.com',
+            granted: true,
+            enabled: true,
+            starterSite: false,
+          }),
+          listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
+          enableCurrentTabSite: vi.fn(),
+          disableEnabledSite: vi.fn(),
+          openDashboard: vi.fn(),
+          openSidePanel: vi.fn(),
+        }}
+      />,
+    );
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('阅量 Yuel');
+    expect(text).toContain('当前站点');
+    expect(text).toContain('今日有效阅读');
+    expect(text).toContain('打开侧栏');
+    expect(text).toContain('查看仪表盘');
+    expect(text.indexOf('当前站点')).toBeLessThan(text.indexOf('已启用网站'));
+  });
+
+  it('renders the side panel around current reading, vocabulary, and highlights', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => ({
+            date: '2026-06-27',
+            effectiveWords: 1540,
+            minutes: 18,
+            advancedWords: 0,
+            expressions: 0,
+            streak: 0,
+            topDomains: ['docs.example.com'],
+            readPages: 4,
+            learningWords: 7,
+            hasData: true,
+          }),
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.textContent).toContain('当前阅读');
+    expect(container.textContent).toContain('本页有效阅读');
+    expect(container.textContent).toContain('今日');
+    expect(container.textContent).toContain('值得关注');
+    expect(container.textContent).toContain('摘录');
+    expect(container.textContent).not.toContain('Observe');
+  });
+
+  it('renders the dashboard as a progress instrument panel with the danger action demoted', async () => {
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          getReadingDashboardDetails: async () => ({
+            summary: {
+              date: '2026-06-27',
+              effectiveWords: 960,
+              minutes: 11,
+              advancedWords: 0,
+              expressions: 0,
+              streak: 2,
+              topDomains: ['developer.mozilla.org'],
+              readPages: 2,
+              learningWords: 5,
+              hasData: true,
+            },
+            recentPages: [],
+            recentVocabulary: [],
+            recentSavedItems: [],
+            summaryCardText: 'Yuel Reading - 2026-06-27\nEffective words: 960',
+            hasData: true,
+          }),
+        }}
+      />,
+    );
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('阅读输入仪表盘');
+    expect(text).toContain('今日有效阅读');
+    expect(text).toContain('今日卡片预览');
+    expect(text).toContain('阅读趋势');
+    expect(text).toContain('本地数据');
+    expect(text.indexOf('今日有效阅读')).toBeLessThan(text.indexOf('清空本地数据'));
+    expect(text).not.toContain('Event driven');
+  });
+
   it('renders popup metrics and current-site controls from injected local services', async () => {
     const container = await renderForSmoke(
       <PopupApp
@@ -42,11 +154,11 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Yuel Reading');
+    expect(container.textContent).toContain('阅量 Yuel');
     expect(container.textContent).toContain('1,280 words');
-    expect(container.textContent).toContain('14 min read');
+    expect(container.textContent).toContain('14 min');
     expect(container.textContent).toContain('example.com');
-    expect(container.textContent).toContain('Enabled');
+    expect(container.textContent).toContain('已启用');
   });
 
   it('shows zero popup reading time when only non-time local data exists', async () => {
@@ -84,8 +196,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('0 min read');
-    expect(container.textContent).not.toContain('<1 min read');
+    expect(container.textContent).toContain('0 min');
+    expect(container.textContent).not.toContain('<1 min');
   });
 
   it('shows unavailable popup metrics when local reading stats fail to load', async () => {
@@ -114,11 +226,11 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('TodayUnavailable');
-    expect(container.textContent).toContain('TimeUnavailable');
-    expect(container.textContent).toContain('PagesUnavailable');
-    expect(container.textContent).toContain('LearningUnavailable');
-    expect(container.textContent).toContain('Local data unavailable');
+    expect(container.textContent).toContain('有效阅读不可用');
+    expect(container.textContent).toContain('阅读时间不可用');
+    expect(container.textContent).toContain('页面不可用');
+    expect(container.textContent).toContain('学习中词汇不可用');
+    expect(container.textContent).toContain('本地数据暂时不可用');
   });
 
   it('does not show popup enabled-sites empty state while persisted sites are loading', async () => {
@@ -156,8 +268,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Loading enabled sites');
-    expect(container.textContent).not.toContain('No custom sites enabled');
+    expect(container.textContent).toContain('已启用网站 读取中');
+    expect(container.textContent).not.toContain('还没有手动启用的网站');
   });
 
   it('opens the side panel companion from the popup action', async () => {
@@ -196,7 +308,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const sidePanelButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open side panel');
+    const sidePanelButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开侧栏');
     expect(sidePanelButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -244,7 +356,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open dashboard');
+    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '查看仪表盘');
     expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -255,7 +367,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(openDashboard).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Dashboard unavailable');
+    expect(container.textContent).toContain('仪表盘暂时不可用');
   });
 
   it('shows when current-site permission is denied from the popup', async () => {
@@ -304,7 +416,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Enable current site');
+    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '启用当前网站');
     expect(enableButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -315,7 +427,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Permission was not granted');
+    expect(container.textContent).toContain('权限未授予');
   });
 
   it('tells the user to reload when enabling succeeds but current-tab injection fails', async () => {
@@ -367,7 +479,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Enable current site');
+    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '启用当前网站');
     expect(enableButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -378,8 +490,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Enabled for future pages; reload this tab to start tracking');
-    expect(container.textContent).not.toContain('Yuel can collect reading events on this site');
+    expect(container.textContent).toContain('已为后续页面启用');
+    expect(container.textContent).not.toContain('正在记录此网站的英文阅读');
   });
 
   it('renders starter-site current access without asking for optional permission', async () => {
@@ -419,8 +531,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     expect(container.textContent).toContain('developer.mozilla.org');
-    expect(container.textContent).toContain('Starter site tracked by default');
-    expect(container.textContent).toContain('Enabled');
+    expect(container.textContent).toContain('默认记录站点');
+    expect(container.textContent).toContain('已启用');
     expect(enableCurrentTabSite).not.toHaveBeenCalled();
   });
 
@@ -464,7 +576,14 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Remove');
+    const manageButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('已启用网站'));
+    expect(manageButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      manageButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '移除');
     expect(removeButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -475,11 +594,11 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     const currentSiteButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Enabled' || button.textContent === 'Enable current site',
+      (button) => button.textContent === '默认记录中' || button.textContent === '启用当前网站',
     );
     expect(disableEnabledSite).toHaveBeenCalledWith('https://developer.mozilla.org/*');
-    expect(currentSiteButton?.textContent).toBe('Enabled');
-    expect(container.textContent).toContain('Starter site tracked by default');
+    expect(currentSiteButton?.textContent).toBe('默认记录中');
+    expect(container.textContent).toContain('默认记录站点');
   });
 
   it('shows when enabled-site removal fails without hiding current-site access', async () => {
@@ -521,11 +640,11 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Remove');
-    expect(removeButton).toBeInstanceOf(HTMLButtonElement);
+    const pauseButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '暂停记录');
+    expect(pauseButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
-      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      pauseButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     await act(async () => {
       await Promise.resolve();
@@ -533,9 +652,9 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(disableEnabledSite).toHaveBeenCalledWith('https://example.com/*');
     expect(listEnabledSites).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Remove failed; site is still enabled.');
-    expect(container.textContent).toContain('Yuel can collect reading events on this site');
-    expect(container.textContent).not.toContain('Permission status unavailable');
+    expect(container.textContent).toContain('移除失败，此网站仍保持启用');
+    expect(container.textContent).toContain('正在记录此网站的英文阅读');
+    expect(container.textContent).not.toContain('权限状态不可用');
   });
 
   it('keeps current-site access visible when the enabled-site list fails to load', async () => {
@@ -577,11 +696,11 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     expect(listEnabledSites).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Enabled sites unavailable');
+    expect(container.textContent).toContain('已启用网站 不可用');
     expect(container.textContent).toContain('example.com');
-    expect(container.textContent).toContain('Yuel can collect reading events on this site');
-    expect(container.textContent).not.toContain('No custom sites enabled');
-    expect(container.textContent).not.toContain('Permission status unavailable');
+    expect(container.textContent).toContain('正在记录此网站的英文阅读');
+    expect(container.textContent).not.toContain('还没有手动启用的网站');
+    expect(container.textContent).not.toContain('权限状态不可用');
   });
 
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
@@ -642,16 +761,16 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Local reading dashboard');
+    expect(container.textContent).toContain('阅读输入仪表盘');
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
     expect(container.textContent).toContain('Saved 2');
     expect(container.textContent).toContain('architecture');
     expect(container.textContent).toContain('fail gracefully under pressure');
-    expect(container.textContent).toContain('Saved selections');
-    expect(container.textContent).toContain('Share card');
-    expect(container.textContent).toContain('Effective words: 960');
+    expect(container.textContent).toContain('保存摘录');
+    expect(container.textContent).toContain('今日卡片预览');
+    expect(container.textContent).toContain('今日有效阅读');
   });
 
   it('saves dashboard onboarding reading pace calibration', async () => {
@@ -704,16 +823,16 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const startButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Start calibration');
+    const startButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '开始校准');
     expect(startButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
       startButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(container.textContent).toContain('I finished reading');
+    expect(container.textContent).toContain('我已读完');
 
     nowSpy.mockReturnValue(61_000);
-    const finishedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'I finished reading');
+    const finishedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '我已读完');
     await act(async () => {
       finishedButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -726,7 +845,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     }
 
-    const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Save calibration');
+    const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '保存校准');
     expect(saveButton).toBeInstanceOf(HTMLButtonElement);
     await act(async () => {
       saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -766,12 +885,12 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Local data unavailable');
-    expect(container.textContent).toContain('Effective wordsUnavailable');
-    expect(container.textContent).toContain('Reading timeUnavailable');
-    expect(container.textContent).toContain('Pages todayUnavailable');
-    expect(container.textContent).toContain('Learning wordsUnavailable');
-    expect(container.textContent).not.toContain('Loading local data');
+    expect(container.textContent).toContain('本地数据不可用');
+    expect(container.textContent).toContain('今日有效阅读不可用');
+    expect(container.textContent).toContain('阅读时间不可用');
+    expect(container.textContent).toContain('今日页面不可用');
+    expect(container.textContent).toContain('学习中词汇不可用');
+    expect(container.textContent).not.toContain('正在读取本地数据');
   });
 
   it('does not show dashboard empty states while local reading details are loading', async () => {
@@ -785,10 +904,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Loading local data');
-    expect(container.textContent).not.toContain('No pages have been tracked yet.');
-    expect(container.textContent).not.toContain('No vocabulary exposure recorded yet.');
-    expect(container.textContent).not.toContain('No saved selections yet.');
+    expect(container.textContent).toContain('正在读取本地数据');
+    expect(container.textContent).not.toContain('还没有阅读记录。');
+    expect(container.textContent).not.toContain('还没有词汇暴露记录。');
+    expect(container.textContent).not.toContain('还没有保存摘录。');
   });
 
   it('copies the dashboard share card text through injected clipboard service', async () => {
@@ -824,7 +943,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Copy card text');
+    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '复制文案');
     expect(copyButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -835,7 +954,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(copyTextToClipboard).toHaveBeenCalledWith(summaryCardText);
-    expect(container.textContent).toContain('Copied');
+    expect(container.textContent).toContain('已复制');
   });
 
   it('exports the dashboard share card as a PNG through injected renderer', async () => {
@@ -869,7 +988,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Download PNG');
+    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '下载 PNG');
     expect(downloadButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -880,7 +999,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(exportSummaryCardPng).toHaveBeenCalledWith(expect.any(HTMLElement), 'yuel-reading-2026-06-27.png');
-    expect(container.textContent).toContain('Downloaded');
+    expect(container.textContent).toContain('已下载');
   });
 
   it('clears local dashboard data through injected services', async () => {
@@ -935,7 +1054,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
     expect(clearButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -947,7 +1066,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('No reading data yet');
+    expect(container.textContent).toContain('还没有阅读数据');
   });
 
   it('resets copied dashboard share state after local data is cleared', async () => {
@@ -1004,7 +1123,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Copy card text');
+    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '复制文案');
     expect(copyButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1014,9 +1133,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('Copied');
+    expect(container.textContent).toContain('已复制');
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
     expect(clearButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1027,9 +1146,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('No reading data yet');
-    expect(container.textContent).toContain('Copy card text');
-    expect(container.textContent).not.toContain('Copied');
+    expect(container.textContent).toContain('还没有阅读数据');
+    expect(container.textContent).toContain('复制文案');
+    expect(container.textContent).not.toContain('已复制');
   });
 
   it('shows a clear failure without refreshing dashboard data', async () => {
@@ -1065,7 +1184,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
     expect(clearButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1077,8 +1196,8 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Clear failed; local data was not changed.');
-    expect(container.textContent).toContain('Effective words: 960');
+    expect(container.textContent).toContain('清空失败，本地数据未改变。');
+    expect(container.textContent).toContain('960');
   });
 
   it('shows a refresh failure after local dashboard data is cleared', async () => {
@@ -1115,7 +1234,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
     expect(clearButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1127,10 +1246,9 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('Local data unavailable');
-    expect(container.textContent).toContain('Local data cleared, but dashboard refresh failed.');
-    expect(container.textContent).not.toContain('Clear failed; local data was not changed.');
-    expect(container.textContent).not.toContain('Effective words: 960');
+    expect(container.textContent).toContain('本地数据不可用');
+    expect(container.textContent).toContain('本地数据已清空，但仪表盘刷新失败。');
+    expect(container.textContent).not.toContain('清空失败，本地数据未改变。');
   });
 
   it('does not clear local dashboard data when confirmation is declined', async () => {
@@ -1164,7 +1282,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Clear local data');
+    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
     expect(clearButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1176,7 +1294,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).not.toHaveBeenCalled();
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Reading data loaded');
+    expect(container.textContent).toContain('本地数据已读取');
   });
 
   it('renders side panel companion metrics from injected local services', async () => {
@@ -1200,9 +1318,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Reading companion');
+    expect(container.textContent).toContain('当前阅读');
     expect(container.textContent).toContain('1,540 words');
-    expect(container.textContent).toContain('18 min read');
+    expect(container.textContent).toContain('18 min');
     expect(container.textContent).toContain('4 pages');
     expect(container.textContent).toContain('docs.example.com');
   });
@@ -1228,9 +1346,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('No reading data yet');
-    expect(container.textContent).toContain('TimeNo data');
-    expect(container.textContent).not.toContain('Time0 min read');
+    expect(container.textContent).toContain('待开始');
+    expect(container.textContent).toContain('阅读时间0 min');
+    expect(container.textContent).not.toContain('阅读时间<1 min');
   });
 
   it('does not show side panel top-domain empty state while local summary is loading', async () => {
@@ -1243,9 +1361,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Loading local data');
-    expect(container.textContent).toContain('Top domainLoading');
-    expect(container.textContent).not.toContain('No top domain yet');
+    expect(container.textContent).toContain('读取中');
+    expect(container.textContent).not.toContain('暂无当前网站');
   });
 
   it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
@@ -1260,13 +1377,12 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    expect(container.textContent).toContain('Local data unavailable');
-    expect(container.textContent).toContain('TodayUnavailable');
-    expect(container.textContent).toContain('TimeUnavailable');
-    expect(container.textContent).toContain('PagesUnavailable');
-    expect(container.textContent).toContain('LearningUnavailable');
-    expect(container.textContent).toContain('Top domainUnavailable');
-    expect(container.textContent).not.toContain('No top domain yet');
+    expect(container.textContent).toContain('不可用');
+    expect(container.textContent).toContain('有效阅读不可用');
+    expect(container.textContent).toContain('阅读时间不可用');
+    expect(container.textContent).toContain('页面不可用');
+    expect(container.textContent).toContain('学习中词汇不可用');
+    expect(container.textContent).not.toContain('暂无当前网站');
   });
 
   it('opens the dashboard from the side panel companion action', async () => {
@@ -1291,7 +1407,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open dashboard');
+    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开仪表盘');
     expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1325,7 +1441,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Open dashboard');
+    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开仪表盘');
     expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
@@ -1336,6 +1452,6 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(openDashboard).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('Dashboard unavailable');
+    expect(container.textContent).toContain('仪表盘暂时不可用');
   });
 });

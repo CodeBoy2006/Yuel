@@ -11,9 +11,9 @@ describe('browser-loaded extension smoke', () => {
     const result = await validateBrowserLoadedExtension('.output/chrome-mv3');
 
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
-    expect(result.dashboardText).toContain('Local reading dashboard');
-    expect(result.popupText).toContain('Yuel Reading');
-    expect(result.sidePanelText).toContain('Reading companion');
+    expect(result.dashboardText).toContain('阅读输入仪表盘');
+    expect(result.popupText).toContain('阅量 Yuel');
+    expect(result.sidePanelText).toContain('当前阅读');
   }, 30_000);
 
   it('records reading data through the loaded extension runtime', async () => {
@@ -21,7 +21,7 @@ describe('browser-loaded extension smoke', () => {
 
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
     expect(result.dashboardText).toContain('runtime-loop.example');
-    expect(result.dashboardText).toContain('Effective words');
+    expect(result.dashboardText).toContain('今日有效阅读');
     expect(result.dashboardText).not.toContain('No reading data yet');
   }, 30_000);
 

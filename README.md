@@ -45,9 +45,9 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 ## MVP Surfaces
 
-- Popup: today’s effective words, reading time, page count, learning words, current-site permission state, enabled-site management, and side-panel/dashboard launch actions.
-- Side panel: compact reading companion summary with today’s metrics, top domain, and a dashboard launch action.
-- Dashboard: today’s summary, recent measured-reading pages, vocabulary exposure including saved-only words, reading pace calibration, explicit saved selections, copyable and PNG-downloadable share cards, visible Pack tags such as `architecture` or `performance`, and a confirmed local data clear control.
+- Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
+- Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
+- Dashboard: the reading progress instrument panel, with a prominent today hero, share-card preview and export actions, trend bars, recent measured pages, vocabulary assets, saved highlights, reading pace calibration, and a demoted local-data danger zone.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.

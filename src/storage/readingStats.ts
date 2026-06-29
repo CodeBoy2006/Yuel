@@ -1,4 +1,8 @@
 import {
+  createPageId,
+  getDomain,
+} from '../domain/events';
+import {
   db,
   type DailyStatRecord,
   type PageRecord,
@@ -25,6 +29,17 @@ export interface RecentPageSummary {
   totalWords: number;
   effectiveWords: number;
   lastReadAt: number;
+}
+
+export interface CurrentPageReadingSummary {
+  pageId: string;
+  domain: string;
+  totalWords: number;
+  effectiveWords: number;
+  effectiveMinutes: number;
+  confidence?: number;
+  lastReadAt?: number;
+  hasData: boolean;
 }
 
 export interface RecentVocabularySummary {
@@ -61,6 +76,7 @@ export interface ReadingStatsStore {
     get: (date: string) => Promise<DailyStatRecord | undefined>;
   };
   pages: {
+    get: (pageId: string) => Promise<PageRecord | undefined>;
     where: (index: string) => {
       aboveOrEqual: (value: number) => {
         count: () => Promise<number>;
@@ -200,6 +216,36 @@ export async function getReadingDashboardDetails(
     recentSavedItems,
     summaryCardText: buildSummaryCardText(summary, recentVocabulary, recentSavedItems, hasData),
     hasData,
+  };
+}
+
+export async function getCurrentPageReadingSummary(
+  url: string,
+  store: ReadingStatsStore = db,
+): Promise<CurrentPageReadingSummary> {
+  const pageId = createPageId(url);
+  const page = await store.pages.get(pageId);
+
+  if (!page) {
+    return {
+      pageId,
+      domain: getDomain(url),
+      totalWords: 0,
+      effectiveWords: 0,
+      effectiveMinutes: 0,
+      hasData: false,
+    };
+  }
+
+  return {
+    pageId: page.pageId,
+    domain: normalizeDisplayDomain(page.domain),
+    totalWords: Math.max(0, page.totalWords),
+    effectiveWords: Math.max(0, page.effectiveWords),
+    effectiveMinutes: Math.max(0, page.effectiveReadingMs ?? 0) / 60_000,
+    confidence: page.confidence,
+    lastReadAt: page.lastReadAt,
+    hasData: page.effectiveWords > 0 || (page.effectiveReadingMs ?? 0) > 0,
   };
 }
 

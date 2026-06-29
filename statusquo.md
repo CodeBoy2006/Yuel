@@ -957,3 +957,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue validating real-page calibration behavior against longer browsing sessions.
 - **Context:** Adaptive WPM uses raw viewport sample evidence rather than `effectiveWords / minutes`, and local data clearing now resets reading pace profiles with other local reading data.
+
+## [2026-06-29 18:48] Moonlight UI Responsibilities
+- **Changes:** Redesigned Popup, Side Panel, and Dashboard around the new responsibilities: current-site control center, current reading companion, and reading progress instrument panel. Added current-page reading summary data, refreshed UI smoke/browser smoke expectations, updated surface documentation, and unified entrypoint backgrounds.
+- **Status:** Completed
+- **Next Steps:** Use real reading sessions to tune current-page vocabulary and quote surfacing once page-scoped vocabulary data exists.
+- **Context:** Side Panel now shows true current-page progress when the current URL has a local page record; vocabulary and saved highlights still come from existing recent local assets because vocabulary exposure is not page-scoped yet.

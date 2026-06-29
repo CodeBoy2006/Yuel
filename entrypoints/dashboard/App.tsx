@@ -1,6 +1,22 @@
-import { Activity, BookOpen, Boxes, CheckCircle2, Clipboard, Database, Download, Gauge, Languages, LockKeyhole, Play } from 'lucide-react';
+import {
+  Activity,
+  BookOpen,
+  BookOpenCheck,
+  CheckCircle2,
+  Clipboard,
+  Database,
+  Download,
+  Gauge,
+  Languages,
+  LockKeyhole,
+  Play,
+  Settings,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode, Ref } from 'react';
 
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
 import { clearLocalReadingData } from '../../src/storage/repositories';
@@ -9,15 +25,14 @@ import {
   saveOnboardingReadingPaceCalibration,
   type ReadingPaceSummary,
 } from '../../src/storage/readingPace';
-import { getReadingDashboardDetails, type ReadingDashboardDetails } from '../../src/storage/readingStats';
+import {
+  getReadingDashboardDetails,
+  type ReadingDashboardDetails,
+  type RecentPageSummary,
+  type RecentSavedItemSummary,
+  type RecentVocabularySummary,
+} from '../../src/storage/readingStats';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
-
-const pillars = [
-  { icon: Activity, title: 'Event driven', text: 'Content scripts emit reading behavior events instead of long-running background timers.' },
-  { icon: Database, title: 'Local memory', text: 'IndexedDB stores event, chunk, vocabulary, saved item, and aggregate tables.' },
-  { icon: Boxes, title: 'Pack ready', text: 'Packs are declarative JSON data: lexicon, phrase, scoring, and template rules.' },
-  { icon: LockKeyhole, title: 'Privacy first', text: 'The scaffold stores hashes by default and keeps raw text only for user-saved items.' },
-];
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -32,7 +47,7 @@ export interface DashboardAppDependencies {
 const defaultDependencies: DashboardAppDependencies = {
   clearLocalReadingData,
   confirmClearLocalReadingData: () =>
-    window.confirm('Clear all local Yuel reading data? Enabled sites and browser permissions will stay unchanged.'),
+    window.confirm('清空所有阅量本地阅读数据？已启用网站和浏览器权限会保留。'),
   copyTextToClipboard,
   exportSummaryCardPng: exportDashboardSummaryCardPng,
   getReadingDashboardDetails,
@@ -89,18 +104,19 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   }, [dependencies, loadPaceSummary]);
 
   const summary = details?.summary;
-  const statusText = loadFailed ? 'Local data unavailable' : details?.hasData ? 'Reading data loaded' : details ? 'No reading data yet' : 'Loading local data';
-  const effectiveWordsValue = loadFailed ? 'Unavailable' : summary ? formatCount(summary.effectiveWords) : '...';
-  const readingTimeValue = loadFailed ? 'Unavailable' : summary ? formatMinutes(summary.minutes) : '...';
-  const pagesTodayValue = loadFailed ? 'Unavailable' : summary ? String(summary.readPages) : '...';
-  const learningWordsValue = loadFailed ? 'Unavailable' : summary ? String(summary.learningWords) : '...';
-  const shareCardText = loadFailed ? 'Local data unavailable' : details?.summaryCardText ?? 'Loading local data';
-  const detailPanelFallbackText = loadFailed ? 'Local data unavailable.' : 'Loading local data...';
-  const readingPaceValue = paceLoadFailed ? 'Unavailable' : paceSummary ? `${Math.round(paceSummary.baseWordsPerMinute)} WPM` : '...';
-  const readingPaceLabel = paceLoadFailed ? 'Pace unavailable' : paceSummary ? formatPaceSource(paceSummary) : 'Loading pace';
+  const statusText = loadFailed ? '本地数据不可用' : details?.hasData ? '本地数据已读取' : details ? '还没有阅读数据' : '正在读取本地数据...';
+  const effectiveWordsValue = loadFailed ? '不可用' : summary ? formatCount(summary.effectiveWords) : '...';
+  const readingTimeValue = loadFailed ? '不可用' : summary ? formatMinutes(summary.minutes) : '...';
+  const pagesTodayValue = loadFailed ? '不可用' : summary ? String(summary.readPages) : '...';
+  const learningWordsValue = loadFailed ? '不可用' : summary ? String(summary.learningWords) : '...';
+  const shareCardText = loadFailed ? '本地数据不可用' : details?.summaryCardText ?? '正在读取本地数据';
+  const detailPanelFallbackText = loadFailed ? '本地数据不可用。' : '正在读取本地数据...';
+  const readingPaceValue = paceLoadFailed ? '不可用' : paceSummary ? `${Math.round(paceSummary.baseWordsPerMinute)} WPM` : '...';
+  const readingPaceLabel = paceLoadFailed ? '阅读速度不可用' : paceSummary ? formatPaceSource(paceSummary) : '正在读取阅读速度';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
   const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
+  const topDomain = summary?.topDomains[0] ?? '暂无常读网站';
 
   const clearData = async () => {
     if (!dependencies.confirmClearLocalReadingData()) {
@@ -223,85 +239,139 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   };
 
   return (
-    <main className="min-h-screen bg-stone-50 text-stone-950">
-      <section className="border-b border-stone-200 bg-white">
-        <div className="mx-auto max-w-5xl px-6 py-8">
-          <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">Yuel Reading V0.1</p>
-          <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-3xl font-semibold">Local reading dashboard</h1>
-              <p className="mt-3 max-w-2xl text-base text-stone-600">
-                Track effective words, reading time, recent pages, and vocabulary exposure from local browser data.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <p className="rounded-md border border-stone-200 px-3 py-2 text-sm text-stone-600">{statusText}</p>
-              <button
-                type="button"
-                disabled={clearBusy}
-                onClick={() => void clearData()}
-                className="rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-red-300 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {clearBusy ? 'Clearing...' : 'Clear local data'}
-              </button>
-            </div>
+    <main className="min-h-screen bg-[#F7F5EF] text-[#111827]">
+      <header className="border-b border-[#E5E7EB] bg-[#F7F5EF]/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2F9B74]">阅量 Yuel</p>
+            <h1 className="mt-2 text-4xl font-bold">阅读输入仪表盘</h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-[#6B7280]">
+              记录你在真实网页中的外语阅读输入、词汇暴露和摘录积累。
+            </p>
           </div>
-          {clearFailed ? <p className="mt-3 text-sm font-medium text-red-700">Clear failed; local data was not changed.</p> : null}
-          {clearRefreshFailed ? <p className="mt-3 text-sm font-medium text-red-700">Local data cleared, but dashboard refresh failed.</p> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#DDE7DF] bg-white px-3 py-2 text-sm font-semibold text-[#1F7A5B]">{statusText}</span>
+            <button
+              type="button"
+              onClick={() => document.getElementById('local-data')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="inline-flex items-center gap-2 rounded-[12px] border border-[#D7DDD8] bg-white px-3 py-2 text-sm font-bold text-[#111827]"
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              设置
+            </button>
+          </div>
+          {clearFailed ? <p className="text-sm font-medium text-red-700">清空失败，本地数据未改变。</p> : null}
+          {clearRefreshFailed ? <p className="text-sm font-medium text-red-700">本地数据已清空，但仪表盘刷新失败。</p> : null}
         </div>
-      </section>
+      </header>
 
-      <section className="mx-auto grid max-w-5xl gap-3 px-6 py-6 md:grid-cols-4">
-        <Metric label="Effective words" value={effectiveWordsValue} icon={BookOpen} />
-        <Metric label="Reading time" value={readingTimeValue} icon={Activity} />
-        <Metric label="Pages today" value={pagesTodayValue} icon={Database} />
-        <Metric label="Learning words" value={learningWordsValue} icon={Languages} />
-      </section>
-
-      <section className="mx-auto max-w-5xl px-6 pb-6">
-        <section className="rounded-md border border-stone-200 bg-white p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section className="mx-auto grid max-w-6xl gap-5 px-6 py-6 lg:grid-cols-[1.25fr_0.75fr]">
+        <section className="rounded-[24px] bg-[#101827] p-6 text-white shadow-[0_22px_50px_rgba(16,24,39,0.22)]">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <Gauge className="h-5 w-5 text-emerald-700" aria-hidden="true" />
-                <h2 className="text-lg font-semibold">Reading pace</h2>
-              </div>
-              <p className="mt-2 text-sm text-stone-600">{readingPaceLabel}</p>
+              <p className="text-sm font-bold text-[#D8B46A]">今日有效阅读</p>
+              <p className="mt-3 font-mono text-6xl font-bold tabular-nums">{effectiveWordsValue}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-300">words</p>
             </div>
-            <div className="flex flex-col items-start gap-2 sm:items-end">
-              <p className="text-2xl font-semibold">{readingPaceValue}</p>
-              <button
-                type="button"
-                onClick={startPaceCalibration}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700"
-              >
-                <Play className="h-4 w-4" aria-hidden="true" />
-                Start calibration
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => document.getElementById('share-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#2F9B74] px-4 py-3 text-sm font-bold text-white shadow-[0_10px_22px_rgba(47,155,116,0.32)] hover:bg-[#1F7A5B]"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              生成今日卡片
+            </button>
           </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+            <HeroChip label="阅读时间" value={readingTimeValue} icon={Activity} />
+            <HeroChip label="今日页面" value={pagesTodayValue} icon={Database} />
+            <HeroChip label="学习中词汇" value={learningWordsValue} icon={Languages} />
+            <HeroChip label="连续打卡" value={summary ? `${summary.streak} days` : '...'} icon={BookOpenCheck} />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
+            <span className="rounded-full border border-white/10 px-3 py-1.5">{topDomain}</span>
+            <span className="rounded-full border border-white/10 px-3 py-1.5">High confidence</span>
+            <span className="rounded-full border border-white/10 px-3 py-1.5">local-first</span>
+          </div>
+        </section>
+
+        <section id="share-card" className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_40px_rgba(16,24,39,0.08)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">今日卡片预览</h2>
+              <p className="mt-1 text-sm text-[#6B7280]">把今天的阅读输入变成可分享资产。</p>
+            </div>
+            <Sparkles className="h-5 w-5 text-[#D8B46A]" aria-hidden="true" />
+          </div>
+          <ShareCardPreview
+            ref={shareCardRef}
+            date={summary?.date ?? '...'}
+            effectiveWords={effectiveWordsValue}
+            readingTime={readingTimeValue}
+            learningWords={learningWordsValue}
+            topDomain={topDomain}
+            fallbackText={shareCardText}
+          />
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={!details}
+              onClick={() => void copyShareCard()}
+              className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#D7DDD8] bg-white px-3 py-2 text-sm font-bold text-[#111827] hover:border-[#2F9B74] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Clipboard className="h-4 w-4" aria-hidden="true" />
+              {copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制文案'}
+            </button>
+            <button
+              type="button"
+              disabled={!details}
+              onClick={() => void downloadShareCard()}
+              className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#D7DDD8] bg-white px-3 py-2 text-sm font-bold text-[#111827] hover:border-[#2F9B74] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {downloadStatus === 'downloaded' ? '已下载' : downloadStatus === 'failed' ? '导出失败' : '下载 PNG'}
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl gap-5 px-6 pb-6 lg:grid-cols-[1fr_1fr]">
+        <Panel title="阅读趋势" meta={details ? `${details.recentPages.length} pages` : '...'} icon={TrendingUp}>
+          <ReadingTrend pages={details?.recentPages ?? []} fallbackText={detailPanelFallbackText} hasDetails={Boolean(details)} />
+        </Panel>
+
+        <Panel title="阅读速度" meta={readingPaceValue} icon={Gauge}>
+          <p className="text-sm leading-6 text-[#6B7280]">{readingPaceLabel}</p>
+          <button
+            type="button"
+            onClick={startPaceCalibration}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#D7DDD8] bg-white px-3 py-2 text-sm font-bold text-[#111827] hover:border-[#2F9B74]"
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            开始校准
+          </button>
 
           {calibrationStep === 'reading' ? (
-            <div className="mt-5 border-t border-stone-200 pt-5">
-              <p className="text-sm font-semibold text-stone-700">{PACE_CALIBRATION_WORD_COUNT} words</p>
-              <p className="mt-3 text-sm leading-7 text-stone-700">{PACE_CALIBRATION_PASSAGE}</p>
+            <div className="mt-5 border-t border-[#E5E7EB] pt-5">
+              <p className="text-sm font-bold text-[#111827]">{PACE_CALIBRATION_WORD_COUNT} words</p>
+              <p className="mt-3 text-sm leading-7 text-[#374151]">{PACE_CALIBRATION_PASSAGE}</p>
               <button
                 type="button"
                 onClick={finishPaceReading}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-[12px] bg-[#2F9B74] px-3 py-2 text-sm font-bold text-white hover:bg-[#1F7A5B]"
               >
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                I finished reading
+                我已读完
               </button>
             </div>
           ) : null}
 
           {calibrationStep === 'questions' ? (
-            <div className="mt-5 border-t border-stone-200 pt-5">
+            <div className="mt-5 border-t border-[#E5E7EB] pt-5">
               <div className="grid gap-4">
                 {paceCalibrationQuestions.map((question) => (
                   <fieldset key={question.id}>
-                    <legend className="text-sm font-semibold text-stone-800">{question.prompt}</legend>
+                    <legend className="text-sm font-bold text-[#111827]">{question.prompt}</legend>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {question.options.map((option) => {
                         const selected = calibrationAnswers[question.id] === option.id;
@@ -311,10 +381,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                             type="button"
                             aria-pressed={selected}
                             onClick={() => setCalibrationAnswers((answers) => ({ ...answers, [question.id]: option.id }))}
-                            className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                            className={`rounded-[10px] border px-3 py-2 text-sm font-semibold ${
                               selected
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-                                : 'border-stone-300 text-stone-700 hover:border-emerald-300 hover:text-emerald-700'
+                                ? 'border-[#2F9B74] bg-[#F1F5F0] text-[#1F7A5B]'
+                                : 'border-[#D7DDD8] text-[#374151] hover:border-[#2F9B74]'
                             }`}
                           >
                             {option.label}
@@ -330,166 +400,264 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   type="button"
                   disabled={!allCalibrationQuestionsAnswered || calibrationSaveStatus === 'saving'}
                   onClick={() => void savePaceCalibrationResult()}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-[#2F9B74] px-3 py-2 text-sm font-bold text-white hover:bg-[#1F7A5B] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  {calibrationSaveStatus === 'saving' ? 'Saving...' : 'Save calibration'}
+                  {calibrationSaveStatus === 'saving' ? '保存中...' : '保存校准'}
                 </button>
-                {calibrationSaveStatus === 'failed' ? <p className="text-sm font-medium text-red-700">Calibration save failed.</p> : null}
+                {calibrationSaveStatus === 'failed' ? <p className="text-sm font-medium text-red-700">校准保存失败。</p> : null}
               </div>
             </div>
           ) : null}
 
           {calibrationSaveStatus === 'saved' ? (
-            <p className="mt-4 text-sm font-medium text-emerald-800">Calibration saved.</p>
+            <p className="mt-4 text-sm font-medium text-[#1F7A5B]">校准已保存。</p>
           ) : null}
-        </section>
+        </Panel>
       </section>
 
-      <section className="mx-auto grid max-w-5xl gap-4 px-6 pb-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-md border border-stone-200 bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Recent pages</h2>
-            <span className="text-sm text-stone-500">{details ? `${details.recentPages.length} tracked` : '...'}</span>
-          </div>
-          <div className="mt-4 grid gap-3">
+      <section className="mx-auto grid max-w-6xl gap-5 px-6 pb-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <Panel title="最近阅读" meta={details ? `${details.recentPages.length} tracked` : '...'} icon={BookOpen}>
+          <div className="grid gap-3">
             {!details ? (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+              <EmptyPanel text={detailPanelFallbackText} />
             ) : details.recentPages.length ? (
-              details.recentPages.map((page) => (
-                <div key={page.pageId} className="rounded-md border border-stone-200 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-semibold">{page.domain}</p>
-                    <p className="text-xs text-stone-500">{formatDateTime(page.lastReadAt)}</p>
-                  </div>
-                  <p className="mt-2 text-sm text-stone-600">
-                    {formatCount(page.effectiveWords)} effective words from {formatCount(page.totalWords)} detected words
-                  </p>
-                </div>
-              ))
+              details.recentPages.map((page) => <RecentPageCard key={page.pageId} page={page} />)
             ) : (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">No pages have been tracked yet.</p>
+              <EmptyPanel text="还没有阅读记录。" />
             )}
           </div>
-        </section>
+        </Panel>
 
-        <section className="rounded-md border border-stone-200 bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Vocabulary exposure</h2>
-            <span className="text-sm text-stone-500">{details ? `${details.recentVocabulary.length} terms` : '...'}</span>
+        <Panel title="词汇资产" meta={details ? `${details.recentVocabulary.length} terms` : '...'} icon={Languages}>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {['All', 'New', 'Learning', 'Saved'].map((item) => (
+              <span key={item} className="rounded-full border border-[#DDE7DF] bg-[#F1F5F0] px-3 py-1 text-xs font-bold text-[#1F7A5B]">
+                {item}
+              </span>
+            ))}
           </div>
-          <div className="mt-4 grid gap-2">
+          <div className="grid gap-3">
             {!details ? (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+              <EmptyPanel text={detailPanelFallbackText} />
             ) : details.recentVocabulary.length ? (
-              details.recentVocabulary.map((vocab) => (
-                <div key={vocab.lemma} className="rounded-md border border-stone-200 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold">{vocab.lemma}</p>
-                    <p className="text-xs uppercase text-stone-500">{vocab.userStatus}</p>
-                  </div>
-                  <p className="mt-2 text-sm text-stone-600">
-                    Seen {vocab.seenCount} times, effective {vocab.effectiveSeenCount}
-                    {vocab.savedCount > 0 ? `, Saved ${vocab.savedCount}` : ''}
-                  </p>
-                  {vocab.packTags.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {vocab.packTags.map((tag) => (
-                        <span key={tag} className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))
+              details.recentVocabulary.map((vocab) => <VocabularyCard key={vocab.lemma} vocab={vocab} />)
             ) : (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">No vocabulary exposure recorded yet.</p>
+              <EmptyPanel text="还没有词汇暴露记录。" />
             )}
           </div>
-        </section>
+        </Panel>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 pb-6">
-        <section className="rounded-md border border-stone-200 bg-white p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">Share card</h2>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                disabled={!details}
-                onClick={() => void copyShareCard()}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <Clipboard className="h-4 w-4" aria-hidden="true" />
-                {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy card text'}
-              </button>
-              <button
-                type="button"
-                disabled={!details}
-                onClick={() => void downloadShareCard()}
-                className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {downloadStatus === 'downloaded' ? 'Downloaded' : downloadStatus === 'failed' ? 'Export failed' : 'Download PNG'}
-              </button>
-            </div>
-          </div>
-          <div ref={shareCardRef} className="mt-4 rounded-md border border-stone-200 bg-stone-50 p-4">
-            <p className="text-xs font-semibold uppercase text-emerald-700">Yuel Reading</p>
-            <pre className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-stone-700">
-              {shareCardText}
-            </pre>
-          </div>
-        </section>
-      </section>
-
-      <section className="mx-auto max-w-5xl px-6 pb-6">
-        <section className="rounded-md border border-stone-200 bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Saved selections</h2>
-            <span className="text-sm text-stone-500">{details ? `${details.recentSavedItems.length} saved` : '...'}</span>
-          </div>
-          <div className="mt-4 grid gap-3">
+      <section className="mx-auto grid max-w-6xl gap-5 px-6 pb-6 lg:grid-cols-[1fr_1fr]">
+        <Panel title="保存摘录" meta={details ? `${details.recentSavedItems.length} saved` : '...'} icon={Sparkles}>
+          <div className="grid gap-3">
             {!details ? (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">{detailPanelFallbackText}</p>
+              <EmptyPanel text={detailPanelFallbackText} />
             ) : details.recentSavedItems.length ? (
-              details.recentSavedItems.map((item) => (
-                <div key={item.id} className="rounded-md border border-stone-200 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase text-emerald-700">{item.type}</p>
-                    <p className="text-xs text-stone-500">{formatDateTime(item.createdAt)}</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-stone-700">{item.text}</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                    <span>{item.sourceDomain}</span>
-                    {item.tags.map((tag) => (
-                      <span key={tag} className="rounded border border-stone-200 px-2 py-0.5">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))
+              details.recentSavedItems.map((item) => <SavedHighlightCard key={item.id} item={item} />)
             ) : (
-              <p className="rounded-md border border-dashed border-stone-300 p-4 text-sm text-stone-500">
-                No saved selections yet.
-              </p>
+              <EmptyPanel text="还没有保存摘录。" />
             )}
           </div>
-        </section>
-      </section>
+        </Panel>
 
-      <section className="mx-auto grid max-w-5xl gap-4 px-6 py-6 md:grid-cols-2">
-        {pillars.map(({ icon: Icon, title, text }) => (
-          <article key={title} className="rounded-md border border-stone-200 bg-white p-5">
-            <Icon className="h-5 w-5 text-emerald-700" aria-hidden="true" />
-            <h2 className="mt-4 text-lg font-semibold">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-stone-600">{text}</p>
-          </article>
-        ))}
+        <section id="local-data" className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_40px_rgba(16,24,39,0.08)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">本地数据</h2>
+              <p className="mt-2 text-sm leading-6 text-[#6B7280]">清空只影响本地阅读数据库，已启用网站和浏览器权限会保留。</p>
+            </div>
+            <LockKeyhole className="h-5 w-5 text-[#D8B46A]" aria-hidden="true" />
+          </div>
+          <button
+            type="button"
+            disabled={clearBusy}
+            onClick={() => void clearData()}
+            className="mt-5 inline-flex items-center justify-center rounded-[12px] border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {clearBusy ? '清空中...' : '清空本地数据'}
+          </button>
+        </section>
       </section>
     </main>
+  );
+}
+
+function Panel({
+  title,
+  meta,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  meta: string;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_18px_40px_rgba(16,24,39,0.08)]">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-[#2F9B74]" aria-hidden="true" />
+          <h2 className="text-lg font-bold">{title}</h2>
+        </div>
+        <span className="text-sm font-semibold text-[#6B7280]">{meta}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HeroChip({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+  return (
+    <div className="rounded-[16px] border border-white/10 bg-white/8 p-3">
+      <Icon className="h-4 w-4 text-[#BCE9D8]" aria-hidden="true" />
+      <p className="mt-2 text-[11px] font-semibold text-slate-400">{label}</p>
+      <p className="mt-1 font-mono text-base font-bold tabular-nums text-white">{value}</p>
+    </div>
+  );
+}
+
+const ShareCardPreview = ({
+  ref,
+  date,
+  effectiveWords,
+  readingTime,
+  learningWords,
+  topDomain,
+  fallbackText,
+}: {
+  ref: Ref<HTMLDivElement>;
+  date: string;
+  effectiveWords: string;
+  readingTime: string;
+  learningWords: string;
+  topDomain: string;
+  fallbackText: string;
+}) => (
+  <div ref={ref} className="mt-4 overflow-hidden rounded-[22px] bg-[#101827] p-5 text-white">
+    <div className="flex items-center justify-between text-xs font-bold text-[#D8B46A]">
+      <span>今日英文阅读</span>
+      <span>{date}</span>
+    </div>
+    <p className="mt-6 font-mono text-5xl font-bold tabular-nums">{effectiveWords}</p>
+    <p className="mt-2 text-sm font-semibold text-slate-300">words</p>
+    <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="rounded-[14px] border border-white/10 bg-white/8 p-3">
+        <p className="text-xs text-slate-400">阅读时间</p>
+        <p className="mt-1 font-mono text-lg font-bold tabular-nums">{readingTime}</p>
+      </div>
+      <div className="rounded-[14px] border border-white/10 bg-white/8 p-3">
+        <p className="text-xs text-slate-400">学习中词汇</p>
+        <p className="mt-1 font-mono text-lg font-bold tabular-nums">{learningWords}</p>
+      </div>
+    </div>
+    <div className="mt-5 flex items-center justify-between gap-3 text-xs text-slate-300">
+      <span className="truncate">{topDomain}</span>
+      <span className="font-bold text-[#BCE9D8]">Yuel 阅量</span>
+    </div>
+    <pre className="sr-only">{fallbackText}</pre>
+  </div>
+);
+
+function ReadingTrend({ pages, fallbackText, hasDetails }: { pages: RecentPageSummary[]; fallbackText: string; hasDetails: boolean }) {
+  if (!hasDetails) {
+    return <EmptyPanel text={fallbackText} />;
+  }
+
+  if (pages.length === 0) {
+    return <EmptyPanel text="还没有足够的趋势数据。" />;
+  }
+
+  const maxWords = Math.max(...pages.map((page) => page.effectiveWords), 1);
+
+  return (
+    <div className="grid gap-3">
+      {pages.slice(0, 5).map((page) => (
+        <div key={page.pageId}>
+          <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-[#6B7280]">
+            <span className="truncate">{page.domain}</span>
+            <span>{formatCount(page.effectiveWords)} words</span>
+          </div>
+          <div className="h-2 rounded-full bg-[#F1F5F0]">
+            <div className="h-full rounded-full bg-[#2F9B74]" style={{ width: `${Math.max(8, Math.round((page.effectiveWords / maxWords) * 100))}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentPageCard({ page }: { page: RecentPageSummary }) {
+  const progress = page.totalWords > 0 ? Math.min(100, Math.round((page.effectiveWords / page.totalWords) * 100)) : 0;
+
+  return (
+    <article className="rounded-[18px] border border-[#E5E7EB] bg-[#F8FAF7] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="truncate text-sm font-bold">{page.domain}</h3>
+        <span className="text-xs font-semibold text-[#6B7280]">{formatDateTime(page.lastReadAt)}</span>
+      </div>
+      <p className="mt-2 text-sm text-[#6B7280]">
+        {formatCount(page.effectiveWords)} / {formatCount(page.totalWords)} words
+      </p>
+      <div className="mt-3 h-2 rounded-full bg-white">
+        <div className="h-full rounded-full bg-[#2F9B74]" style={{ width: `${progress}%` }} />
+      </div>
+    </article>
+  );
+}
+
+function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
+  return (
+    <article className="rounded-[18px] border border-[#E5E7EB] bg-[#F8FAF7] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="truncate text-sm font-bold">{vocab.lemma}</h3>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${formatVocabularyStatusClass(vocab.userStatus)}`}>
+          {vocab.userStatus}
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-[#6B7280]">
+        {formatCount(vocab.effectiveSeenCount)} effective exposures{vocab.savedCount > 0 ? ` · Saved ${vocab.savedCount}` : ''}
+      </p>
+      {vocab.packTags.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {vocab.packTags.map((tag) => (
+            <span key={tag} className="rounded-full border border-[#DDE7DF] bg-white px-2.5 py-1 text-xs font-semibold text-[#1F7A5B]">
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function SavedHighlightCard({ item }: { item: RecentSavedItemSummary }) {
+  return (
+    <article className="rounded-[18px] border border-[#E5E7EB] bg-[#F8FAF7] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-bold uppercase text-[#2F9B74]">{item.type}</span>
+        <span className="text-xs text-[#6B7280]">{formatDateTime(item.createdAt)}</span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-[#111827]">“{item.text}”</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#6B7280]">
+        <span>{item.sourceDomain}</span>
+        {item.tags.map((tag) => (
+          <span key={tag} className="rounded-full border border-[#D7DDD8] bg-white px-2 py-0.5">
+            {tag}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function EmptyPanel({ text }: { text: string }) {
+  return (
+    <p className="rounded-[18px] border border-dashed border-[#D7DDD8] bg-[#F8FAF7] p-4 text-sm text-[#6B7280]">
+      {text}
+    </p>
   );
 }
 
@@ -531,16 +699,6 @@ const paceCalibrationQuestions = [
   },
 ];
 
-function Metric({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
-  return (
-    <article className="rounded-md border border-stone-200 bg-white p-4">
-      <Icon className="h-5 w-5 text-emerald-700" aria-hidden="true" />
-      <p className="mt-3 text-sm text-stone-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-    </article>
-  );
-}
-
 function formatCount(value: number): string {
   return Math.round(value).toLocaleString();
 }
@@ -562,14 +720,14 @@ async function getFallbackReadingPaceSummary(): Promise<ReadingPaceSummary> {
 
 function formatPaceSource(summary: ReadingPaceSummary): string {
   if (summary.source === 'default') {
-    return 'Default pace until calibration or high confidence reading samples are available.';
+    return '默认速度会在校准或高置信度阅读样本出现后更新。';
   }
 
   if (summary.source === 'onboarding') {
-    return summary.updatedAt ? `Onboarding calibrated ${formatDateTime(summary.updatedAt)}` : 'Onboarding calibrated';
+    return summary.updatedAt ? `已在 ${formatDateTime(summary.updatedAt)} 完成校准` : '已完成入门校准';
   }
 
-  return `${summary.sampleCount} adaptive samples`;
+  return `${summary.sampleCount} 个自适应样本`;
 }
 
 function formatMinutes(value: number): string {
@@ -587,6 +745,12 @@ function formatDateTime(timestamp: number): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(timestamp));
+}
+
+function formatVocabularyStatusClass(status: RecentVocabularySummary['userStatus']): string {
+  if (status === 'new') return 'bg-blue-50 text-[#3B82F6]';
+  if (status === 'known') return 'bg-gray-100 text-[#6B7280]';
+  return 'bg-[#F1F5F0] text-[#1F7A5B]';
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
