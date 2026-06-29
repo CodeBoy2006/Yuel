@@ -53,6 +53,15 @@ function visibleRect(): DOMRect {
   } as DOMRect;
 }
 
+function belowViewportRect(): DOMRect {
+  return {
+    ...visibleRect(),
+    y: 240,
+    top: 240,
+    bottom: 320,
+  };
+}
+
 function partiallyVisibleRect(visibleRatio: number): DOMRect {
   const height = 80;
   const visibleHeight = height * visibleRatio;
@@ -72,6 +81,32 @@ function tallPartiallyVisibleRect(height: number): DOMRect {
     bottom: height,
     toJSON: () => ({}),
   } as DOMRect;
+}
+
+function domRectList(rects: DOMRect[]): DOMRectList {
+  return {
+    length: rects.length,
+    item: (index: number) => rects[index] ?? null,
+    [Symbol.iterator]: function* () {
+      yield* rects;
+    },
+  } as DOMRectList;
+}
+
+function mockRangeClientRects(rectsByRangeIndex: DOMRect[][]): void {
+  const originalCreateRange = document.createRange.bind(document);
+  let rangeIndex = 0;
+
+  vi.spyOn(document, 'createRange').mockImplementation(() => {
+    const range = originalCreateRange();
+    const rects = rectsByRangeIndex[rangeIndex] ?? [];
+    rangeIndex += 1;
+    Object.defineProperty(range, 'getClientRects', {
+      configurable: true,
+      value: () => domRectList(rects),
+    });
+    return range;
+  });
 }
 
 function longReadableParagraph(sentenceCount = 10): string {
@@ -588,6 +623,54 @@ describe('startReadingCollector', () => {
       expect(visibleChunkIds.length).toBeGreaterThan(0);
       expect(visibleChunkIds.length).toBeLessThan(batch.payload.chunks.length);
       expect(visibleChunkIds).toContain(batch.payload.chunks[0].chunkId);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('uses text range client rects instead of element-height slicing for split chunks', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    mockRangeClientRects([[belowViewportRect()], [visibleRect()]]);
+    document.body.innerHTML = `
+      <article>
+        <p id="long">${longReadableParagraph()}</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const longBlock = document.querySelector('#long');
+      expect(longBlock).toBeInstanceOf(HTMLElement);
+      const longBlockElement = longBlock as HTMLElement;
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 200,
+      });
+      vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: longBlockElement,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      const batch = mocks.sendMessage.mock.calls[0][0];
+      const viewportTick = batch.payload.events.find(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      const visibleChunkIds = viewportTick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId);
+
+      expect(batch.payload.chunks.length).toBeGreaterThan(1);
+      expect(visibleChunkIds).toEqual([batch.payload.chunks[1].chunkId]);
     } finally {
       controller.stop();
       await flushPromises();

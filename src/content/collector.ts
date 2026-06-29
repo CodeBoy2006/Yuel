@@ -82,14 +82,23 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       const now = Date.now();
       const isVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
       const visibleEntryBlocks = entryBlocks.filter((block) => visibleBlocks.has(block.chunkId));
+      const blockVisibility = entryBlocks.map((block) => ({
+        block,
+        visibleRatio: isVisible ? getTextBlockVisibleRatio(block) : 0,
+      }));
 
       if (isVisible) {
-        const newlyVisibleBlocks = entryBlocks.filter((block) => !visibleBlocks.has(block.chunkId));
-        if (newlyVisibleBlocks.length > 0) {
+        const newlyVisibleBlocks = blockVisibility.filter(
+          ({ block, visibleRatio }) => visibleRatio >= 0.15 && !visibleBlocks.has(block.chunkId),
+        );
+        const newlyHiddenBlocks = visibleEntryBlocks.filter((block) =>
+          blockVisibility.some((visibility) => visibility.block.chunkId === block.chunkId && visibility.visibleRatio < 0.15),
+        );
+        if (newlyVisibleBlocks.length > 0 || newlyHiddenBlocks.length > 0) {
           closeCurrentViewportInterval(now);
         }
 
-        for (const block of newlyVisibleBlocks) {
+        for (const { block, visibleRatio } of newlyVisibleBlocks) {
           visibleBlocks.set(block.chunkId, { block });
           pendingEvents.push({
             id: createEventId('TextBlockVisible'),
@@ -98,9 +107,26 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
             chunkId: block.chunkId,
             kind: 'TextBlockVisible',
             occurredAt: now,
-            confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
+            confidence: visibleRatio > 0.65 ? 'high' : 'medium',
             value: {
-              visibleRatio: entry.intersectionRatio,
+              visibleRatio,
+              wordCount: block.wordCount,
+            },
+          });
+        }
+
+        for (const block of newlyHiddenBlocks) {
+          visibleBlocks.delete(block.chunkId);
+          pendingEvents.push({
+            id: createEventId('TextBlockHidden'),
+            sessionId,
+            pageId: page.pageId,
+            chunkId: block.chunkId,
+            kind: 'TextBlockHidden',
+            occurredAt: now,
+            confidence: 'medium',
+            value: {
+              visibleRatio: 0,
               wordCount: block.wordCount,
             },
           });
@@ -398,7 +424,7 @@ function restoreVisibleBlocksFromLayout(
       continue;
     }
 
-    const visibleRatio = getViewportVisibleRatio(block.element);
+    const visibleRatio = getTextBlockVisibleRatio(block);
     if (visibleRatio < 0.15) {
       continue;
     }
@@ -418,23 +444,6 @@ function restoreVisibleBlocksFromLayout(
       },
     });
   }
-}
-
-function getViewportVisibleRatio(element: Element): number {
-  return getViewportRectVisibleRatio(element.getBoundingClientRect());
-}
-
-function getViewportRectVisibleRatio(rect: DOMRect): number {
-  if (rect.width <= 0 || rect.height <= 0) {
-    return 0;
-  }
-
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.width;
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height;
-  const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
-  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
-
-  return (visibleWidth * visibleHeight) / (rect.width * rect.height);
 }
 
 function appendViewportExposureTick(
@@ -495,14 +504,35 @@ function appendViewportExposureTick(
 }
 
 function getTextBlockVisibleRatio(block: TextBlockCandidate): number {
-  return getViewportRectVisibleRatio(getTextBlockViewportRect(block));
+  return getViewportRectsVisibleRatio(getTextBlockClientRects(block));
 }
 
 function getTextBlockCenterDistance(block: TextBlockCandidate): number {
-  return getViewportRectCenterDistance(getTextBlockViewportRect(block));
+  return getViewportRectCenterDistance(getBoundingRect(getTextBlockClientRects(block)));
 }
 
-function getTextBlockViewportRect(block: TextBlockCandidate): DOMRect {
+function getTextBlockClientRects(block: TextBlockCandidate): DOMRect[] {
+  const rangeRects = getRangeClientRects(block.textRange);
+  if (rangeRects.length > 0) {
+    return rangeRects;
+  }
+
+  return [getFallbackTextBlockViewportRect(block)];
+}
+
+function getRangeClientRects(range: Range | undefined): DOMRect[] {
+  if (!range) {
+    return [];
+  }
+
+  try {
+    return Array.from(range.getClientRects()).filter(hasRectArea);
+  } catch {
+    return [];
+  }
+}
+
+function getFallbackTextBlockViewportRect(block: TextBlockCandidate): DOMRect {
   const rect = block.element.getBoundingClientRect();
   if (block.chunkCount <= 1 || block.chunkIndex < 0 || rect.height <= 0) {
     return rect;
@@ -527,12 +557,73 @@ function getTextBlockViewportRect(block: TextBlockCandidate): DOMRect {
   } as DOMRect;
 }
 
+function getViewportRectsVisibleRatio(rects: DOMRect[]): number {
+  const totalArea = rects.reduce((sum, rect) => sum + getRectArea(rect), 0);
+  if (totalArea <= 0) {
+    return 0;
+  }
+
+  const visibleArea = rects.reduce((sum, rect) => sum + getViewportVisibleArea(rect), 0);
+  return visibleArea / totalArea;
+}
+
+function getBoundingRect(rects: DOMRect[]): DOMRect {
+  const [firstRect] = rects;
+  if (!firstRect) {
+    return {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+
+  return {
+    x: left,
+    y: top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+    top,
+    right,
+    bottom,
+    left,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 function getViewportRectCenterDistance(rect: DOMRect): number {
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
   const elementCenterY = rect.top + rect.height / 2;
   const viewportCenterY = viewportHeight / 2;
 
   return Math.max(0, Math.abs(elementCenterY - viewportCenterY) / Math.max(1, viewportHeight));
+}
+
+function hasRectArea(rect: DOMRect): boolean {
+  return getRectArea(rect) > 0;
+}
+
+function getRectArea(rect: DOMRect): number {
+  return Math.max(0, rect.width) * Math.max(0, rect.height);
+}
+
+function getViewportVisibleArea(rect: DOMRect): number {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.width;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height;
+  const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
+  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+
+  return visibleWidth * visibleHeight;
 }
 
 function getContentWeight(element: HTMLElement): number {
@@ -590,7 +681,7 @@ async function flushEvents(
 
   const events = pendingEvents.splice(0, pendingEvents.length);
   const chunks: TextChunkSnapshot[] = blocks.map(
-    ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, ...chunk }) => chunk,
+    ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, textRange: _textRange, ...chunk }) => chunk,
   );
 
   try {

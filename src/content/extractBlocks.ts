@@ -5,6 +5,18 @@ export interface TextBlockCandidate extends TextChunkSnapshot {
   element: HTMLElement;
   chunkIndex: number;
   chunkCount: number;
+  textRange?: Range;
+}
+
+interface TextPosition {
+  node: Text;
+  offset: number;
+}
+
+interface NormalizedTextMap {
+  text: string;
+  starts: Array<TextPosition | undefined>;
+  ends: Array<TextPosition | undefined>;
 }
 
 const TEXT_BLOCK_SELECTOR = [
@@ -135,6 +147,7 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
 
   const selector = describeElement(element);
   const textChunks = splitTextIntoChunkTexts(text);
+  const textRanges = createChunkTextRanges(element, textChunks);
 
   return textChunks.map((chunkText, index) => {
     const analysis = analyzeEnglishText(chunkText);
@@ -142,6 +155,7 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
       element,
       chunkIndex: index,
       chunkCount: textChunks.length,
+      textRange: textRanges[index],
       chunkId: createChunkId(pageId, chunkText),
       pageId,
       textHash: hashText(chunkText),
@@ -151,6 +165,100 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
       selector: textChunks.length === 1 ? selector : `${selector}::chunk(${index + 1})`,
     };
   });
+}
+
+function createChunkTextRanges(element: HTMLElement, textChunks: string[]): Array<Range | undefined> {
+  const normalizedTextMap = createNormalizedTextMap(element);
+  let searchFrom = 0;
+
+  return textChunks.map((chunkText) => {
+    const startIndex = normalizedTextMap.text.indexOf(chunkText, searchFrom);
+    if (startIndex < 0) {
+      return undefined;
+    }
+
+    const endIndex = startIndex + chunkText.length;
+    searchFrom = endIndex;
+    const start = findRangeStart(normalizedTextMap.starts, startIndex);
+    const end = findRangeEnd(normalizedTextMap.ends, endIndex);
+    if (!start || !end) {
+      return undefined;
+    }
+
+    try {
+      const range = element.ownerDocument.createRange();
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      return range;
+    } catch {
+      return undefined;
+    }
+  });
+}
+
+function createNormalizedTextMap(element: HTMLElement): NormalizedTextMap {
+  const textNodes = collectTextNodes(element);
+  const starts: Array<TextPosition | undefined> = [];
+  const ends: Array<TextPosition | undefined> = [];
+  let text = '';
+
+  for (const node of textNodes) {
+    const nodeText = node.data;
+    const wordPattern = /\S+/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = wordPattern.exec(nodeText))) {
+      if (text.length > 0) {
+        text += ' ';
+      }
+
+      const word = match[0];
+      for (let index = 0; index < word.length; index += 1) {
+        const normalizedIndex = text.length;
+        const sourceOffset = match.index + index;
+        starts[normalizedIndex] = { node, offset: sourceOffset };
+        text += word[index];
+        ends[text.length] = { node, offset: sourceOffset + 1 };
+      }
+    }
+  }
+
+  return { text, starts, ends };
+}
+
+function collectTextNodes(element: HTMLElement): Text[] {
+  const walker = element.ownerDocument.createTreeWalker(element, 4);
+  const nodes: Text[] = [];
+  let current = walker.nextNode();
+
+  while (current) {
+    nodes.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  return nodes;
+}
+
+function findRangeStart(positions: Array<TextPosition | undefined>, index: number): TextPosition | undefined {
+  for (let candidateIndex = index; candidateIndex < positions.length; candidateIndex += 1) {
+    const position = positions[candidateIndex];
+    if (position) {
+      return position;
+    }
+  }
+
+  return undefined;
+}
+
+function findRangeEnd(positions: Array<TextPosition | undefined>, index: number): TextPosition | undefined {
+  for (let candidateIndex = index; candidateIndex >= 0; candidateIndex -= 1) {
+    const position = positions[candidateIndex];
+    if (position) {
+      return position;
+    }
+  }
+
+  return undefined;
 }
 
 interface TextChunkUnit {

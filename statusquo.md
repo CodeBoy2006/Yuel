@@ -969,3 +969,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate real browsing sessions for long paragraphs, documentation pages, and code-heavy pages to tune chunk geometry and content weights.
 - **Context:** `rawExposureMs` still records viewport exposure, while `effectiveReadingMs` is now explicitly a WPM-folded output rather than exact eye-on-text dwell time.
+
+## [2026-06-29 19:44] Text Range Visibility
+- **Changes:** Replaced height-sliced split-chunk visibility with DOM `Range.getClientRects()` text-level geometry, kept a fallback for unavailable range rects, and updated reading-model documentation.
+- **Status:** Completed
+- **Next Steps:** Validate on real pages with inline markup, wrapped paragraphs, and mixed text/code blocks to confirm range rects match visible text.
+- **Context:** Internal `textRange` objects are stripped before runtime message delivery, so stored chunk snapshots remain structured and serializable.
