@@ -1005,3 +1005,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue treating landing pages separately from article/tutorial pages when expanding the live corpus.
 - **Context:** `developer.chrome.com/docs/extensions/get-started` is a localized landing page that can legitimately produce no paragraph-style reading blocks; the corpus now uses the `hello-world` tutorial article instead.
+
+## [2026-06-29 22:20] Text-Based English Detection
+- **Changes:** Replaced document-declaration language gating with actual candidate-text English heuristics, updated collector startup behavior, added localized-page regression coverage, and documented the behavior.
+- **Status:** Completed
+- **Next Steps:** Re-run live corpus when expanding selector coverage to watch for false positives on non-English Latin-script pages.
+- **Context:** English articles inside pages declaring another language now collect normally; Chinese prose and localized technology keyword lists remain skipped by token, script-ratio, and English signal-word checks.

@@ -172,7 +172,11 @@ describe('startReadingCollector', () => {
     TestIntersectionObserver.instances = [];
     TestMutationObserver.instances = [];
     document.documentElement.lang = '';
-    document.body.innerHTML = '';
+    document.body.innerHTML = `
+      <article>
+        <p id="default-guide">Default documentation content should keep collector lifecycle tests focused on reading events.</p>
+      </article>
+    `;
     document.title = 'Retryable reading page';
     mocks.sendMessage.mockReset();
   });
@@ -223,23 +227,59 @@ describe('startReadingCollector', () => {
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(mocks.sendMessage).toHaveBeenCalledOnce();
-      expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual([
+      expect(mocks.sendMessage.mock.calls[0][0].payload.events[0]).toEqual(
         expect.objectContaining({
           kind: 'PageVisible',
         }),
-      ]);
+      );
     } finally {
       controller.stop();
       await flushPromises();
     }
   });
 
-  it('does not start collection for declared non-English pages', async () => {
+  it('starts collection from English text even when the page declares another language', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
-    document.documentElement.lang = 'fr-FR';
+    document.documentElement.lang = 'zh-CN';
     document.body.innerHTML = `
       <article>
-        <p id="guide">Technical documentation should stay out of local English reading capture when the page declares another language.</p>
+        <p id="guide">Technical documentation should remain eligible for local English reading capture when the page declares another language.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
+
+    try {
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(TestIntersectionObserver.instances).toHaveLength(1);
+      expect(mocks.sendMessage).toHaveBeenCalled();
+      expect(mocks.sendMessage.mock.calls[0][0].payload).toEqual(
+        expect.objectContaining({
+          chunks: [
+            expect.objectContaining({
+              selector: 'p#guide',
+            }),
+          ],
+          page: expect.objectContaining({
+            language: 'en',
+          }),
+        }),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('does not start collection for pages without English reading text', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.documentElement.lang = 'en-US';
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">这篇文章介绍浏览器扩展的权限模型、内容脚本、后台服务和本地数据处理流程。</p>
       </article>
     `;
 
@@ -400,11 +440,9 @@ describe('startReadingCollector', () => {
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(mocks.sendMessage).toHaveBeenCalledOnce();
-      expect(mocks.sendMessage.mock.calls[0][0].payload.events).toEqual([
-        expect.objectContaining({
-          kind: 'PageVisible',
-        }),
-      ]);
+      const eventKinds = mocks.sendMessage.mock.calls[0][0].payload.events.map((event: { kind: string }) => event.kind);
+      expect(eventKinds[0]).toBe('PageVisible');
+      expect(eventKinds).not.toContain('UserIdle');
     } finally {
       controller.stop();
       await flushPromises();

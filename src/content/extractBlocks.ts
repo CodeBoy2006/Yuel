@@ -1,4 +1,4 @@
-import { analyzeEnglishText } from '../analysis/english';
+import { analyzeEnglishText, isLikelyEnglishText } from '../analysis/english';
 import { createChunkId, createPageId, hashText, type PageSnapshot, type TextChunkSnapshot } from '../domain/events';
 
 export interface TextBlockCandidate extends TextChunkSnapshot {
@@ -87,17 +87,13 @@ export function summarizeCurrentPage(
     domain: doc.location.hostname.replace(/^www\./, ''),
     titleHash: hashText(doc.title),
     urlHash: hashText(url),
-    language: getDocumentPrimaryLanguage(doc),
+    language: blocks.length > 0 ? 'en' : getDocumentPrimaryLanguage(doc),
     totalWords: blocks.reduce((sum, block) => sum + block.wordCount, 0),
     capturedAt: Date.now(),
   };
 }
 
 export function collectTextBlocks(doc: Document = document): TextBlockCandidate[] {
-  if (getDocumentPrimaryLanguage(doc) !== 'en') {
-    return [];
-  }
-
   const pageId = createPageId(doc.location.href);
   const primaryCandidates = collectCandidates(doc, pageId, TEXT_BLOCK_SELECTOR);
 
@@ -105,14 +101,14 @@ export function collectTextBlocks(doc: Document = document): TextBlockCandidate[
 }
 
 export function getDocumentPrimaryLanguage(doc: Document = document): string {
-  return normalizePageLanguage(doc.documentElement.lang);
+  return isLikelyEnglishText(collectDocumentLanguageSample(doc), { minWords: MIN_TEXT_CHUNK_WORDS }) ? 'en' : 'unknown';
 }
 
 function collectCandidates(doc: Document, pageId: string, selector: string): TextBlockCandidate[] {
   const seen = new Set<string>();
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
-    .filter((element) => !hasExcludedAncestor(element) && !hasNonEnglishLanguageDeclaration(element))
+    .filter((element) => !hasExcludedAncestor(element))
     .flatMap((element) => createCandidates(pageId, element))
     .filter((candidate) => {
       if (seen.has(candidate.textHash)) return false;
@@ -125,11 +121,6 @@ function hasExcludedAncestor(element: HTMLElement): boolean {
   return Boolean(element.closest(EXCLUDED_ANCESTOR_SELECTOR));
 }
 
-function hasNonEnglishLanguageDeclaration(element: HTMLElement): boolean {
-  const declaredLanguageOwner = element.closest<HTMLElement>('[lang]');
-  return Boolean(declaredLanguageOwner && normalizePageLanguage(declaredLanguageOwner.lang) !== 'en');
-}
-
 function createCandidates(pageId: string, element: HTMLElement): TextBlockCandidate[] {
   if (!isVisibleElement(element)) {
     return [];
@@ -137,6 +128,10 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
 
   const text = normalizeWhitespace(element.innerText || element.textContent || '');
   if (!text) {
+    return [];
+  }
+
+  if (!isLikelyEnglishText(text, { minWords: MIN_TEXT_CHUNK_WORDS })) {
     return [];
   }
 
@@ -388,15 +383,43 @@ function normalizeWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function collectDocumentLanguageSample(doc: Document): string {
+  const seen = new Set<HTMLElement>();
+  const samples: string[] = [];
+  let sampledCharacters = 0;
+
+  for (const selector of [TEXT_BLOCK_SELECTOR, FALLBACK_TEXT_BLOCK_SELECTOR]) {
+    for (const element of Array.from(doc.querySelectorAll<HTMLElement>(selector))) {
+      if (seen.has(element) || hasExcludedAncestor(element) || isElementStyleHidden(element)) {
+        continue;
+      }
+
+      seen.add(element);
+      const text = normalizeWhitespace(element.innerText || element.textContent || '');
+      if (!text) {
+        continue;
+      }
+
+      samples.push(text);
+      sampledCharacters += text.length;
+      if (sampledCharacters >= 6_000) {
+        return samples.join(' ');
+      }
+    }
+  }
+
+  return samples.join(' ');
+}
+
+function isElementStyleHidden(element: HTMLElement): boolean {
+  const styles = window.getComputedStyle(element);
+  return styles.visibility === 'hidden' || styles.display === 'none';
+}
+
 function getSentenceSegmenter(): Intl.Segmenter | undefined {
   if (typeof Intl === 'undefined' || typeof Intl.Segmenter === 'undefined') {
     return undefined;
   }
 
   return new Intl.Segmenter('en', { granularity: 'sentence' });
-}
-
-function normalizePageLanguage(language: string): string {
-  const primaryLanguage = language.trim().toLowerCase().split(/[-_]/)[0];
-  return primaryLanguage || 'en';
 }

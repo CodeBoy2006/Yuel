@@ -210,33 +210,50 @@ describe('collectTextBlocks', () => {
     });
   });
 
-  it('skips locally declared non-English text inside English pages', () => {
-    document.documentElement.lang = 'en-US';
+  it('collects English article text even when the page declares Chinese', () => {
+    document.documentElement.lang = 'zh-CN';
     document.body.innerHTML = `
-      <main>
-        <section lang="fr">
-          <p id="localized">Architecture notes and performance details should not be captured when this section declares another language.</p>
-        </section>
-        <article>
-          <p id="article">English documentation content should remain eligible for local reading analytics.</p>
-        </article>
-      </main>
+      <article lang="zh-CN">
+        <p id="article">Chrome extension tutorials explain how service workers and content scripts should coordinate permission prompts.</p>
+      </article>
     `;
 
     const blocks = collectTextBlocks(document);
+    const page = summarizeCurrentPage(document, blocks);
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toMatchObject({
       selector: 'p#article',
-      text: 'English documentation content should remain eligible for local reading analytics.',
+      text: 'Chrome extension tutorials explain how service workers and content scripts should coordinate permission prompts.',
     });
+    expect(page.language).toBe('en');
   });
 
-  it('reports declared non-English page language in page snapshots', () => {
-    document.documentElement.lang = 'fr-FR';
+  it('skips non-English prose even when the page declares English', () => {
+    document.documentElement.lang = 'en-US';
+    document.body.innerHTML = `
+      <article>
+        <p id="article">这篇文章介绍浏览器扩展的权限模型、内容脚本、后台服务和本地数据处理流程。</p>
+      </article>
+    `;
 
-    const page = summarizeCurrentPage(document, []);
+    const blocks = collectTextBlocks(document);
+    const page = summarizeCurrentPage(document, blocks);
 
-    expect(page.language).toBe('fr');
+    expect(blocks).toEqual([]);
+    expect(page.language).toBe('unknown');
+  });
+
+  it('does not treat localized technology keyword lists as English reading text', () => {
+    document.documentElement.lang = 'zh-CN';
+    document.body.innerHTML = `
+      <article>
+        <p id="keywords">这篇文章介绍 React Vue Next TypeScript JavaScript API DOM CSS HTML Chrome Extension 的使用场景和常见问题。</p>
+      </article>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toEqual([]);
   });
 });
