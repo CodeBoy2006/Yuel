@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createPageId } from '../domain/events';
 import { startReadingCollector } from './collector';
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +32,25 @@ class TestIntersectionObserver {
 
   emit(entries: Partial<IntersectionObserverEntry>[]) {
     this.callback(entries as IntersectionObserverEntry[], this as unknown as IntersectionObserver);
+  }
+}
+
+class TestMutationObserver {
+  static instances: TestMutationObserver[] = [];
+
+  private readonly callback: MutationCallback;
+
+  constructor(callback: MutationCallback) {
+    this.callback = callback;
+    TestMutationObserver.instances.push(this);
+  }
+
+  observe = vi.fn();
+  disconnect = vi.fn();
+  takeRecords = () => [];
+
+  emit(records: Partial<MutationRecord>[]) {
+    this.callback(records as MutationRecord[], this as unknown as MutationObserver);
   }
 }
 
@@ -136,6 +156,7 @@ describe('startReadingCollector', () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.UTC(2026, 5, 27, 12, 0, 0));
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    vi.stubGlobal('MutationObserver', TestMutationObserver);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(visibleRect());
     Object.defineProperty(window, 'innerHeight', {
@@ -149,6 +170,7 @@ describe('startReadingCollector', () => {
     setDocumentVisibility('visible');
     setWindowScrollY(0);
     TestIntersectionObserver.instances = [];
+    TestMutationObserver.instances = [];
     document.documentElement.lang = '';
     document.body.innerHTML = '';
     document.title = 'Retryable reading page';
@@ -265,6 +287,95 @@ describe('startReadingCollector', () => {
       );
       expect(batch.payload.chunks).toHaveLength(1);
       expect(batch.payload.page.totalWords).toBe(chunkWords);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('refreshes text blocks after SPA content is injected into the current route', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article id="article">
+        <p id="initial">Initial route content should start the local reading collector normally.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ dynamicRefreshDebounceMs: 250, flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const article = document.querySelector('#article');
+      expect(article).toBeInstanceOf(HTMLElement);
+      const appended = document.createElement('p');
+      appended.id = 'injected';
+      appended.textContent =
+        'Injected infinite scroll content should become a captured reading block after the SPA updates the DOM.';
+      article?.append(appended);
+      TestMutationObserver.instances[0].emit([
+        {
+          type: 'childList',
+          target: article as Node,
+          addedNodes: [appended] as unknown as NodeList,
+          removedNodes: [] as unknown as NodeList,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(250);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalled();
+      const refreshedBatch = mocks.sendMessage.mock.calls.at(-1)?.[0];
+      expect(refreshedBatch.payload.chunks.map((chunk: { selector: string }) => chunk.selector)).toContain('p#injected');
+      expect(refreshedBatch.payload.events).toEqual([
+        expect.objectContaining({
+          kind: 'PageVisible',
+        }),
+      ]);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('starts a new page snapshot after client-side route navigation', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined);
+    document.body.innerHTML = `
+      <article>
+        <p id="first-route">First route content should be flushed before client-side navigation replaces it.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000, routeCheckIntervalMs: 250 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      window.history.pushState({}, '', '/next-route');
+      document.body.innerHTML = `
+        <article>
+          <p id="next-route">Next route content should create a new local page snapshot after SPA navigation.</p>
+        </article>
+      `;
+      await vi.advanceTimersByTimeAsync(250);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalled();
+      const sentBatches = mocks.sendMessage.mock.calls.map((call) => call[0]);
+      expect(sentBatches.some((batch) => batch.payload.events.some((event: { kind: string }) => event.kind === 'PageHidden'))).toBe(
+        true,
+      );
+      const nextRouteBatch = sentBatches.at(-1);
+      expect(nextRouteBatch.payload.page.pageId).toBe(createPageId(window.location.href));
+      expect(nextRouteBatch.payload.chunks.map((chunk: { selector: string }) => chunk.selector)).toEqual(['p#next-route']);
+      expect(nextRouteBatch.payload.events).toEqual([
+        expect.objectContaining({
+          kind: 'PageVisible',
+        }),
+      ]);
     } finally {
       controller.stop();
       await flushPromises();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateBrowserDomTextExtraction } from './browserDomSmoke';
+import { validateBrowserDomTextExtraction, validateBrowserSpaDynamicCollector } from './browserDomSmoke';
 
 describe('browser DOM smoke', () => {
   it('runs text block extraction against a real browser DOM', async () => {
@@ -14,5 +14,16 @@ describe('browser DOM smoke', () => {
     expect(result.texts.join(' ')).not.toContain('Navigation text');
     expect(result.firstBlockRect.width).toBeGreaterThan(0);
     expect(result.firstRangeRect.width).toBeGreaterThan(0);
+  });
+
+  it('refreshes collector snapshots for SPA injection and route replacement in a real browser DOM', async () => {
+    const result = await validateBrowserSpaDynamicCollector();
+
+    expect(result.finalHref).toContain('/next-spa-route');
+    expect(result.messageCount).toBeGreaterThanOrEqual(3);
+    expect(result.eventKinds).toContain('PageVisible');
+    expect(result.eventKinds).toContain('PageHidden');
+    expect(result.selectors).toEqual(expect.arrayContaining(['p#initial-route', 'p#injected-route', 'p#next-route']));
+    expect(new Set(result.pageIds).size).toBeGreaterThanOrEqual(2);
   });
 });

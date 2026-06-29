@@ -987,3 +987,9 @@
 - **Status:** Completed
 - **Next Steps:** Use this stress script before changing extraction chunking, range geometry, or aggregation loops.
 - **Context:** The stress path launches Chrome/CDP and a temporary localhost server, so sandboxed runs may require elevated permissions.
+
+## [2026-06-29 20:43] SPA Dynamic Reading Support
+- **Changes:** Added a dynamic-page manager around the content collector to debounce readable DOM mutation refreshes, rebuild same-route snapshots for injected or infinite-scroll content, and restart page snapshots after client-side route changes; added unit and real-browser SPA fixture coverage.
+- **Status:** Completed
+- **Next Steps:** Validate on real React, Vue, and Next.js pages with nested route transitions and long infinite-scroll feeds.
+- **Context:** Client-side route support uses URL polling plus `popstate`/`hashchange` so it does not rely on patching page-world history APIs from the extension isolated world.

@@ -15,8 +15,14 @@ export interface CollectorController {
 }
 
 interface CollectorOptions {
+  dynamicRefreshDebounceMs?: number;
   flushIntervalMs?: number;
   idleTimeoutMs?: number;
+  routeCheckIntervalMs?: number;
+}
+
+interface CollectorRunController {
+  stop: (options?: { emitPageHidden?: boolean }) => void;
 }
 
 interface VisibleBlockState {
@@ -37,6 +43,91 @@ interface ScrollVelocityMeasurement extends ScrollVelocitySample {
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   if (getDocumentPrimaryLanguage(document) !== 'en') {
     return createNoopCollectorController();
+  }
+
+  const dynamicRefreshDebounceMs = options.dynamicRefreshDebounceMs ?? 1_000;
+  const routeCheckIntervalMs = options.routeCheckIntervalMs ?? 1_000;
+  let stopped = false;
+  let currentHref = window.location.href;
+  let currentRun = startReadingCollectorRun(options);
+  let dynamicRefreshTimer: number | undefined;
+
+  const restartRun = (emitPageHidden: boolean) => {
+    if (stopped) {
+      return;
+    }
+
+    if (dynamicRefreshTimer !== undefined) {
+      window.clearTimeout(dynamicRefreshTimer);
+      dynamicRefreshTimer = undefined;
+    }
+
+    currentRun.stop({ emitPageHidden });
+    currentHref = window.location.href;
+    currentRun = startReadingCollectorRun(options);
+  };
+
+  const restartForRouteIfNeeded = () => {
+    if (window.location.href === currentHref) {
+      return;
+    }
+
+    restartRun(true);
+  };
+
+  const scheduleContentRefresh = () => {
+    if (stopped) {
+      return;
+    }
+
+    if (window.location.href !== currentHref) {
+      restartRun(true);
+      return;
+    }
+
+    if (dynamicRefreshTimer !== undefined) {
+      window.clearTimeout(dynamicRefreshTimer);
+    }
+
+    dynamicRefreshTimer = window.setTimeout(() => {
+      dynamicRefreshTimer = undefined;
+      if (window.location.href !== currentHref) {
+        restartRun(true);
+        return;
+      }
+
+      restartRun(false);
+    }, dynamicRefreshDebounceMs);
+  };
+
+  const mutationObserver = createDynamicContentObserver(scheduleContentRefresh);
+  const routeCheckTimer = window.setInterval(restartForRouteIfNeeded, routeCheckIntervalMs);
+
+  window.addEventListener('popstate', restartForRouteIfNeeded);
+  window.addEventListener('hashchange', restartForRouteIfNeeded);
+
+  return {
+    stop: () => {
+      if (stopped) {
+        return;
+      }
+
+      stopped = true;
+      if (dynamicRefreshTimer !== undefined) {
+        window.clearTimeout(dynamicRefreshTimer);
+      }
+      window.clearInterval(routeCheckTimer);
+      window.removeEventListener('popstate', restartForRouteIfNeeded);
+      window.removeEventListener('hashchange', restartForRouteIfNeeded);
+      mutationObserver?.disconnect();
+      currentRun.stop({ emitPageHidden: true });
+    },
+  };
+}
+
+function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunController {
+  if (getDocumentPrimaryLanguage(document) !== 'en') {
+    return createNoopCollectorRunController();
   }
 
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
@@ -366,7 +457,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   void flushNow();
 
   return {
-    stop: () => {
+    stop: ({ emitPageHidden = true }: { emitPageHidden?: boolean } = {}) => {
       if (stopped) {
         return;
       }
@@ -383,7 +474,9 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       observer.disconnect();
       closeCurrentViewportInterval();
       visibleBlocks.clear();
-      appendPageHiddenOnce();
+      if (emitPageHidden) {
+        appendPageHiddenOnce();
+      }
       void flushNow().then((delivered) => {
         if (!delivered && pendingEvents.length > 0) {
           void flushNow();
@@ -393,7 +486,67 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 }
 
+function createDynamicContentObserver(onChanged: () => void): MutationObserver | undefined {
+  if (typeof MutationObserver === 'undefined') {
+    return undefined;
+  }
+
+  const target = document.body ?? document.documentElement;
+  if (!target) {
+    return undefined;
+  }
+
+  const observer = new MutationObserver((records) => {
+    if (!records.some(isReadableContentMutation)) {
+      return;
+    }
+
+    onChanged();
+  });
+
+  observer.observe(target, {
+    childList: true,
+    subtree: true,
+  });
+
+  return observer;
+}
+
+function isReadableContentMutation(record: MutationRecord): boolean {
+  if (record.type !== 'childList') {
+    return false;
+  }
+
+  return [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some(isPotentialReadableNode);
+}
+
+function isPotentialReadableNode(node: Node): boolean {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return Boolean(node.textContent?.trim());
+  }
+
+  if (!(node instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (node.matches('script, style, link, meta, noscript, svg, canvas')) {
+    return false;
+  }
+
+  if (node.closest('script, style, noscript, svg, canvas')) {
+    return false;
+  }
+
+  return Boolean(node.innerText || node.textContent?.trim());
+}
+
 function createNoopCollectorController(): CollectorController {
+  return {
+    stop: () => undefined,
+  };
+}
+
+function createNoopCollectorRunController(): CollectorRunController {
   return {
     stop: () => undefined,
   };

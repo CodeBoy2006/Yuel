@@ -15,7 +15,7 @@ Supported English website
   -> popup, side panel, dashboard
 ```
 
-The content script owns continuous page observation because it has direct DOM access. The background service worker stays limited to routing, alarms, side panel setup, and database writes because MV3 workers are not reliable long-running timers.
+The content script owns continuous page observation because it has direct DOM access. It keeps a per-page collector run for the current snapshot and uses a lightweight dynamic-page manager around that run: readable DOM mutations schedule a debounced same-route snapshot refresh, while URL changes from client-side navigation trigger a page lifecycle flush and a fresh page snapshot. The background service worker stays limited to routing, alarms, side panel setup, and database writes because MV3 workers are not reliable long-running timers.
 
 ## First-Version Scope
 
@@ -24,6 +24,7 @@ Included:
 - WXT Chrome MV3 scaffold.
 - React popup, side panel, and dashboard entrypoints.
 - Text block extraction for article, main, docs, markdown, heading, code, list, and blockquote content.
+- Dynamic SPA refresh support for later content injection, infinite-scroll additions, and client-side route replacement.
 - Reading event contracts for page visibility, block visibility, viewport exposure, scroll velocity, idle/activity, and selection.
 - Dexie schema for pages, chunks, chunk session/day caps, events, vocabulary exposures, saved items, and daily stats.
 - Lightweight English tokenization using browser-native `Intl.Segmenter` for sentence splitting where available.

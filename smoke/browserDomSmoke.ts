@@ -40,6 +40,14 @@ export interface LargeBrowserDomTextStressResult {
   wordsPerParagraph: number;
 }
 
+export interface BrowserSpaDynamicCollectorResult {
+  eventKinds: string[];
+  finalHref: string;
+  messageCount: number;
+  pageIds: string[];
+  selectors: string[];
+}
+
 interface BrowserDomSmokeOptions {
   chromeArgs?: string[];
   chromePath?: string;
@@ -109,6 +117,28 @@ export async function validateLargeBrowserDomTextStress({
   );
 }
 
+export async function validateBrowserSpaDynamicCollector(
+  options: BrowserDomSmokeOptions = {},
+): Promise<BrowserSpaDynamicCollectorResult> {
+  return withSourceModuleServer(async (baseUrl) =>
+    withBrowser(options, async ({ client, timeoutMs }) => {
+      return client.withOpenPage(`${baseUrl}/spa-dynamic-collector`, timeoutMs, async (sessionId) => {
+        return waitFor(async () => {
+          const result = await client.evaluate<BrowserSpaDynamicCollectorResult | null>(
+            'window.__YUEL_SPA_DYNAMIC_RESULT__ ?? null',
+            sessionId,
+          );
+          if (!result) {
+            throw new Error('SPA dynamic collector fixture has not produced a result yet');
+          }
+
+          return result;
+        }, timeoutMs);
+      });
+    }),
+  );
+}
+
 async function withSourceModuleServer<T>(runSmoke: (baseUrl: string) => Promise<T>): Promise<T> {
   const server = createServer(handleSourceModuleRequest);
 
@@ -138,6 +168,18 @@ async function handleSourceModuleRequest(request: IncomingMessage, response: Ser
           wordsPerParagraph: readIntegerParam(requestUrl, 'wordsPerParagraph', 80),
         }),
       );
+      return;
+    }
+
+    if (requestUrl.pathname === '/spa-dynamic-collector') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(createSpaDynamicCollectorHtml());
+      return;
+    }
+
+    if (requestUrl.pathname === '/__wxt-browser-stub.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+      response.end(createWxtBrowserStubModule());
       return;
     }
 
@@ -256,6 +298,97 @@ function createBrowserDomFixtureHtml(): string {
     </script>
   </body>
 </html>`;
+}
+
+function createSpaDynamicCollectorHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Yuel SPA dynamic collector fixture</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "wxt/browser": "/__wxt-browser-stub.js"
+        }
+      }
+    </script>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 32px; max-width: 760px; line-height: 1.7; }
+      article p { font-size: 18px; margin: 0 0 20px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article id="app">
+        <p id="initial-route">Initial SPA route content should start reading collection before dynamic updates.</p>
+      </article>
+    </main>
+    <script type="module">
+      import { startReadingCollector } from '/src/content/collector.ts';
+
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const publishResult = () => {
+        const messages = window.__YUEL_SENT_MESSAGES__ ?? [];
+        window.__YUEL_SPA_DYNAMIC_RESULT__ = {
+          eventKinds: messages.flatMap((message) => message.payload.events.map((event) => event.kind)),
+          finalHref: window.location.href,
+          messageCount: messages.length,
+          pageIds: messages.map((message) => message.payload.page.pageId),
+          selectors: [...new Set(messages.flatMap((message) => message.payload.chunks.map((chunk) => chunk.selector)))],
+        };
+      };
+
+      const run = async () => {
+        const controller = startReadingCollector({
+          dynamicRefreshDebounceMs: 50,
+          flushIntervalMs: 250,
+          idleTimeoutMs: 10_000,
+          routeCheckIntervalMs: 50,
+        });
+        await wait(100);
+
+        const injected = document.createElement('p');
+        injected.id = 'injected-route';
+        injected.textContent =
+          'Injected infinite scroll route content should be collected after the SPA appends readable DOM nodes.';
+        document.querySelector('#app')?.append(injected);
+        await wait(120);
+
+        window.history.pushState({}, '', '/next-spa-route');
+        document.body.innerHTML = \`
+          <main>
+            <article id="app">
+              <p id="next-route">Next SPA route content should create a replacement page snapshot after navigation.</p>
+            </article>
+          </main>
+        \`;
+        await wait(150);
+        controller.stop();
+        await wait(50);
+        publishResult();
+      };
+
+      if (document.readyState === 'complete') {
+        void run();
+      } else {
+        window.addEventListener('load', () => void run(), { once: true });
+      }
+    </script>
+  </body>
+</html>`;
+}
+
+function createWxtBrowserStubModule(): string {
+  return `window.__YUEL_SENT_MESSAGES__ = window.__YUEL_SENT_MESSAGES__ ?? [];
+export const browser = {
+  runtime: {
+    sendMessage(message) {
+      window.__YUEL_SENT_MESSAGES__.push(message);
+      return Promise.resolve();
+    },
+  },
+};`;
 }
 
 function createLargeTextStressHtml({
