@@ -7,5 +7,16 @@
     "strict": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["entrypoints", "src", "smoke", ".wxt/wxt.d.ts", "wxt.config.ts", "vitest.config.ts", "vitest.smoke.config.ts", "vitest.browser-smoke.config.ts"]
+  "include": [
+    "entrypoints",
+    "src",
+    "smoke",
+    ".wxt/wxt.d.ts",
+    "wxt.config.ts",
+    "vitest.config.ts",
+    "vitest.smoke.config.ts",
+    "vitest.browser-smoke.config.ts",
+    "vitest.browser-dom.config.ts",
+    "vitest.large-text-stress.config.ts"
+  ]
 }

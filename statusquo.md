@@ -981,3 +981,9 @@
 - **Status:** Completed
 - **Next Steps:** Add more browser DOM fixtures when extraction logic changes in ways jsdom cannot represent accurately.
 - **Context:** The browser DOM harness needs Chrome plus a temporary localhost server; sandboxed runs may require elevated permissions for local listening and CDP launch.
+
+## [2026-06-29 20:11] Large Text Stress Scenario
+- **Changes:** Added an opt-in `test:stress:large-text` pressure test covering a generated 1,200-paragraph real browser DOM fixture with native `Range` geometry and a 2,000-tick viewport aggregation batch.
+- **Status:** Completed
+- **Next Steps:** Use this stress script before changing extraction chunking, range geometry, or aggregation loops.
+- **Context:** The stress path launches Chrome/CDP and a temporary localhost server, so sandboxed runs may require elevated permissions.

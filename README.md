@@ -16,6 +16,7 @@ Yuel Reading is a local-first MV3 browser extension for English reading analytic
 pnpm install
 CI=true pnpm test
 CI=true pnpm test:browser-dom
+CI=true pnpm test:stress:large-text
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
 CI=true pnpm typecheck
@@ -65,11 +66,14 @@ Use these commands before shipping a change:
 CI=true pnpm test
 CI=true pnpm typecheck
 CI=true pnpm test:browser-dom
+CI=true pnpm test:stress:large-text
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
 ```
 
 `test:browser-dom` launches a temporary local fixture page in Google Chrome through Chrome DevTools Protocol and runs source modules against a real browser DOM. It covers native layout and `Range` geometry used by text block extraction without requiring a packaged extension build. Set `CHROME_PATH` if Chrome is installed outside `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; set `YUEL_BROWSER_DOM_HEADLESS=false` to watch the run.
+
+`test:stress:large-text` is an opt-in pressure test for large reading documents. It loads a generated 1,200-paragraph browser DOM fixture, verifies extraction and native `Range` geometry against roughly 97k words while filtering excluded page chrome, and runs a 2,000-tick aggregation batch with 80 visible chunks per tick. It uses the same Chrome/CDP requirements as `test:browser-dom`.
 
 `test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
 

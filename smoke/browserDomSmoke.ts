@@ -17,6 +17,29 @@ export interface BrowserDomTextExtractionResult {
   texts: string[];
 }
 
+export interface LargeBrowserDomTextStressOptions extends BrowserDomSmokeOptions {
+  excludedParagraphCount?: number;
+  paragraphCount?: number;
+  timeoutMs?: number;
+  wordsPerParagraph?: number;
+}
+
+export interface LargeBrowserDomTextStressResult {
+  blockCount: number;
+  collectMs: number;
+  documentReadyState: string;
+  excludedParagraphCount: number;
+  firstSelector: string | undefined;
+  htmlBytes: number;
+  lastSelector: string | undefined;
+  pageDomain: string;
+  paragraphCount: number;
+  rangeRectCount: number;
+  rangeRectMs: number;
+  totalWords: number;
+  wordsPerParagraph: number;
+}
+
 interface BrowserDomSmokeOptions {
   chromeArgs?: string[];
   chromePath?: string;
@@ -55,6 +78,37 @@ export async function validateBrowserDomTextExtraction(
   );
 }
 
+export async function validateLargeBrowserDomTextStress({
+  excludedParagraphCount = 150,
+  paragraphCount = 1_200,
+  timeoutMs = 45_000,
+  wordsPerParagraph = 80,
+  ...browserOptions
+}: LargeBrowserDomTextStressOptions = {}): Promise<LargeBrowserDomTextStressResult> {
+  return withSourceModuleServer(async (baseUrl) =>
+    withBrowser({ ...browserOptions, timeoutMs }, async ({ client }) => {
+      const stressUrl = new URL('/large-text-stress', baseUrl);
+      stressUrl.searchParams.set('excludedParagraphCount', String(excludedParagraphCount));
+      stressUrl.searchParams.set('paragraphCount', String(paragraphCount));
+      stressUrl.searchParams.set('wordsPerParagraph', String(wordsPerParagraph));
+
+      return client.withOpenPage(stressUrl.href, timeoutMs, async (sessionId) => {
+        return waitFor(async () => {
+          const result = await client.evaluate<LargeBrowserDomTextStressResult | null>(
+            'window.__YUEL_LARGE_TEXT_STRESS_RESULT__ ?? null',
+            sessionId,
+          );
+          if (!result) {
+            throw new Error('Large text stress fixture has not produced a result yet');
+          }
+
+          return result;
+        }, timeoutMs);
+      });
+    }),
+  );
+}
+
 async function withSourceModuleServer<T>(runSmoke: (baseUrl: string) => Promise<T>): Promise<T> {
   const server = createServer(handleSourceModuleRequest);
 
@@ -72,6 +126,18 @@ async function handleSourceModuleRequest(request: IncomingMessage, response: Ser
     if (requestUrl.pathname === '/browser-dom-fixture') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(createBrowserDomFixtureHtml());
+      return;
+    }
+
+    if (requestUrl.pathname === '/large-text-stress') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(
+        createLargeTextStressHtml({
+          excludedParagraphCount: readIntegerParam(requestUrl, 'excludedParagraphCount', 150),
+          paragraphCount: readIntegerParam(requestUrl, 'paragraphCount', 1_200),
+          wordsPerParagraph: readIntegerParam(requestUrl, 'wordsPerParagraph', 80),
+        }),
+      );
       return;
     }
 
@@ -119,6 +185,11 @@ function transpileTypeScriptModule(source: string, sourcePath: string): string {
   });
 
   return `${output.outputText}\n//# sourceURL=${sourcePath}`;
+}
+
+function readIntegerParam(requestUrl: URL, name: string, fallback: number): number {
+  const value = Number(requestUrl.searchParams.get(name));
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function createBrowserDomFixtureHtml(): string {
@@ -185,6 +256,123 @@ function createBrowserDomFixtureHtml(): string {
     </script>
   </body>
 </html>`;
+}
+
+function createLargeTextStressHtml({
+  excludedParagraphCount,
+  paragraphCount,
+  wordsPerParagraph,
+}: {
+  excludedParagraphCount: number;
+  paragraphCount: number;
+  wordsPerParagraph: number;
+}): string {
+  const articleParagraphs = Array.from({ length: paragraphCount }, (_, index) =>
+    `<p id="stress-${index + 1}">${escapeHtml(createStressParagraph(index + 1, wordsPerParagraph))}</p>`,
+  ).join('\n');
+  const createExcludedParagraphs = (prefix: string) =>
+    Array.from(
+      { length: excludedParagraphCount },
+      (_, index) =>
+        `<p id="${prefix}-${index + 1}">${escapeHtml(
+          createStressParagraph(index + 1, Math.max(16, Math.floor(wordsPerParagraph / 2))),
+        )}</p>`,
+    ).join('\n');
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Yuel large text stress fixture</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 32px; max-width: 820px; line-height: 1.65; }
+      article p { font-size: 17px; margin: 0 0 18px; }
+      nav, footer, [aria-hidden="true"] { display: block; }
+      .hidden-region { display: none; }
+    </style>
+  </head>
+  <body>
+    <nav>${createExcludedParagraphs('nav-excluded')}</nav>
+    <main>
+      <article>${articleParagraphs}</article>
+    </main>
+    <footer>${createExcludedParagraphs('footer-excluded')}</footer>
+    <section class="hidden-region" aria-hidden="true">${createExcludedParagraphs('hidden-excluded')}</section>
+    <script type="module">
+      import { collectTextBlocks, summarizeCurrentPage } from '/src/content/extractBlocks.ts';
+
+      const publishResult = () => {
+        const collectStartedAt = performance.now();
+        const blocks = collectTextBlocks(document);
+        const collectMs = performance.now() - collectStartedAt;
+        const page = summarizeCurrentPage(document, blocks);
+        const rangeStartedAt = performance.now();
+        let rangeRectCount = 0;
+        for (const block of blocks) {
+          rangeRectCount += block.textRange?.getClientRects()?.length ?? 0;
+        }
+        const rangeRectMs = performance.now() - rangeStartedAt;
+
+        window.__YUEL_LARGE_TEXT_STRESS_RESULT__ = {
+          blockCount: blocks.length,
+          collectMs,
+          documentReadyState: document.readyState,
+          excludedParagraphCount: ${JSON.stringify(excludedParagraphCount)},
+          firstSelector: blocks[0]?.selector,
+          htmlBytes: document.documentElement.outerHTML.length,
+          lastSelector: blocks.at(-1)?.selector,
+          pageDomain: page.domain,
+          paragraphCount: ${JSON.stringify(paragraphCount)},
+          rangeRectCount,
+          rangeRectMs,
+          totalWords: page.totalWords,
+          wordsPerParagraph: ${JSON.stringify(wordsPerParagraph)},
+        };
+      };
+
+      if (document.readyState === 'complete') {
+        publishResult();
+      } else {
+        window.addEventListener('load', publishResult, { once: true });
+      }
+    </script>
+  </body>
+</html>`;
+}
+
+function createStressParagraph(index: number, targetWords: number): string {
+  const seedWords = [
+    'architecture',
+    'performance',
+    'reading',
+    'analytics',
+    'viewport',
+    'exposure',
+    'budget',
+    'collector',
+    'extension',
+    'browser',
+    'storage',
+    'vocabulary',
+    'documentation',
+    'range',
+    'geometry',
+    'local',
+  ];
+  const words = Array.from({ length: targetWords }, (_, wordIndex) => {
+    if (wordIndex === 0) return `Section${index}`;
+    return seedWords[(index + wordIndex) % seedWords.length];
+  });
+
+  return `${words.join(' ')}.`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 async function withBrowser<T>(
