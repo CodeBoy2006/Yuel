@@ -963,3 +963,9 @@
 - **Status:** Completed
 - **Next Steps:** Use real reading sessions to tune current-page vocabulary and quote surfacing once page-scoped vocabulary data exists.
 - **Context:** Side Panel now shows true current-page progress when the current URL has a local page record; vocabulary and saved highlights still come from existing recent local assets because vocabulary exposure is not page-scoped yet.
+
+## [2026-06-29 19:29] Visible Supply Reading Cap
+- **Changes:** Capped effective reading budgets by currently visible weighted word supply, capped per-chunk effective words by visible supply, folded effective reading time from effective words at active WPM, added chunk-level viewport geometry for split long text elements, and updated README/architecture docs.
+- **Status:** Completed
+- **Next Steps:** Validate real browsing sessions for long paragraphs, documentation pages, and code-heavy pages to tune chunk geometry and content weights.
+- **Context:** `rawExposureMs` still records viewport exposure, while `effectiveReadingMs` is now explicitly a WPM-folded output rather than exact eye-on-text dwell time.

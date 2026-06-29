@@ -3,6 +3,8 @@ import { createChunkId, createPageId, hashText, type PageSnapshot, type TextChun
 
 export interface TextBlockCandidate extends TextChunkSnapshot {
   element: HTMLElement;
+  chunkIndex: number;
+  chunkCount: number;
 }
 
 const TEXT_BLOCK_SELECTOR = [
@@ -138,6 +140,8 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
     const analysis = analyzeEnglishText(chunkText);
     return {
       element,
+      chunkIndex: index,
+      chunkCount: textChunks.length,
       chunkId: createChunkId(pageId, chunkText),
       pageId,
       textHash: hashText(chunkText),

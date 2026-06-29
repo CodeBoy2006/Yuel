@@ -65,6 +65,15 @@ function partiallyVisibleRect(visibleRatio: number): DOMRect {
   };
 }
 
+function tallPartiallyVisibleRect(height: number): DOMRect {
+  return {
+    ...visibleRect(),
+    height,
+    bottom: height,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 function longReadableParagraph(sentenceCount = 10): string {
   return Array.from(
     { length: sentenceCount },
@@ -535,7 +544,7 @@ describe('startReadingCollector', () => {
     }
   });
 
-  it('emits viewport exposure for every chunk split from a single long text element', async () => {
+  it('emits viewport exposure only for split chunks that are visible within a long text element', async () => {
     mocks.sendMessage.mockResolvedValue(undefined);
     document.body.innerHTML = `
       <article>
@@ -551,9 +560,15 @@ describe('startReadingCollector', () => {
 
       const longBlock = document.querySelector('#long');
       expect(longBlock).toBeInstanceOf(HTMLElement);
+      const longBlockElement = longBlock as HTMLElement;
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 200,
+      });
+      vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
       TestIntersectionObserver.instances[0].emit([
         {
-          target: longBlock as Element,
+          target: longBlockElement,
           isIntersecting: true,
           intersectionRatio: 1,
         },
@@ -570,7 +585,9 @@ describe('startReadingCollector', () => {
 
       expect(batch.payload.chunks.length).toBeGreaterThan(1);
       expect(batch.payload.chunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 120)).toBe(true);
-      expect(visibleChunkIds).toEqual(batch.payload.chunks.map((chunk: { chunkId: string }) => chunk.chunkId));
+      expect(visibleChunkIds.length).toBeGreaterThan(0);
+      expect(visibleChunkIds.length).toBeLessThan(batch.payload.chunks.length);
+      expect(visibleChunkIds).toContain(batch.payload.chunks[0].chunkId);
     } finally {
       controller.stop();
       await flushPromises();

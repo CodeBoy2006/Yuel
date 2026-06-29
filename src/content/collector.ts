@@ -421,7 +421,10 @@ function restoreVisibleBlocksFromLayout(
 }
 
 function getViewportVisibleRatio(element: Element): number {
-  const rect = element.getBoundingClientRect();
+  return getViewportRectVisibleRatio(element.getBoundingClientRect());
+}
+
+function getViewportRectVisibleRatio(rect: DOMRect): number {
   if (rect.width <= 0 || rect.height <= 0) {
     return 0;
   }
@@ -452,7 +455,7 @@ function appendViewportExposureTick(
   }
 
   const visibleChunks = Array.from(visibleBlocks.values()).flatMap((state) => {
-    const visibleRatio = getViewportVisibleRatio(state.block.element);
+    const visibleRatio = getTextBlockVisibleRatio(state.block);
     if (visibleRatio < 0.15) {
       return [];
     }
@@ -462,7 +465,7 @@ function appendViewportExposureTick(
         chunkId: state.block.chunkId,
         wordCount: state.block.wordCount,
         visibleRatio,
-        centerDistance: getViewportCenterDistance(state.block.element),
+        centerDistance: getTextBlockCenterDistance(state.block),
         contentWeight: getContentWeight(state.block.element),
       },
     ];
@@ -491,8 +494,40 @@ function appendViewportExposureTick(
   });
 }
 
-function getViewportCenterDistance(element: Element): number {
-  const rect = element.getBoundingClientRect();
+function getTextBlockVisibleRatio(block: TextBlockCandidate): number {
+  return getViewportRectVisibleRatio(getTextBlockViewportRect(block));
+}
+
+function getTextBlockCenterDistance(block: TextBlockCandidate): number {
+  return getViewportRectCenterDistance(getTextBlockViewportRect(block));
+}
+
+function getTextBlockViewportRect(block: TextBlockCandidate): DOMRect {
+  const rect = block.element.getBoundingClientRect();
+  if (block.chunkCount <= 1 || block.chunkIndex < 0 || rect.height <= 0) {
+    return rect;
+  }
+
+  const boundedChunkCount = Math.max(1, block.chunkCount);
+  const boundedChunkIndex = Math.min(boundedChunkCount - 1, block.chunkIndex);
+  const chunkHeight = rect.height / boundedChunkCount;
+  const top = rect.top + chunkHeight * boundedChunkIndex;
+  const bottom = boundedChunkIndex === boundedChunkCount - 1 ? rect.bottom : top + chunkHeight;
+
+  return {
+    x: rect.x,
+    y: top,
+    width: rect.width,
+    height: Math.max(0, bottom - top),
+    top,
+    right: rect.right,
+    bottom,
+    left: rect.left,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+function getViewportRectCenterDistance(rect: DOMRect): number {
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
   const elementCenterY = rect.top + rect.height / 2;
   const viewportCenterY = viewportHeight / 2;
@@ -554,7 +589,9 @@ async function flushEvents(
   }
 
   const events = pendingEvents.splice(0, pendingEvents.length);
-  const chunks: TextChunkSnapshot[] = blocks.map(({ element: _element, ...chunk }) => chunk);
+  const chunks: TextChunkSnapshot[] = blocks.map(
+    ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, ...chunk }) => chunk,
+  );
 
   try {
     await browser.runtime.sendMessage({

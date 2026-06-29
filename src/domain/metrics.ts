@@ -60,8 +60,10 @@ export function allocateReadingBudget(input: ReadingBudgetInput): ReadingBudgetE
   const activeWeight = input.isActiveTab && input.isDocumentVisible ? 1 : 0;
   const idle = idleWeight(input.idleAgeMs);
   const scroll = scrollWeight(input.scrollSpeedWordsPerMinute, baseWordsPerMinute);
-  const confidenceScore = clamp(activeWeight * idle * scroll * textAvailabilityWeight, 0, 1);
-  const tickBudgetWords = (baseWordsPerMinute * tickMs * confidenceScore) / 60_000;
+  const engagementWeight = clamp(activeWeight * idle * scroll, 0, 1);
+  const confidenceScore = clamp(engagementWeight * textAvailabilityWeight, 0, 1);
+  const rawBudgetWords = (baseWordsPerMinute * tickMs * engagementWeight) / 60_000;
+  const tickBudgetWords = Math.min(rawBudgetWords, visibleWordSupply);
   const attentionWeights = eligibleChunks.map((chunk) => ({
     chunk,
     weight: getAttentionWeight(chunk),
@@ -83,9 +85,10 @@ export function allocateReadingBudget(input: ReadingBudgetInput): ReadingBudgetE
   const chunkEstimates = attentionWeights.map(({ chunk, weight }) => {
     const attentionShare = weight / totalAttentionWeight;
     const proposedWords = tickBudgetWords * attentionShare;
+    const visibleRemaining = getVisibleWordSupply(chunk);
     const sessionRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.sessionEffectiveWords));
     const dayRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.todayEffectiveWords));
-    const effectiveWords = Math.max(0, Math.min(proposedWords, sessionRemaining, dayRemaining));
+    const effectiveWords = Math.max(0, Math.min(proposedWords, visibleRemaining, sessionRemaining, dayRemaining));
     const lifetimeRemaining = Math.max(0, chunk.wordCount - Math.max(0, chunk.lifetimeEffectiveWords));
     const newWords = Math.min(effectiveWords, lifetimeRemaining);
 
@@ -100,8 +103,7 @@ export function allocateReadingBudget(input: ReadingBudgetInput): ReadingBudgetE
     };
   });
   const allocatedWords = chunkEstimates.reduce((sum, chunk) => sum + chunk.effectiveWords, 0);
-  const allocationRatio = tickBudgetWords > 0 ? clamp(allocatedWords / tickBudgetWords, 0, 1) : 0;
-  const effectiveReadingMs = tickMs * confidenceScore * allocationRatio;
+  const effectiveReadingMs = (allocatedWords * 60_000) / baseWordsPerMinute;
 
   return {
     tickBudgetWords,

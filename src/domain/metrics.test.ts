@@ -43,7 +43,7 @@ describe('allocateReadingBudget', () => {
     ]);
   });
 
-  it('reduces the tick budget when visible text supply is too small', () => {
+  it('caps the tick budget at the visible text supply when visible text is sparse', () => {
     const estimate = allocateReadingBudget({
       tickMs: 60_000,
       baseWordsPerMinute: 120,
@@ -54,8 +54,30 @@ describe('allocateReadingBudget', () => {
       visibleChunks: [visibleChunk({ wordCount: 10, visibleRatio: 0.5 })],
     });
 
-    expect(estimate.tickBudgetWords).toBeCloseTo(7.5, 6);
-    expect(estimate.allocatedWords).toBeCloseTo(7.5, 6);
+    expect(estimate.tickBudgetWords).toBeCloseTo(5, 6);
+    expect(estimate.allocatedWords).toBeCloseTo(5, 6);
+    expect(estimate.effectiveReadingMs).toBeCloseTo(2_500, 6);
+  });
+
+  it('does not allocate more effective words to a chunk than the chunk currently exposes', () => {
+    const estimate = allocateReadingBudget({
+      tickMs: 60_000,
+      baseWordsPerMinute: 220,
+      isActiveTab: true,
+      isDocumentVisible: true,
+      scrollSpeedWordsPerMinute: 0,
+      idleAgeMs: 0,
+      visibleChunks: [visibleChunk({ wordCount: 120, visibleRatio: 0.15 })],
+    });
+
+    expect(estimate.tickBudgetWords).toBeCloseTo(18, 6);
+    expect(estimate.allocatedWords).toBeCloseTo(18, 6);
+    expect(estimate.effectiveReadingMs).toBeCloseTo(18 * 60_000 / 220, 6);
+    expect(estimate.chunkEstimates[0]).toEqual(
+      expect.objectContaining({
+        effectiveWords: expect.closeTo(18, 6),
+      }),
+    );
   });
 
   it('uses session and day caps while splitting lifetime-new and review words', () => {
