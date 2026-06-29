@@ -48,6 +48,63 @@ export interface BrowserSpaDynamicCollectorResult {
   selectors: string[];
 }
 
+export interface RealPageCorpusPerformanceOptions extends BrowserDomSmokeOptions {
+  maxConcurrency?: number;
+  pageSettleMs?: number;
+  urls?: string[];
+}
+
+export interface RealPageCorpusPerformanceResult {
+  pages: RealPagePerformancePageResult[];
+  summary: RealPageCorpusPerformanceSummary;
+}
+
+export interface RealPageCorpusPerformanceSummary {
+  failedCount: number;
+  maxCollectMs: number;
+  medianCollectMs: number;
+  pagesWithBlocks: number;
+  p95CollectMs: number;
+  requestedCount: number;
+  succeededCount: number;
+  totalBlocks: number;
+  totalWords: number;
+}
+
+export type RealPagePerformancePageResult = RealPagePerformanceFailure | RealPagePerformanceSuccess;
+
+export interface RealPagePerformanceFailure {
+  elapsedMs: number;
+  error: string;
+  ok: false;
+  requestedUrl: string;
+}
+
+export interface RealPagePerformanceSuccess {
+  articleLikeElementCount: number;
+  blockCount: number;
+  bodyTextChars: number;
+  collectMs: number;
+  domain: string;
+  elapsedMs: number;
+  finalUrl: string;
+  firstSelectors: string[];
+  language: string;
+  longestChunkWords: number;
+  navigation?: {
+    domContentLoadedMs: number;
+    durationMs: number;
+    loadMs: number;
+  };
+  ok: true;
+  rangeRectCount: number;
+  rangeRectMs: number;
+  readyState: string;
+  requestedUrl: string;
+  title: string;
+  totalWords: number;
+}
+
 interface BrowserDomSmokeOptions {
   chromeArgs?: string[];
   chromePath?: string;
@@ -63,6 +120,30 @@ interface RectSnapshot {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAC_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '..');
+export const DEFAULT_REAL_PAGE_CORPUS_URLS = [
+  'https://developer.mozilla.org/en-US/docs/Web/JavaScript',
+  'https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model',
+  'https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver',
+  'https://developer.mozilla.org/en-US/docs/Web/API/History/pushState',
+  'https://en.wikipedia.org/wiki/JavaScript',
+  'https://en.wikipedia.org/wiki/Web_browser',
+  'https://en.wikipedia.org/wiki/Single-page_application',
+  'https://en.wikipedia.org/wiki/Large_language_model',
+  'https://docs.github.com/en/actions',
+  'https://docs.github.com/en/rest',
+  'https://docs.github.com/en/pull-requests',
+  'https://react.dev/learn',
+  'https://react.dev/reference/react',
+  'https://vuejs.org/guide/introduction.html',
+  'https://vuejs.org/api/application.html',
+  'https://nextjs.org/docs',
+  'https://nextjs.org/docs/app/getting-started/installation',
+  'https://nodejs.org/api/fs.html',
+  'https://www.typescriptlang.org/docs/handbook/intro.html',
+  'https://web.dev/learn/performance',
+  'https://developer.chrome.com/docs/extensions/get-started',
+  'https://go.dev/doc/effective_go',
+] as const;
 
 export async function validateBrowserDomTextExtraction(
   options: BrowserDomSmokeOptions = {},
@@ -137,6 +218,73 @@ export async function validateBrowserSpaDynamicCollector(
       });
     }),
   );
+}
+
+export async function validateRealPageCorpusPerformance({
+  maxConcurrency = 3,
+  pageSettleMs = 1_500,
+  timeoutMs = 30_000,
+  urls = [...DEFAULT_REAL_PAGE_CORPUS_URLS],
+  ...browserOptions
+}: RealPageCorpusPerformanceOptions = {}): Promise<RealPageCorpusPerformanceResult> {
+  const benchmarkExpression = await createRealPageBenchmarkExpression();
+
+  const pages = await withBrowser({ ...browserOptions, timeoutMs }, async ({ client }) => {
+    return mapWithConcurrency(urls, maxConcurrency, (url) =>
+      benchmarkRealPage({
+        benchmarkExpression,
+        client,
+        pageSettleMs,
+        timeoutMs,
+        url,
+      }),
+    );
+  });
+
+  return {
+    pages,
+    summary: summarizeRealPageCorpusPerformance(pages),
+  };
+}
+
+export function formatRealPageCorpusPerformance(result: RealPageCorpusPerformanceResult): string {
+  const lines = [
+    [
+      'real page corpus summary',
+      `requested=${result.summary.requestedCount}`,
+      `succeeded=${result.summary.succeededCount}`,
+      `failed=${result.summary.failedCount}`,
+      `pagesWithBlocks=${result.summary.pagesWithBlocks}`,
+      `totalBlocks=${result.summary.totalBlocks}`,
+      `totalWords=${result.summary.totalWords}`,
+      `medianCollectMs=${result.summary.medianCollectMs.toFixed(2)}`,
+      `p95CollectMs=${result.summary.p95CollectMs.toFixed(2)}`,
+      `maxCollectMs=${result.summary.maxCollectMs.toFixed(2)}`,
+    ].join(' | '),
+  ];
+
+  for (const page of result.pages) {
+    if (!page.ok) {
+      lines.push(`FAIL | elapsedMs=${page.elapsedMs.toFixed(0)} | url=${page.requestedUrl} | error=${page.error}`);
+      continue;
+    }
+
+    lines.push(
+      [
+        'OK',
+        `collectMs=${page.collectMs.toFixed(2)}`,
+        `rangeRectMs=${page.rangeRectMs.toFixed(2)}`,
+        `blocks=${page.blockCount}`,
+        `words=${page.totalWords}`,
+        `rangeRects=${page.rangeRectCount}`,
+        `loadMs=${page.navigation?.loadMs.toFixed(0) ?? 'n/a'}`,
+        `domain=${page.domain}`,
+        `url=${page.finalUrl}`,
+      ].join(' | '),
+    );
+  }
+
+  return lines.join('\n');
 }
 
 async function withSourceModuleServer<T>(runSmoke: (baseUrl: string) => Promise<T>): Promise<T> {
@@ -389,6 +537,182 @@ export const browser = {
     },
   },
 };`;
+}
+
+async function createRealPageBenchmarkExpression(): Promise<string> {
+  const [englishSource, eventsSource, extractBlocksSource] = await Promise.all([
+    readFile(path.join(PROJECT_ROOT, 'src/analysis/english.ts'), 'utf8'),
+    readFile(path.join(PROJECT_ROOT, 'src/domain/events.ts'), 'utf8'),
+    readFile(path.join(PROJECT_ROOT, 'src/content/extractBlocks.ts'), 'utf8'),
+  ]);
+  const source = [
+    stripModuleSyntax(englishSource),
+    stripModuleSyntax(eventsSource),
+    stripModuleSyntax(extractBlocksSource),
+    `
+function runYuelRealPageBenchmark() {
+  const collectStartedAt = performance.now();
+  const blocks = collectTextBlocks(document);
+  const collectMs = performance.now() - collectStartedAt;
+  const rangeStartedAt = performance.now();
+  let rangeRectCount = 0;
+  for (const block of blocks) {
+    rangeRectCount += block.textRange?.getClientRects?.().length ?? 0;
+  }
+  const rangeRectMs = performance.now() - rangeStartedAt;
+  const page = summarizeCurrentPage(document, blocks);
+  const navigation = performance.getEntriesByType('navigation')[0];
+
+  return {
+    articleLikeElementCount: document.querySelectorAll('article, main, [role="main"], .markdown-body').length,
+    blockCount: blocks.length,
+    bodyTextChars: document.body?.innerText?.length ?? 0,
+    collectMs,
+    domain: page.domain,
+    finalUrl: window.location.href,
+    firstSelectors: blocks.slice(0, 5).map((block) => block.selector),
+    language: page.language,
+    longestChunkWords: blocks.reduce((max, block) => Math.max(max, block.wordCount), 0),
+    navigation: navigation
+      ? {
+          domContentLoadedMs: navigation.domContentLoadedEventEnd,
+          durationMs: navigation.duration,
+          loadMs: navigation.loadEventEnd,
+        }
+      : undefined,
+    rangeRectCount,
+    rangeRectMs,
+    readyState: document.readyState,
+    title: document.title.slice(0, 160),
+    totalWords: page.totalWords,
+  };
+}
+
+return runYuelRealPageBenchmark();
+`,
+  ].join('\n');
+  const output = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+
+  return `(() => {\n${output.outputText}\n})()`;
+}
+
+function stripModuleSyntax(source: string): string {
+  return source.replace(/^import\s+[^;]+;\s*/gm, '').replace(/^export\s+/gm, '');
+}
+
+async function benchmarkRealPage({
+  benchmarkExpression,
+  client,
+  pageSettleMs,
+  timeoutMs,
+  url,
+}: {
+  benchmarkExpression: string;
+  client: CdpClient;
+  pageSettleMs: number;
+  timeoutMs: number;
+  url: string;
+}): Promise<RealPagePerformancePageResult> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await client.withOpenPage(
+      url,
+      timeoutMs,
+      async (sessionId) => {
+        return waitFor(async () => {
+          if (pageSettleMs > 0) {
+            await client.evaluate(
+              `new Promise((resolve) => setTimeout(resolve, ${JSON.stringify(pageSettleMs)}))`,
+              sessionId,
+              {
+                awaitPromise: true,
+              },
+            );
+          }
+
+          const result = await client.evaluate<Omit<RealPagePerformanceSuccess, 'elapsedMs' | 'ok' | 'requestedUrl'>>(
+            benchmarkExpression,
+            sessionId,
+          );
+          if (!result || typeof result.collectMs !== 'number') {
+            throw new Error('Real page benchmark did not return performance metrics');
+          }
+
+          return result;
+        }, timeoutMs, 500);
+      },
+      { readiness: 'interactive' },
+    );
+
+    return {
+      ...result,
+      elapsedMs: Date.now() - startedAt,
+      ok: true,
+      requestedUrl: url,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    return {
+      elapsedMs: Date.now() - startedAt,
+      error: message.replace(/\s+/g, ' ').slice(0, 300),
+      ok: false,
+      requestedUrl: url,
+    };
+  }
+}
+
+async function mapWithConcurrency<Input, Output>(
+  values: Input[],
+  concurrency: number,
+  mapper: (value: Input) => Promise<Output>,
+): Promise<Output[]> {
+  const results: Output[] = [];
+  let nextIndex = 0;
+
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(concurrency, values.length)) }, async () => {
+      while (nextIndex < values.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(values[currentIndex]);
+      }
+    }),
+  );
+
+  return results;
+}
+
+function summarizeRealPageCorpusPerformance(pages: RealPagePerformancePageResult[]): RealPageCorpusPerformanceSummary {
+  const successes = pages.filter((page): page is RealPagePerformanceSuccess => page.ok);
+  const collectTimes = successes.map((page) => page.collectMs).sort((left, right) => left - right);
+
+  return {
+    failedCount: pages.length - successes.length,
+    maxCollectMs: collectTimes.at(-1) ?? 0,
+    medianCollectMs: percentile(collectTimes, 0.5),
+    pagesWithBlocks: successes.filter((page) => page.blockCount > 0).length,
+    p95CollectMs: percentile(collectTimes, 0.95),
+    requestedCount: pages.length,
+    succeededCount: successes.length,
+    totalBlocks: successes.reduce((sum, page) => sum + page.blockCount, 0),
+    totalWords: successes.reduce((sum, page) => sum + page.totalWords, 0),
+  };
+}
+
+function percentile(sortedValues: number[], percentileRank: number): number {
+  if (sortedValues.length === 0) {
+    return 0;
+  }
+
+  const index = Math.min(sortedValues.length - 1, Math.ceil(sortedValues.length * percentileRank) - 1);
+  return sortedValues[index];
 }
 
 function createLargeTextStressHtml({
@@ -733,7 +1057,12 @@ class CdpClient {
     this.socket.close();
   }
 
-  async withOpenPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
+  async withOpenPage<T>(
+    url: string,
+    timeoutMs: number,
+    readPage: (sessionId: string) => Promise<T>,
+    { readiness = 'complete' }: { readiness?: 'complete' | 'interactive' } = {},
+  ): Promise<T> {
     const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
     const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
       flatten: true,
@@ -741,7 +1070,7 @@ class CdpClient {
     });
 
     try {
-      await this.waitForPageReady(sessionId, timeoutMs);
+      await this.waitForPageReady(sessionId, timeoutMs, readiness);
       return await readPage(sessionId);
     } finally {
       await this.send('Target.closeTarget', { targetId });
@@ -773,11 +1102,18 @@ class CdpClient {
     return result.value;
   }
 
-  private async waitForPageReady(sessionId: string, timeoutMs: number): Promise<void> {
+  private async waitForPageReady(
+    sessionId: string,
+    timeoutMs: number,
+    readiness: 'complete' | 'interactive',
+  ): Promise<void> {
     await waitFor(async () => {
-      const readyState = await this.evaluate<string>('document.readyState', sessionId);
-      if (readyState !== 'complete') {
-        throw new Error(`Page is not ready: ${readyState}`);
+      const state = await this.evaluate<{ hasBody: boolean; readyState: string }>(
+        '({ hasBody: Boolean(document.body), readyState: document.readyState })',
+        sessionId,
+      );
+      if (!state.hasBody || (readiness === 'complete' ? state.readyState !== 'complete' : state.readyState === 'loading')) {
+        throw new Error(`Page is not ready: ${state.readyState}`);
       }
     }, timeoutMs);
   }

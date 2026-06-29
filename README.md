@@ -17,6 +17,7 @@ pnpm install
 CI=true pnpm test
 CI=true pnpm test:browser-dom
 CI=true pnpm test:stress:large-text
+CI=true pnpm test:real-pages
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
 CI=true pnpm typecheck
@@ -67,6 +68,7 @@ CI=true pnpm test
 CI=true pnpm typecheck
 CI=true pnpm test:browser-dom
 CI=true pnpm test:stress:large-text
+CI=true pnpm test:real-pages
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
 ```
@@ -76,6 +78,8 @@ CI=true pnpm test:extension-browser-smoke
 The browser DOM smoke suite also runs a source-module collector fixture with a `wxt/browser` runtime stub to verify SPA content injection and client-side route replacement in real Chrome.
 
 `test:stress:large-text` is an opt-in pressure test for large reading documents. It loads a generated 1,200-paragraph browser DOM fixture, verifies extraction and native `Range` geometry against roughly 97k words while filtering excluded page chrome, and runs a 2,000-tick aggregation batch with 80 visible chunks per tick. It uses the same Chrome/CDP requirements as `test:browser-dom`.
+
+`test:real-pages` is an opt-in live-site benchmark. It opens a public English documentation/article corpus in real Google Chrome through Chrome DevTools Protocol, injects a benchmark script generated from the current `src/content/extractBlocks.ts` source, and reports per-page text extraction time, range-geometry time, block count, and word count. It requires network access and can be tuned with `YUEL_REAL_PAGE_CONCURRENCY`, `YUEL_REAL_PAGE_SETTLE_MS`, and `YUEL_REAL_PAGE_TIMEOUT_MS`; set `YUEL_REAL_PAGE_REPORT_PATH=/tmp/yuel-real-pages.txt` to write the report to a file.
 
 `test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
 

@@ -993,3 +993,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate on real React, Vue, and Next.js pages with nested route transitions and long infinite-scroll feeds.
 - **Context:** Client-side route support uses URL polling plus `popstate`/`hashchange` so it does not rely on patching page-world history APIs from the extension isolated world.
+
+## [2026-06-29 21:21] Real Page Corpus Performance
+- **Changes:** Added an opt-in `test:real-pages` Chrome/CDP benchmark, live public-page corpus coverage, source-generated extraction benchmark injection, report-file output, and README verification guidance.
+- **Status:** Completed
+- **Next Steps:** Investigate live sites that return zero readable blocks, starting with developer.chrome.com docs, and consider selector coverage for shadow-DOM or non-semantic documentation layouts.
+- **Context:** The benchmark requires network access and uses `YUEL_REAL_PAGE_REPORT_PATH` for reproducible report capture; it is not part of the default unit test suite.

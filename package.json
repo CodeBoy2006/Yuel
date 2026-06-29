@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:browser-dom": "vitest run --config vitest.browser-dom.config.ts",
     "test:stress:large-text": "vitest run --config vitest.large-text-stress.config.ts",
+    "test:real-pages": "YUEL_REAL_PAGE_CORPUS=1 vitest run --config vitest.real-pages.config.ts",
     "test:extension-browser-smoke": "pnpm build && vitest run --config vitest.browser-smoke.config.ts",
     "test:extension-smoke": "pnpm build && vitest run --config vitest.smoke.config.ts",
     "test:watch": "vitest",
