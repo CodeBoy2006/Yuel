@@ -27,6 +27,15 @@ describeRealPageCorpus('real page corpus performance', () => {
       expect(result.summary.pagesWithBlocks).toBeGreaterThanOrEqual(Math.ceil(result.summary.requestedCount * 0.55));
       expect(result.summary.medianCollectMs).toBeLessThan(750);
       expect(result.summary.p95CollectMs).toBeLessThan(5_000);
+
+      const chromeDocsPage = result.pages.find((page) =>
+        page.requestedUrl.startsWith('https://developer.chrome.com/docs/extensions/get-started'),
+      );
+      expect(chromeDocsPage?.ok).toBe(true);
+      if (chromeDocsPage?.ok) {
+        expect(chromeDocsPage.language).toBe('en');
+        expect(chromeDocsPage.blockCount).toBeGreaterThan(0);
+      }
     },
     240_000,
   );

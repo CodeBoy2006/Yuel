@@ -140,8 +140,8 @@ export const DEFAULT_REAL_PAGE_CORPUS_URLS = [
   'https://nextjs.org/docs/app/getting-started/installation',
   'https://nodejs.org/api/fs.html',
   'https://www.typescriptlang.org/docs/handbook/intro.html',
-  'https://web.dev/learn/performance',
-  'https://developer.chrome.com/docs/extensions/get-started',
+  'https://web.dev/learn/performance?hl=en',
+  'https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world?hl=en',
   'https://go.dev/doc/effective_go',
 ] as const;
 
@@ -228,8 +228,9 @@ export async function validateRealPageCorpusPerformance({
   ...browserOptions
 }: RealPageCorpusPerformanceOptions = {}): Promise<RealPageCorpusPerformanceResult> {
   const benchmarkExpression = await createRealPageBenchmarkExpression();
+  const chromeArgs = ['--lang=en-US', ...(browserOptions.chromeArgs ?? [])];
 
-  const pages = await withBrowser({ ...browserOptions, timeoutMs }, async ({ client }) => {
+  const pages = await withBrowser({ ...browserOptions, chromeArgs, timeoutMs }, async ({ client }) => {
     return mapWithConcurrency(urls, maxConcurrency, (url) =>
       benchmarkRealPage({
         benchmarkExpression,

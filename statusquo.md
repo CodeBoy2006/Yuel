@@ -999,3 +999,9 @@
 - **Status:** Completed
 - **Next Steps:** Investigate live sites that return zero readable blocks, starting with developer.chrome.com docs, and consider selector coverage for shadow-DOM or non-semantic documentation layouts.
 - **Context:** The benchmark requires network access and uses `YUEL_REAL_PAGE_REPORT_PATH` for reproducible report capture; it is not part of the default unit test suite.
+
+## [2026-06-29 22:10] Real Page Corpus Locale Fix
+- **Changes:** Pinned Google-hosted corpus pages to English locale, launched the live-page benchmark Chrome instance with `--lang=en-US`, and asserted the Chrome Extensions tutorial page yields readable blocks.
+- **Status:** Completed
+- **Next Steps:** Continue treating landing pages separately from article/tutorial pages when expanding the live corpus.
+- **Context:** `developer.chrome.com/docs/extensions/get-started` is a localized landing page that can legitimately produce no paragraph-style reading blocks; the corpus now uses the `hello-world` tutorial article instead.
