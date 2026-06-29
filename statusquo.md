@@ -975,3 +975,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate on real pages with inline markup, wrapped paragraphs, and mixed text/code blocks to confirm range rects match visible text.
 - **Context:** Internal `textRange` objects are stripped before runtime message delivery, so stored chunk snapshots remain structured and serializable.
+
+## [2026-06-29 19:54] Browser DOM Test Harness
+- **Changes:** Added a `test:browser-dom` script, a dedicated Vitest config, and a Chrome/CDP smoke harness that serves source modules to a real browser DOM and verifies text block extraction with native layout and `Range` geometry.
+- **Status:** Completed
+- **Next Steps:** Add more browser DOM fixtures when extraction logic changes in ways jsdom cannot represent accurately.
+- **Context:** The browser DOM harness needs Chrome plus a temporary localhost server; sandboxed runs may require elevated permissions for local listening and CDP launch.
