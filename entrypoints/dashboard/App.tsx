@@ -305,7 +305,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
   const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
   const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
-  const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
+  const todayDomain = shareCardContent?.domains[0] ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardTheme = shareCardSettings.theme;
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);

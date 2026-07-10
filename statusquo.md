@@ -1119,3 +1119,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue with the SidePanel production dependency contract and test fixture cleanup.
 - **Context:** The storage path now uses three maps instead of six and removes 17 net lines without changing bulk-read keys or ordering. All 41 aggregation/repository tests and TypeScript checks pass; existing share-card work remains unstaged.
+
+## [2026-07-11 02:37] Share Card Content Model Simplification
+- **Changes:** Removed the unused precomputed copy text and redundant primary-domain alias from the share-card content model; copying continues to format from current user settings at action time.
+- **Status:** Completed
+- **Next Steps:** Continue with SidePanel dependency cleanup and collector event-envelope consolidation.
+- **Context:** The single `domains` field remains the source for preview and copy output, eliminating 14 net lines and a potentially stale default copy snapshot. Focused share-card tests and TypeScript checks pass; existing transparent-export work remains unstaged.

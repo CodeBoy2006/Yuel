@@ -8,9 +8,7 @@ export interface ShareCardContent {
   pages: string;
   learningWords: string;
   streak: string;
-  domain: string;
   domains: string[];
-  copyText: string;
 }
 
 export interface ShareCardCopyOptions {
@@ -18,32 +16,21 @@ export interface ShareCardCopyOptions {
   showStreak: boolean;
 }
 
-const DEFAULT_SHARE_CARD_COPY_OPTIONS: ShareCardCopyOptions = {
-  siteLimit: 3,
-  showStreak: true,
-};
-
 export function createShareCardContent(summary: TodayReadingSummary): ShareCardContent {
   const domains = normalizeDomains(summary.topDomains);
-  const content = {
+  return {
     date: summary.date,
     effectiveWords: formatCount(summary.effectiveWords),
     readingTime: formatMinutes(summary.minutes),
     pages: formatCount(summary.readPages),
     learningWords: formatCount(summary.learningWords),
     streak: formatCount(summary.streak),
-    domain: domains[0] ?? '暂无今日网站',
     domains,
-  };
-
-  return {
-    ...content,
-    copyText: createShareCardCopyText(content, DEFAULT_SHARE_CARD_COPY_OPTIONS),
   };
 }
 
 export function createShareCardCopyText(
-  content: Omit<ShareCardContent, 'copyText'>,
+  content: ShareCardContent,
   { siteLimit, showStreak }: ShareCardCopyOptions,
 ): string {
   const normalizedSiteLimit = Math.max(1, Math.floor(siteLimit));

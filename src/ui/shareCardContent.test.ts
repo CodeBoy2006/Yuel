@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createShareCardContent, createShareCardCopyText } from './shareCardContent';
 
 describe('createShareCardContent', () => {
-  it('keeps the visual preview and copied Chinese summary on one content model', () => {
+  it('normalizes the visual and copy source data once', () => {
     const content = createShareCardContent({
       date: '2026-06-27',
       effectiveWords: 1_280,
@@ -24,10 +24,9 @@ describe('createShareCardContent', () => {
       pages: '4',
       learningWords: '11',
       streak: '3',
-      domain: 'developer.mozilla.org',
       domains: ['developer.mozilla.org', 'web.dev', 'react.dev'],
     });
-    expect(content.copyText).toBe(
+    expect(createShareCardCopyText(content, { siteLimit: 3, showStreak: true })).toBe(
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 1,280 Words\n'
       + '连续打卡：3 天\n'
