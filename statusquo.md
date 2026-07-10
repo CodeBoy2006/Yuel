@@ -1209,3 +1209,9 @@
 - **Status:** Completed
 - **Next Steps:** Rerun the complete verification matrix, then perform a no-edit final repository audit.
 - **Context:** The entrypoint smoke file removes 267 net lines without changing production code. All 55 UI behavior tests, TypeScript checks, and whitespace validation pass; the UI audit found no further evidence-backed simplification above the completion threshold.
+
+## [2026-07-11 04:02] Reading Budget Test Fixture Consolidation
+- **Changes:** Added one typed reading-budget input factory and replaced nine repeated seven-field test inputs with scenario-only overrides.
+- **Status:** Completed
+- **Next Steps:** Rerun the verification matrix affected by the final test-only change, then complete a no-edit stop audit.
+- **Context:** The metrics test removes 35 net lines while preserving every boundary value and visible-chunk scenario. All 10 metrics tests, TypeScript checks, and whitespace validation pass.

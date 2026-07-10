@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { allocateReadingBudget } from './metrics';
 
-function visibleChunk(overrides: Partial<Parameters<typeof allocateReadingBudget>[0]['visibleChunks'][number]> = {}) {
+type ReadingBudgetInput = Parameters<typeof allocateReadingBudget>[0];
+
+function visibleChunk(overrides: Partial<ReadingBudgetInput['visibleChunks'][number]> = {}) {
   return {
     chunkId: 'chunk-1',
     wordCount: 120,
@@ -16,21 +18,28 @@ function visibleChunk(overrides: Partial<Parameters<typeof allocateReadingBudget
   };
 }
 
+function createBudgetInput(overrides: Partial<ReadingBudgetInput> = {}): ReadingBudgetInput {
+  return {
+    tickMs: 60_000,
+    baseWordsPerMinute: 120,
+    isActiveTab: true,
+    isDocumentVisible: true,
+    scrollSpeedWordsPerMinute: 0,
+    idleAgeMs: 0,
+    visibleChunks: [visibleChunk()],
+    ...overrides,
+  };
+}
+
 describe('allocateReadingBudget', () => {
   it('allocates one viewport reading budget across simultaneous chunks', () => {
-    const estimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
+    const estimate = allocateReadingBudget(createBudgetInput({
       visibleChunks: [
         visibleChunk({ chunkId: 'chunk-1' }),
         visibleChunk({ chunkId: 'chunk-2' }),
         visibleChunk({ chunkId: 'chunk-3' }),
       ],
-    });
+    }));
 
     expect(estimate.tickBudgetWords).toBeCloseTo(120, 6);
     expect(estimate.allocatedWords).toBeCloseTo(120, 6);
@@ -44,15 +53,9 @@ describe('allocateReadingBudget', () => {
   });
 
   it('caps a visible segment by its persistent session and day capacity', () => {
-    const estimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
+    const estimate = allocateReadingBudget(createBudgetInput({
       visibleChunks: [visibleChunk({ wordCount: 10, visibleRatio: 0.5 })],
-    });
+    }));
 
     expect(estimate.tickBudgetWords).toBeCloseTo(120, 6);
     expect(estimate.allocatedWords).toBeCloseTo(10, 6);
@@ -60,15 +63,10 @@ describe('allocateReadingBudget', () => {
   });
 
   it('does not allocate effective reading below the segment visibility threshold', () => {
-    const estimate = allocateReadingBudget({
-      tickMs: 60_000,
+    const estimate = allocateReadingBudget(createBudgetInput({
       baseWordsPerMinute: 220,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
       visibleChunks: [visibleChunk({ wordCount: 120, visibleRatio: 0.49 })],
-    });
+    }));
 
     expect(estimate.tickBudgetWords).toBe(0);
     expect(estimate.allocatedWords).toBe(0);
@@ -76,13 +74,7 @@ describe('allocateReadingBudget', () => {
   });
 
   it('uses session and day caps while splitting lifetime-new and review words', () => {
-    const estimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
+    const estimate = allocateReadingBudget(createBudgetInput({
       visibleChunks: [
         visibleChunk({
           wordCount: 120,
@@ -91,7 +83,7 @@ describe('allocateReadingBudget', () => {
           lifetimeEffectiveWords: 110,
         }),
       ],
-    });
+    }));
 
     expect(estimate.tickBudgetWords).toBeCloseTo(120, 6);
     expect(estimate.allocatedWords).toBeCloseTo(50, 6);
@@ -106,15 +98,10 @@ describe('allocateReadingBudget', () => {
   });
 
   it('records raw exposure without effective allocation for inactive or hidden documents', () => {
-    const estimate = allocateReadingBudget({
+    const estimate = allocateReadingBudget(createBudgetInput({
       tickMs: 30_000,
-      baseWordsPerMinute: 120,
       isActiveTab: false,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
-      visibleChunks: [visibleChunk()],
-    });
+    }));
 
     expect(estimate.rawExposureMs).toBe(30_000);
     expect(estimate.tickBudgetWords).toBe(0);
@@ -124,39 +111,23 @@ describe('allocateReadingBudget', () => {
   });
 
   it('decays budget from idle age and scroll speed relative to the base WPM', () => {
-    const idleEstimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
+    const idleEstimate = allocateReadingBudget(createBudgetInput({
       idleAgeMs: 120_000,
-      visibleChunks: [visibleChunk()],
-    });
-    const fastScrollEstimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
+    }));
+    const fastScrollEstimate = allocateReadingBudget(createBudgetInput({
       scrollSpeedWordsPerMinute: 600,
-      idleAgeMs: 0,
-      visibleChunks: [visibleChunk()],
-    });
+    }));
 
     expect(idleEstimate.tickBudgetWords).toBeCloseTo(42, 6);
     expect(fastScrollEstimate.tickBudgetWords).toBeCloseTo(9.6, 6);
   });
 
   it('uses content multipliers as local reading rates without shrinking attention time', () => {
-    const estimate = allocateReadingBudget({
+    const estimate = allocateReadingBudget(createBudgetInput({
       tickMs: 15_000,
       baseWordsPerMinute: 220,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
       visibleChunks: [visibleChunk({ wordCount: 100, contentMultiplier: 0.2 })],
-    });
+    }));
 
     expect(estimate.tickBudgetWords).toBeCloseTo(55, 6);
     expect(estimate.allocatedWords).toBeCloseTo(11, 6);
@@ -164,18 +135,12 @@ describe('allocateReadingBudget', () => {
   });
 
   it('redistributes time left by a segment that reaches its cap', () => {
-    const estimate = allocateReadingBudget({
-      tickMs: 60_000,
-      baseWordsPerMinute: 120,
-      isActiveTab: true,
-      isDocumentVisible: true,
-      scrollSpeedWordsPerMinute: 0,
-      idleAgeMs: 0,
+    const estimate = allocateReadingBudget(createBudgetInput({
       visibleChunks: [
         visibleChunk({ chunkId: 'almost-capped', sessionEffectiveWords: 119, todayEffectiveWords: 119 }),
         visibleChunk({ chunkId: 'available' }),
       ],
-    });
+    }));
 
     expect(estimate.allocatedWords).toBeCloseTo(120, 6);
     expect(estimate.chunkEstimates).toEqual([
