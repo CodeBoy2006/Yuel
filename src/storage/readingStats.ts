@@ -1,7 +1,4 @@
-import {
-  createPageId,
-  getDomain,
-} from '../domain/events';
+import { createPageId } from '../domain/events';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
 import { getDailyCheckInThresholdWords } from './checkInSettings';
@@ -46,14 +43,11 @@ export interface RecentPageSummary {
 }
 
 export interface CurrentPageReadingSummary {
-  pageId: string;
-  domain: string;
   totalWords: number;
   effectiveWords: number;
   coveredWords: number;
   effectiveMinutes: number;
   confidence?: number;
-  lastReadAt?: number;
   hasData: boolean;
 }
 
@@ -324,8 +318,6 @@ export async function getCurrentPageReadingSummary(
 
   if (!page) {
     return {
-      pageId,
-      domain: getDomain(url),
       totalWords: 0,
       effectiveWords: 0,
       coveredWords: 0,
@@ -335,14 +327,11 @@ export async function getCurrentPageReadingSummary(
   }
 
   return {
-    pageId: page.pageId,
-    domain: normalizeDisplayDomain(page.domain),
     totalWords: Math.max(0, page.totalWords),
     effectiveWords: Math.max(0, page.effectiveWords),
     coveredWords: getPageCoveredWords(page),
     effectiveMinutes: Math.max(0, page.effectiveReadingMs ?? 0) / 60_000,
     confidence: page.confidence,
-    lastReadAt: page.lastReadAt,
     hasData: page.effectiveWords > 0 || (page.effectiveReadingMs ?? 0) > 0,
   };
 }

@@ -819,14 +819,11 @@ describe('getCurrentPageReadingSummary', () => {
     );
 
     expect(summary).toEqual({
-      pageId: 'developer.mozilla.org_yfw3uh',
-      domain: 'developer.mozilla.org',
       totalWords: 1200,
       effectiveWords: 420,
       coveredWords: 420,
       effectiveMinutes: 3,
       confidence: 0.82,
-      lastReadAt: morningOnJune27,
       hasData: true,
     });
   });
@@ -860,8 +857,6 @@ describe('getCurrentPageReadingSummary', () => {
     const summary = await getCurrentPageReadingSummary('https://docs.example.com/guide', createStore({}));
 
     expect(summary).toEqual({
-      pageId: 'docs.example.com_1fqiyv5',
-      domain: 'docs.example.com',
       totalWords: 0,
       effectiveWords: 0,
       coveredWords: 0,

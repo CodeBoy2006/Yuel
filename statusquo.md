@@ -1245,3 +1245,9 @@
 - **Status:** Completed
 - **Next Steps:** Remove the independently confirmed dormant current-page view-model fields and remaining mechanical collector fixtures.
 - **Context:** The UI behavior test removes 200 net lines while preserving dependency override order, awaited rendering, and component props. All 55 entrypoint tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:33] Current Page View Model Simplification
+- **Changes:** Removed page id, domain, and last-read timestamp from the private current-page summary because SidePanel consumes none of them; the page id remains local to storage lookup.
+- **Status:** Completed
+- **Next Steps:** Commit the mechanical collector DOM/observer fixtures and finish the remaining dormant read-model review.
+- **Context:** The read model and fixtures remove 38 net lines. All 31 reading-stat tests, 55 UI behavior tests, TypeScript checks, production build, and whitespace validation pass; the extension bundle is 544.22 kB.

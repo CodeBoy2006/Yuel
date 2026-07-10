@@ -234,8 +234,6 @@ function createSidePanelDependencies(
       collectorState: 'recording',
     }),
     getCurrentPageReadingSummary: async () => ({
-      pageId: 'page-default',
-      domain: 'docs.example.com',
       totalWords: 0,
       effectiveWords: 0,
       coveredWords: 0,
@@ -1504,8 +1502,6 @@ describe('extension UI entrypoint smoke rendering', () => {
     const getCurrentPageReadingSummary = vi.fn(async (url: string) => (
       url.includes('new.example')
         ? {
-            pageId: 'new',
-            domain: 'new.example',
             totalWords: 1200,
             effectiveWords: 420,
             coveredWords: 420,
@@ -1514,8 +1510,6 @@ describe('extension UI entrypoint smoke rendering', () => {
             hasData: true,
           }
         : {
-            pageId: 'old',
-            domain: 'old.example',
             totalWords: 1000,
             effectiveWords: 345,
             coveredWords: 345,
@@ -1597,8 +1591,6 @@ describe('extension UI entrypoint smoke rendering', () => {
       return Promise.resolve(
         url.includes('fresh.example')
           ? {
-              pageId: 'fresh',
-              domain: 'fresh.example',
               totalWords: 1000,
               effectiveWords: 420,
               coveredWords: 420,
@@ -1607,8 +1599,6 @@ describe('extension UI entrypoint smoke rendering', () => {
               hasData: true,
             }
           : {
-              pageId: 'initial',
-              domain: 'initial.example',
               totalWords: 100,
               effectiveWords: 10,
               coveredWords: 10,
@@ -1659,8 +1649,6 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     await act(async () => {
       stalePage.resolve({
-        pageId: 'stale',
-        domain: 'stale.example',
         totalWords: 900,
         effectiveWords: 777,
         coveredWords: 777,
@@ -1703,8 +1691,6 @@ describe('extension UI entrypoint smoke rendering', () => {
     const getCurrentPageReadingSummary = vi.fn(async (url: string) => (
       url.includes('second.example')
         ? {
-            pageId: 'second',
-            domain: 'second.example',
             totalWords: 1200,
             effectiveWords: 420,
             coveredWords: 420,
@@ -1713,8 +1699,6 @@ describe('extension UI entrypoint smoke rendering', () => {
             hasData: true,
           }
         : {
-            pageId: 'first',
-            domain: 'first.example',
             totalWords: 1000,
             effectiveWords: 100,
             coveredWords: 100,
@@ -1837,8 +1821,6 @@ describe('extension UI entrypoint smoke rendering', () => {
     const getCurrentPageReadingSummary = vi
       .fn()
       .mockResolvedValueOnce({
-        pageId: 'initial',
-        domain: 'example.com',
         totalWords: 100,
         effectiveWords: 10,
         coveredWords: 10,
@@ -1848,8 +1830,6 @@ describe('extension UI entrypoint smoke rendering', () => {
       })
       .mockImplementationOnce(() => delayedEnablePage.promise)
       .mockResolvedValueOnce({
-        pageId: 'fresh',
-        domain: 'example.com',
         totalWords: 1_200,
         effectiveWords: 420,
         coveredWords: 420,
@@ -1883,8 +1863,6 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     await act(async () => {
       delayedEnablePage.resolve({
-        pageId: 'stale-enable',
-        domain: 'example.com',
         totalWords: 200,
         effectiveWords: 20,
         coveredWords: 20,
