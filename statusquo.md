@@ -1263,3 +1263,9 @@
 - **Status:** Completed
 - **Next Steps:** Run the final complete verification matrix and no-edit repository stop audits.
 - **Context:** The private read-model surface removes 19 physical lines. All 134 related contract, reading-stat, and UI tests, TypeScript checks, production build, and whitespace validation pass; the bundle is 544.13 kB.
+
+## [2026-07-11 04:46] Invalid Event Assertion Consolidation
+- **Changes:** Replaced 36 repeated single-event payload assertion wrappers with one typed `expectInvalidEvent` helper while preserving multi-event, page, chunk, raw-unknown, and valid paths explicitly.
+- **Status:** Completed
+- **Next Steps:** Run the final unit/type verification and no-edit stop audit, then push the completed refactor series.
+- **Context:** The message-contract test removes 132 net lines. All 48 contract tests, TypeScript checks, and whitespace validation pass; the final nested-wrapper scan found no remaining fixture family above the simplification threshold.

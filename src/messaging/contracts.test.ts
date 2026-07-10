@@ -93,6 +93,10 @@ function createEvent(overrides: ReadingEventOverrides): unknown {
   return { ...validMessage.payload.events[0], ...overrides };
 }
 
+function expectInvalidEvent(overrides: ReadingEventOverrides): void {
+  expectInvalidPayload({ events: [createEvent(overrides)] });
+}
+
 describe('reading collector status messages', () => {
   it('accepts only the dedicated status request and a complete response', () => {
     expect(isReadingCollectorStatusRequest({
@@ -152,9 +156,7 @@ describe('isReadingEventBatchMessage', () => {
       chunks: [{ ...validMessage.payload.chunks[0], wordCount: Number.NaN }],
     });
 
-    expectInvalidPayload({
-      events: [createEvent({ kind: 'UnknownEvent' })],
-    });
+    expectInvalidEvent({ kind: 'UnknownEvent' });
   });
 
   it('rejects batches containing negative page, chunk, or event numeric fields', () => {
@@ -169,9 +171,7 @@ describe('isReadingEventBatchMessage', () => {
       chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: -1 }],
     });
 
-    expectInvalidPayload({
-      events: [createEvent({ occurredAt: -1 })],
-    });
+    expectInvalidEvent({ occurredAt: -1 });
   });
 
   it('rejects page total words that differ from the chunk word count total', () => {
@@ -292,313 +292,217 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects viewport exposure ticks without positive tick duration', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            tickMs: undefined,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        tickMs: undefined,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            tickMs: 0,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        tickMs: 0,
+      },
     });
   });
 
   it('rejects viewport exposure ticks without collector-shaped reading metadata', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            baseWordsPerMinute: undefined,
-            activeTab: true,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        baseWordsPerMinute: undefined,
+        activeTab: true,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            activeTab: 'yes',
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        activeTab: 'yes',
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            scrollSpeedWordsPerMinute: -1,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        scrollSpeedWordsPerMinute: -1,
+      },
     });
   });
 
   it('rejects viewport exposure ticks below the collector visibility threshold', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
+      },
     });
   });
 
   it('rejects visibility events without bounded visible ratios', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockVisible',
-          value: {
-            wordCount: 6,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockVisible',
+      value: {
+        wordCount: 6,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockHidden',
-          value: {
-            visibleRatio: 1.2,
-            wordCount: 6,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockHidden',
+      value: {
+        visibleRatio: 1.2,
+        wordCount: 6,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            dwellMs: 30_000,
-            visibleRatio: -0.1,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        dwellMs: 30_000,
+        visibleRatio: -0.1,
+      },
     });
   });
 
   it('rejects visibility events without positive word counts', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockVisible',
-          value: {
-            visibleRatio: 0.5,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockVisible',
+      value: {
+        visibleRatio: 0.5,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockHidden',
-          value: {
-            visibleRatio: 0,
-            wordCount: 0,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockHidden',
+      value: {
+        visibleRatio: 0,
+        wordCount: 0,
+      },
     });
   });
 
   it('rejects visible block events below the collector visibility threshold', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockVisible',
-          value: {
-            visibleRatio: 0.14,
-            wordCount: validMessage.payload.chunks[0].wordCount,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockVisible',
+      value: {
+        visibleRatio: 0.14,
+        wordCount: validMessage.payload.chunks[0].wordCount,
+      },
     });
   });
 
   it('rejects hidden block events at or above the collector visibility threshold', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'TextBlockHidden',
-          value: {
-            visibleRatio: 0.15,
-            wordCount: validMessage.payload.chunks[0].wordCount,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'TextBlockHidden',
+      value: {
+        visibleRatio: 0.15,
+        wordCount: validMessage.payload.chunks[0].wordCount,
+      },
     });
   });
 
   it('rejects viewport visible chunk entries whose word counts differ from the linked chunk', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
+      },
     });
   });
 
   it('rejects selection telemetry without positive hashed metadata', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'TextSelected',
-          value: {
-            characterCount: 12,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'TextSelected',
+      value: {
+        characterCount: 12,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'TextSelected',
-          value: {
-            textHash: 'selection-hash',
-            characterCount: 0,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'TextSelected',
+      value: {
+        textHash: 'selection-hash',
+        characterCount: 0,
+      },
     });
   });
 
   it('rejects raw text in selection telemetry', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'TextSelected',
-          value: {
-            text: 'private selected text',
-            textHash: 'selection-hash',
-            characterCount: 21,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'TextSelected',
+      value: {
+        text: 'private selected text',
+        textHash: 'selection-hash',
+        characterCount: 21,
+      },
     });
   });
 
   it('rejects scroll velocity events without valid movement metadata', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'ScrollVelocityChanged',
-          value: {
-            scrollDeltaPx: 12,
-            scrollSpeedWordsPerMinute: 240,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'ScrollVelocityChanged',
+      value: {
+        scrollDeltaPx: 12,
+        scrollSpeedWordsPerMinute: 240,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'ScrollVelocityChanged',
-          value: {
-            scrollDeltaPx: 0.5,
-            elapsedMs: 100,
-            scrollSpeedWordsPerMinute: 240,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'ScrollVelocityChanged',
+      value: {
+        scrollDeltaPx: 0.5,
+        elapsedMs: 100,
+        scrollSpeedWordsPerMinute: 240,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'ScrollVelocityChanged',
-          value: {
-            scrollDeltaPx: 12,
-            elapsedMs: 99,
-            scrollSpeedWordsPerMinute: -1,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'ScrollVelocityChanged',
+      value: {
+        scrollDeltaPx: 12,
+        elapsedMs: 99,
+        scrollSpeedWordsPerMinute: -1,
+      },
     });
   });
 
   it('rejects activity events without nonnegative idle duration metadata', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'UserIdle',
-          value: {},
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'UserIdle',
+      value: {},
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'UserActive',
-          value: {
-            idleMs: -1,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'UserActive',
+      value: {
+        idleMs: -1,
+      },
     });
   });
 
   it('rejects page lifecycle events with unexpected payloads', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'PageVisible',
-          value: {
-            visible: true,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'PageVisible',
+      value: {
+        visible: true,
+      },
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          chunkId: undefined,
-          kind: 'PageHidden',
-          value: {
-            reason: 'visibilitychange',
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      chunkId: undefined,
+      kind: 'PageHidden',
+      value: {
+        reason: 'visibilitychange',
+      },
     });
   });
 
@@ -620,13 +524,9 @@ describe('isReadingEventBatchMessage', () => {
   );
 
   it('rejects page-level events linked to chunks', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          kind: 'PageVisible',
-          value: undefined,
-        }),
-      ],
+    expectInvalidEvent({
+      kind: 'PageVisible',
+      value: undefined,
     });
   });
 
@@ -642,9 +542,7 @@ describe('isReadingEventBatchMessage', () => {
       chunks: [{ ...validMessage.payload.chunks[0], selector: '' }],
     });
 
-    expectInvalidPayload({
-      events: [createEvent({ id: '   ' })],
-    });
+    expectInvalidEvent({ id: '   ' });
   });
 
   it('rejects required strings with surrounding whitespace before they become local keys', () => {
@@ -702,40 +600,24 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects event IDs whose kind prefix does not match the event kind', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          id: 'PageVisible_event-1',
-        }),
-      ],
+    expectInvalidEvent({
+      id: 'PageVisible_event-1',
     });
   });
 
   it('rejects event IDs without a unique suffix after the kind prefix', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          id: 'TextViewportExposureTick_',
-        }),
-      ],
+    expectInvalidEvent({
+      id: 'TextViewportExposureTick_',
     });
   });
 
   it('rejects session IDs that do not match the collector session shape', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          sessionId: 'manual-session-1',
-        }),
-      ],
+    expectInvalidEvent({
+      sessionId: 'manual-session-1',
     });
 
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          sessionId: 'session_',
-        }),
-      ],
+    expectInvalidEvent({
+      sessionId: 'session_',
     });
   });
 
@@ -752,12 +634,8 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects events that occurred before the page snapshot was captured', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          occurredAt: validMessage.payload.page.capturedAt - 1,
-        }),
-      ],
+    expectInvalidEvent({
+      occurredAt: validMessage.payload.page.capturedAt - 1,
     });
   });
 
@@ -774,37 +652,27 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects events linked to a different page', () => {
-    expectInvalidPayload({
-      events: [createEvent({ pageId: 'page-2' })],
-    });
+    expectInvalidEvent({ pageId: 'page-2' });
   });
 
   it('rejects chunk-scoped reading events without chunk links', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          id: 'TextBlockVisible_event-1',
-          kind: 'TextBlockVisible',
-          chunkId: undefined,
-          value: {
-            visibleRatio: 1,
-            wordCount: validMessage.payload.chunks[0].wordCount,
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      id: 'TextBlockVisible_event-1',
+      kind: 'TextBlockVisible',
+      chunkId: undefined,
+      value: {
+        visibleRatio: 1,
+        wordCount: validMessage.payload.chunks[0].wordCount,
+      },
     });
   });
 
   it('rejects events linked to an unknown chunk', () => {
-    expectInvalidPayload({
-      events: [
-        createEvent({
-          value: {
-            ...validViewportTickValue,
-            visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
-          },
-        }),
-      ],
+    expectInvalidEvent({
+      value: {
+        ...validViewportTickValue,
+        visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
+      },
     });
   });
 });
