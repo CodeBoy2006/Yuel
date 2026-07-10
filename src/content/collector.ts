@@ -33,6 +33,12 @@ interface VisibleBlockState {
   block: TextBlockCandidate;
 }
 
+interface BlockVisibilityTransition {
+  block: TextBlockCandidate;
+  kind: 'TextBlockVisible' | 'TextBlockHidden';
+  visibleRatio: number;
+}
+
 interface ScrollVelocitySample {
   scrollY: number;
   sampledAt: number;
@@ -202,61 +208,34 @@ function startReadingCollectorRun(
       if (!entryBlocks || entryBlocks.length === 0) continue;
 
       const now = Date.now();
-      const isVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
-      const visibleEntryBlocks = entryBlocks.filter((block) => visibleBlocks.has(block.chunkId));
+      const entryIsVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
       const blockVisibility = entryBlocks.map((block) => ({
         block,
-        visibleRatio: isVisible ? getTextBlockVisibleRatio(block) : 0,
+        visibleRatio: entryIsVisible ? getTextBlockVisibleRatio(block) : 0,
       }));
+      const transitions = [
+        ...blockVisibility
+          .filter(({ block, visibleRatio }) => visibleRatio >= 0.15 && !visibleBlocks.has(block.chunkId))
+          .map<BlockVisibilityTransition>(({ block, visibleRatio }) => ({
+            block, kind: 'TextBlockVisible', visibleRatio,
+          })),
+        ...blockVisibility
+          .filter(({ block, visibleRatio }) => visibleRatio < 0.15 && visibleBlocks.has(block.chunkId))
+          .map<BlockVisibilityTransition>(({ block }) => ({
+            block, kind: 'TextBlockHidden',
+            visibleRatio: entryIsVisible ? 0 : entry.intersectionRatio,
+          })),
+      ];
+      if (transitions.length === 0) continue;
 
-      if (isVisible) {
-        const newlyVisibleBlocks = blockVisibility.filter(
-          ({ block, visibleRatio }) => visibleRatio >= 0.15 && !visibleBlocks.has(block.chunkId),
-        );
-        const newlyHiddenBlocks = visibleEntryBlocks.filter((block) =>
-          blockVisibility.some((visibility) => visibility.block.chunkId === block.chunkId && visibility.visibleRatio < 0.15),
-        );
-        if (newlyVisibleBlocks.length > 0 || newlyHiddenBlocks.length > 0) {
-          closeCurrentViewportInterval(now);
+      closeCurrentViewportInterval(now);
+      for (const transition of transitions) {
+        if (transition.kind === 'TextBlockVisible') {
+          visibleBlocks.set(transition.block.chunkId, { block: transition.block });
+        } else {
+          visibleBlocks.delete(transition.block.chunkId);
         }
-
-        for (const { block, visibleRatio } of newlyVisibleBlocks) {
-          visibleBlocks.set(block.chunkId, { block });
-          emitEvent(createEventId('TextBlockVisible'), 'TextBlockVisible', now, {
-            chunkId: block.chunkId,
-            confidence: visibleRatio > 0.65 ? 'high' : 'medium',
-            value: {
-              visibleRatio,
-              wordCount: block.wordCount,
-            },
-          });
-        }
-
-        for (const block of newlyHiddenBlocks) {
-          visibleBlocks.delete(block.chunkId);
-          emitEvent(createEventId('TextBlockHidden'), 'TextBlockHidden', now, {
-            chunkId: block.chunkId,
-            confidence: 'medium',
-            value: {
-              visibleRatio: 0,
-              wordCount: block.wordCount,
-            },
-          });
-        }
-      } else if (visibleEntryBlocks.length > 0) {
-        closeCurrentViewportInterval(now);
-
-        for (const block of visibleEntryBlocks) {
-          visibleBlocks.delete(block.chunkId);
-          emitEvent(createEventId('TextBlockHidden'), 'TextBlockHidden', now, {
-            chunkId: block.chunkId,
-            confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
-            value: {
-              visibleRatio: entry.intersectionRatio,
-              wordCount: block.wordCount,
-            },
-          });
-        }
+        emitBlockVisibilityEvent(emitEvent, createEventId(transition.kind), transition, now);
       }
     }
   }, { threshold: [0.15, 0.35, 0.65, 0.9] });
@@ -605,6 +584,19 @@ function groupBlocksByElement(blocks: TextBlockCandidate[]): Map<Element, TextBl
   return blocksByElement;
 }
 
+function emitBlockVisibilityEvent(
+  emitEvent: EmitReadingEvent,
+  id: ReadingEvent['id'],
+  { block, kind, visibleRatio }: BlockVisibilityTransition,
+  occurredAt: number,
+): void {
+  emitEvent(id, kind, occurredAt, {
+    chunkId: block.chunkId,
+    confidence: visibleRatio > 0.65 ? 'high' : 'medium',
+    value: { visibleRatio, wordCount: block.wordCount },
+  });
+}
+
 function restoreVisibleBlocksFromLayout(
   emitEvent: EmitReadingEvent,
   blocks: TextBlockCandidate[],
@@ -622,14 +614,12 @@ function restoreVisibleBlocksFromLayout(
     }
 
     visibleBlocks.set(block.chunkId, { block });
-    emitEvent(createEventId('TextBlockVisible', now), 'TextBlockVisible', now, {
-      chunkId: block.chunkId,
-      confidence: visibleRatio > 0.65 ? 'high' : 'medium',
-      value: {
-        visibleRatio,
-        wordCount: block.wordCount,
-      },
-    });
+    emitBlockVisibilityEvent(
+      emitEvent,
+      createEventId('TextBlockVisible', now),
+      { block, kind: 'TextBlockVisible', visibleRatio },
+      now,
+    );
   }
 }
 

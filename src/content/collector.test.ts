@@ -612,7 +612,7 @@ describe('startReadingCollector', () => {
 
       await vi.advanceTimersByTimeAsync(500);
       const hiddenAt = Date.now();
-      observer.emit([{ target: blockElement as Element, isIntersecting: false, intersectionRatio: 0 }]);
+      observer.emit([{ target: blockElement as Element, isIntersecting: false, intersectionRatio: 0.1 }]);
       await vi.advanceTimersByTimeAsync(9_500);
       await flushPromises();
 
@@ -636,7 +636,7 @@ describe('startReadingCollector', () => {
         occurredAt: hiddenAt,
         confidence: 'medium',
         value: {
-          visibleRatio: 0,
+          visibleRatio: 0.1,
           wordCount: visibleEvent.value.wordCount,
         },
       });

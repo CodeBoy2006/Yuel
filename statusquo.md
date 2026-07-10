@@ -1161,3 +1161,9 @@
 - **Status:** Completed
 - **Next Steps:** Tighten the reading-summary field contract and remove remaining dormant counters.
 - **Context:** Dashboard production and test code drop 162 net lines without changing refresh, clear, calibration, or share-action generation guards. All 55 UI smoke tests, TypeScript checks, and the production build pass; the dashboard chunk decreased from 50.45 kB at baseline to 50.05 kB.
+
+## [2026-07-11 02:57] Collector Visibility Transition Simplification
+- **Changes:** Reworked the observer callback into explicit measured visibility transitions, closed each changed viewport interval once, and reused one block-visibility event formatter for observer and layout restoration paths.
+- **Status:** Completed
+- **Next Steps:** Re-audit the collector after full browser-DOM and pressure verification before considering further changes.
+- **Context:** The observer drops from 68 to 41 lines and from 12 to 8 decision points without moving branches into the helper; `collector.ts` removes 10 net lines. All 35 collector tests and TypeScript checks pass, including non-intersecting ratio preservation.
