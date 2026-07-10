@@ -5,7 +5,9 @@ export interface ExtensionBuildManifest {
   manifest_version: number;
   permissions?: string[];
   optional_host_permissions?: string[];
+  icons?: Record<string, string>;
   action?: {
+    default_icon?: Record<string, string>;
     default_popup?: string;
   };
   side_panel?: {
@@ -31,6 +33,13 @@ const REQUIRED_FILES = [
   'dashboard.html',
   'sidepanel.html',
   'content-scripts/content.js',
+  'logo.svg',
+  'icon/16.png',
+  'icon/24.png',
+  'icon/32.png',
+  'icon/48.png',
+  'icon/96.png',
+  'icon/128.png',
 ] as const;
 
 export async function validateChromeMv3Build(outputDir: string): Promise<ExtensionBuildSmokeResult> {

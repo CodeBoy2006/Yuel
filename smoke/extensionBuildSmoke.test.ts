@@ -9,8 +9,21 @@ describe('Chrome MV3 build output', () => {
     expect(result.manifest.manifest_version).toBe(3);
     expect(result.manifest.permissions).toEqual(['activeTab', 'alarms', 'contextMenus', 'idle', 'sidePanel', 'scripting', 'storage']);
     expect(result.manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
+    expect(result.manifest.icons).toEqual({
+      16: 'icon/16.png',
+      24: 'icon/24.png',
+      32: 'icon/32.png',
+      48: 'icon/48.png',
+      96: 'icon/96.png',
+      128: 'icon/128.png',
+    });
     expect(result.manifest.background?.service_worker).toBe('background.js');
     expect(result.manifest.action?.default_popup).toBe('popup.html');
+    expect(result.manifest.action?.default_icon).toEqual({
+      16: 'icon/16.png',
+      24: 'icon/24.png',
+      32: 'icon/32.png',
+    });
     expect(result.manifest.side_panel?.default_path).toBe('sidepanel.html');
     expect(result.manifest.content_scripts?.[0]?.js).toEqual(['content-scripts/content.js']);
     expect(result.requiredFiles).toEqual([
@@ -20,6 +33,13 @@ describe('Chrome MV3 build output', () => {
       'dashboard.html',
       'sidepanel.html',
       'content-scripts/content.js',
+      'logo.svg',
+      'icon/16.png',
+      'icon/24.png',
+      'icon/32.png',
+      'icon/48.png',
+      'icon/96.png',
+      'icon/128.png',
     ]);
   });
 });

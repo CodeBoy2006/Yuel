@@ -87,17 +87,11 @@ button {
 }
 
 .yuel-brand__mark {
-  display: inline-grid;
+  display: block;
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--y-ink);
-  color: var(--y-on-accent);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1;
+  object-fit: contain;
 }
 
 .yuel-brand__name {
@@ -123,8 +117,6 @@ button {
 .yuel-brand--compact .yuel-brand__mark {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
-  font-size: 13px;
 }
 
 .yuel-status {

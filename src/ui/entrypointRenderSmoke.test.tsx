@@ -80,10 +80,11 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
 }
 
 describe('extension UI entrypoint smoke rendering', () => {
-  it('declares Simplified Chinese for every extension UI document', () => {
+  it('declares Simplified Chinese and the shared brand icon for every extension UI document', () => {
     for (const entrypoint of ['popup', 'sidepanel', 'dashboard']) {
       const html = readFileSync(`${process.cwd()}/entrypoints/${entrypoint}/index.html`, 'utf8');
       expect(html).toMatch(/<html\s+lang="zh-CN">/);
+      expect(html).toContain('<link rel="icon" href="/logo.svg" type="image/svg+xml" />');
     }
   });
 
@@ -203,6 +204,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     const text = container.textContent ?? '';
     expect(text).toContain('阅量 Yuel');
+    expect(container.querySelector('.yuel-brand__mark')?.getAttribute('src')).toBe('/logo.svg');
     expect(text).toContain('当前站点');
     expect(text).toContain('今日有效阅读');
     expect(text).toContain('打开侧栏');

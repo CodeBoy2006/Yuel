@@ -7,7 +7,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 export function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`yuel-brand ${compact ? 'yuel-brand--compact' : ''}`} aria-label="阅量 Yuel">
-      <span className="yuel-brand__mark" aria-hidden="true">阅</span>
+      <img className="yuel-brand__mark" src="/logo.svg" alt="" aria-hidden="true" />
       <span className="yuel-brand__name">阅量 <span>Yuel</span></span>
     </div>
   );

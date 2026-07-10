@@ -1023,3 +1023,9 @@
 - **Status:** Completed
 - **Next Steps:** Re-run the loaded-Chrome smoke when the execution environment permits launching Chrome outside the sandbox; no code change is pending from this audit.
 - **Context:** Final gates passed with 300 unit/UI tests, strict unused-aware TypeScript checks, the WXT production build, static extension smoke, interface anti-pattern detection, and clean diff validation. The latest loaded-Chrome rerun was blocked before assertions by sandbox `DevToolsActivePort`/localhost restrictions, and the required escalation was rejected because the environment usage limit was reached.
+
+## [2026-07-10 18:56] Unified Brand Icon
+- **Changes:** Added the supplied polished SVG as the canonical public logo, generated manifest-ready PNG sizes from it, replaced the shared Popup/Side Panel/Dashboard brand mark, added matching favicons, configured extension and toolbar icons, and extended UI/build smoke coverage for every icon entry point.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Functional action and status icons remain semantic Lucide icons; all brand and application identity surfaces now use the supplied logo artwork. The canonical SVG is byte-for-byte identical to the source file.
