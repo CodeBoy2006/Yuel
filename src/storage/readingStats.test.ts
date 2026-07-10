@@ -893,7 +893,6 @@ function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
     language: 'en',
     totalWords: 400,
     effectiveWords: 0,
-    difficultyScore: 0,
     firstSeenAt: morningOnJune27 - 2_000,
     lastReadAt: morningOnJune27,
     ...overrides,

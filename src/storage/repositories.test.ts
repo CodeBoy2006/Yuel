@@ -233,7 +233,6 @@ describe('recordReadingEventBatch', () => {
       language: 'en',
       totalWords: 8,
       effectiveWords: 4,
-      difficultyScore: 0,
       firstSeenAt: capturedAt - 1_000,
       lastReadAt: newerReadAt,
     });
@@ -276,7 +275,6 @@ describe('recordReadingEventBatch', () => {
       coveredWords: 4,
       rawExposureMs: 5_000,
       effectiveReadingMs: 1_000,
-      difficultyScore: 0,
       firstSeenAt: capturedAt - 1_000,
       lastReadAt: newerSnapshotCapturedAt,
       snapshotCapturedAt: newerSnapshotCapturedAt,
@@ -322,7 +320,6 @@ describe('recordReadingEventBatch', () => {
       totalWords: 16,
       effectiveWords: 4,
       coveredWords: 4,
-      difficultyScore: 0,
       firstSeenAt: capturedAt - 1_000,
       lastReadAt: legacyLastReadAt,
     });
@@ -482,7 +479,6 @@ describe('recordReadingEventBatch', () => {
       language: 'en',
       totalWords: 8,
       effectiveWords: 120,
-      difficultyScore: 0,
       firstSeenAt: previousReadAt - 60_000,
       lastReadAt: previousReadAt,
     });
@@ -518,7 +514,6 @@ describe('recordReadingEventBatch', () => {
       textHash: 'chunk-text',
       wordCount: 8,
       sentenceCount: 1,
-      difficulty: 0,
       exposureSeconds: 30,
       effectiveWords: 8,
     });
@@ -559,7 +554,6 @@ describe('recordReadingEventBatch', () => {
       effectiveWords: 4,
       coveredWords: 4,
       newWords: 4,
-      difficultyScore: 0,
       firstSeenAt: capturedAt - 60_000,
       lastReadAt: capturedAt - 30_000,
       snapshotCapturedAt: capturedAt - 60_000,
@@ -598,7 +592,6 @@ describe('recordReadingEventBatch', () => {
       textHash: 'chunk-text',
       wordCount: 8,
       sentenceCount: 1,
-      difficulty: 0,
       exposureSeconds: 10,
       effectiveWords: 4,
     });

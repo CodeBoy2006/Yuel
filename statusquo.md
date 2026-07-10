@@ -1131,3 +1131,9 @@
 - **Status:** Completed
 - **Next Steps:** Apply the same evidence-based contract cleanup to Dashboard after the collector and storage batches.
 - **Context:** Production and test code drop 143 net lines, two duplicate states, and an unreachable load path while retaining refresh/enable generation guards. All 55 UI smoke tests, TypeScript checks, and the production extension build pass; the sidepanel bundle decreased from 12.53 kB at baseline to 11.88 kB.
+
+## [2026-07-11 02:42] Dormant Storage Placeholder Removal
+- **Changes:** Removed page and chunk difficulty placeholders that were only preserved as zero, plus the never-written saved-item context field; existing IndexedDB rows remain readable because none are indexed or consumed.
+- **Status:** Completed
+- **Next Steps:** Continue removing other independently proven dead fields in separate commits.
+- **Context:** The change removes 13 lines with no replacement abstraction. All 72 repository, reading-stats, and saved-item tests plus TypeScript checks pass; existing transparent-export work remains unstaged.

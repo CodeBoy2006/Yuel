@@ -18,7 +18,6 @@ export interface PageRecord {
   rawExposureMs?: number;
   effectiveReadingMs?: number;
   confidence?: number;
-  difficultyScore: number;
   firstSeenAt: number;
   lastReadAt: number;
   snapshotCapturedAt?: number;
@@ -31,7 +30,6 @@ export interface TextChunkRecord {
   wordCount: number;
   metricModelVersion?: number;
   sentenceCount: number;
-  difficulty: number;
   exposureSeconds: number;
   rawExposureMs?: number;
   effectiveReadingMs?: number;
@@ -86,7 +84,6 @@ export interface SavedItemRecord {
   id: string;
   text: string;
   type: 'word' | 'phrase' | 'sentence' | 'quote';
-  context?: string;
   sourceDomain: string;
   tags: string[];
   createdAt: number;
