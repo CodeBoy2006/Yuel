@@ -35,6 +35,13 @@ class TestIntersectionObserver {
   }
 }
 
+function visibleIntersectionEntry(
+  target: Element,
+  intersectionRatio = 1,
+): Partial<IntersectionObserverEntry> {
+  return { target, isIntersecting: true, intersectionRatio };
+}
+
 class TestMutationObserver {
   static instances: TestMutationObserver[] = [];
 
@@ -498,11 +505,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -577,11 +580,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 0.1,
-        },
+        visibleIntersectionEntry(blockElement as Element, 0.1),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -608,7 +607,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       const observer = TestIntersectionObserver.instances[0];
-      observer.emit([{ target: blockElement as Element, isIntersecting: true, intersectionRatio: 1 }]);
+      observer.emit([visibleIntersectionEntry(blockElement as Element)]);
 
       await vi.advanceTimersByTimeAsync(500);
       const hiddenAt = Date.now();
@@ -663,18 +662,10 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 0.2,
-        },
+        visibleIntersectionEntry(blockElement as Element, 0.2),
       ]);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 0.9,
-        },
+        visibleIntersectionEntry(blockElement as Element, 0.9),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -725,11 +716,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 0.9,
-        },
+        visibleIntersectionEntry(blockElement as Element, 0.9),
       ]);
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(partiallyVisibleRect(0.25));
 
@@ -776,16 +763,8 @@ describe('startReadingCollector', () => {
       expect(firstBlock).toBeInstanceOf(HTMLElement);
       expect(secondBlock).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: firstBlock as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
-        {
-          target: secondBlock as Element,
-          isIntersecting: true,
-          intersectionRatio: 0.75,
-        },
+        visibleIntersectionEntry(firstBlock as Element),
+        visibleIntersectionEntry(secondBlock as Element, 0.75),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -850,11 +829,7 @@ describe('startReadingCollector', () => {
       });
       vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: longBlockElement,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(longBlockElement),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -905,11 +880,7 @@ describe('startReadingCollector', () => {
       });
       vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: longBlockElement,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(longBlockElement),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -1030,11 +1001,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1082,11 +1049,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(4_000);
@@ -1128,11 +1091,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(500);
@@ -1176,11 +1135,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(500);
@@ -1225,11 +1180,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -1260,11 +1211,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(1_000);
@@ -1305,11 +1252,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(600);
@@ -1357,11 +1300,7 @@ describe('startReadingCollector', () => {
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
       TestIntersectionObserver.instances[0].emit([
-        {
-          target: blockElement as Element,
-          isIntersecting: true,
-          intersectionRatio: 1,
-        },
+        visibleIntersectionEntry(blockElement as Element),
       ]);
 
       await vi.advanceTimersByTimeAsync(500);
@@ -1406,11 +1345,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1456,11 +1391,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1502,11 +1433,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1543,11 +1470,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -1592,11 +1515,7 @@ describe('startReadingCollector', () => {
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
     TestIntersectionObserver.instances[0].emit([
-      {
-        target: blockElement as Element,
-        isIntersecting: true,
-        intersectionRatio: 1,
-      },
+      visibleIntersectionEntry(blockElement as Element),
     ]);
 
     await vi.advanceTimersByTimeAsync(500);

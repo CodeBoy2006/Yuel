@@ -1227,3 +1227,9 @@
 - **Status:** Completed
 - **Next Steps:** Commit the independently verified collector visibility-entry fixture, then reassess higher-level test wrappers.
 - **Context:** The contract test removes another 31 net lines while keeping every invalid event field explicit. All 48 message-contract tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:22] Collector Visibility Test Fixture Consolidation
+- **Changes:** Replaced 23 repeated visible IntersectionObserver entries with one typed target/ratio fixture while retaining the sole non-intersecting transition as an explicit object.
+- **Status:** Completed
+- **Next Steps:** Resolve the independent audit of higher-level test wrappers, then rerun the complete verification matrix.
+- **Context:** The collector test removes 81 net lines without hiding visibility transitions or lifecycle actions. All 35 collector tests, TypeScript checks, and whitespace validation pass.
