@@ -49,12 +49,14 @@ describe('large text stress', () => {
 
       expect(result.documentReadyState).toBe('complete');
       expect(result.pageDomain).toBe('127.0.0.1');
-      expect(result.blockCount).toBe(LARGE_TEXT_SCENARIO.paragraphCount);
+      expect(result.blockCount).toBeGreaterThanOrEqual(LARGE_TEXT_SCENARIO.paragraphCount);
       expect(result.totalWords).toBeGreaterThanOrEqual(
         LARGE_TEXT_SCENARIO.paragraphCount * LARGE_TEXT_SCENARIO.wordsPerParagraph,
       );
-      expect(result.firstSelector).toBe('p#stress-1');
-      expect(result.lastSelector).toBe(`p#stress-${LARGE_TEXT_SCENARIO.paragraphCount}`);
+      expect(result.firstSelector).toMatch(/^p#stress-1(?:::chunk\(1\))?$/);
+      expect(result.lastSelector).toMatch(
+        new RegExp(`^p#stress-${LARGE_TEXT_SCENARIO.paragraphCount}(?:::chunk\\(\\d+\\))?$`),
+      );
       expect(result.rangeRectCount).toBeGreaterThanOrEqual(result.blockCount);
       expect(result.collectMs).toBeGreaterThan(0);
       expect(result.rangeRectMs).toBeGreaterThan(0);

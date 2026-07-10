@@ -1065,3 +1065,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The fix preserves the existing least-privilege manifest without adding the broad `tabs` metadata permission. All 313 unit/UI tests, TypeScript, the production build, static manifest smoke, interface detector, and three loaded-Chrome smoke flows pass.
+
+## [2026-07-10 20:46] Playwright Browser Test Architecture
+- **Changes:** Replaced both raw Chrome/CDP clients with Playwright-managed Chromium, migrated packaged-extension flows to Playwright Test persistent-context fixtures, added isolated profiles and failure traces/screenshots, hardened live-corpus deadlines and dependency injection, and updated browser-test scripts and documentation.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The Playwright version matches the local click2data reference (`1.58.2`). Unit/UI tests, TypeScript, static extension smoke, real DOM, large-text stress, a 22-page live corpus, and three packaged-extension E2E flows pass; process-sandbox launch failures now include the exact browser command, process log, trace, and screenshots.

@@ -1,11 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import ts from 'typescript';
 
 export interface BrowserDomTextExtractionResult {
@@ -118,7 +117,6 @@ interface RectSnapshot {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const MAC_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '..');
 export const DEFAULT_REAL_PAGE_CORPUS_URLS = [
   'https://developer.mozilla.org/en-US/docs/Web/JavaScript',
@@ -149,12 +147,11 @@ export async function validateBrowserDomTextExtraction(
   options: BrowserDomSmokeOptions = {},
 ): Promise<BrowserDomTextExtractionResult> {
   return withSourceModuleServer(async (baseUrl) =>
-    withBrowser(options, async ({ client, timeoutMs }) => {
-      return client.withOpenPage(`${baseUrl}/browser-dom-fixture`, timeoutMs, async (sessionId) => {
+    withBrowser(options, async ({ browserContext, timeoutMs }) => {
+      return withOpenPage(browserContext, `${baseUrl}/browser-dom-fixture`, timeoutMs, async (page) => {
         return waitFor(async () => {
-          const result = await client.evaluate<BrowserDomTextExtractionResult | null>(
+          const result = await page.evaluate<BrowserDomTextExtractionResult | null>(
             'window.__YUEL_BROWSER_DOM_RESULT__ ?? null',
-            sessionId,
           );
           if (!result) {
             throw new Error('Browser DOM fixture has not produced a result yet');
@@ -175,17 +172,16 @@ export async function validateLargeBrowserDomTextStress({
   ...browserOptions
 }: LargeBrowserDomTextStressOptions = {}): Promise<LargeBrowserDomTextStressResult> {
   return withSourceModuleServer(async (baseUrl) =>
-    withBrowser({ ...browserOptions, timeoutMs }, async ({ client }) => {
+    withBrowser({ ...browserOptions, timeoutMs }, async ({ browserContext }) => {
       const stressUrl = new URL('/large-text-stress', baseUrl);
       stressUrl.searchParams.set('excludedParagraphCount', String(excludedParagraphCount));
       stressUrl.searchParams.set('paragraphCount', String(paragraphCount));
       stressUrl.searchParams.set('wordsPerParagraph', String(wordsPerParagraph));
 
-      return client.withOpenPage(stressUrl.href, timeoutMs, async (sessionId) => {
+      return withOpenPage(browserContext, stressUrl.href, timeoutMs, async (page) => {
         return waitFor(async () => {
-          const result = await client.evaluate<LargeBrowserDomTextStressResult | null>(
+          const result = await page.evaluate<LargeBrowserDomTextStressResult | null>(
             'window.__YUEL_LARGE_TEXT_STRESS_RESULT__ ?? null',
-            sessionId,
           );
           if (!result) {
             throw new Error('Large text stress fixture has not produced a result yet');
@@ -202,12 +198,11 @@ export async function validateBrowserSpaDynamicCollector(
   options: BrowserDomSmokeOptions = {},
 ): Promise<BrowserSpaDynamicCollectorResult> {
   return withSourceModuleServer(async (baseUrl) =>
-    withBrowser(options, async ({ client, timeoutMs }) => {
-      return client.withOpenPage(`${baseUrl}/spa-dynamic-collector`, timeoutMs, async (sessionId) => {
+    withBrowser(options, async ({ browserContext, timeoutMs }) => {
+      return withOpenPage(browserContext, `${baseUrl}/spa-dynamic-collector`, timeoutMs, async (page) => {
         return waitFor(async () => {
-          const result = await client.evaluate<BrowserSpaDynamicCollectorResult | null>(
+          const result = await page.evaluate<BrowserSpaDynamicCollectorResult | null>(
             'window.__YUEL_SPA_DYNAMIC_RESULT__ ?? null',
-            sessionId,
           );
           if (!result) {
             throw new Error('SPA dynamic collector fixture has not produced a result yet');
@@ -230,11 +225,11 @@ export async function validateRealPageCorpusPerformance({
   const benchmarkExpression = await createRealPageBenchmarkExpression();
   const chromeArgs = ['--lang=en-US', ...(browserOptions.chromeArgs ?? [])];
 
-  const pages = await withBrowser({ ...browserOptions, chromeArgs, timeoutMs }, async ({ client }) => {
+  const pages = await withBrowser({ ...browserOptions, chromeArgs, timeoutMs }, async ({ browserContext }) => {
     return mapWithConcurrency(urls, maxConcurrency, (url) =>
       benchmarkRealPage({
         benchmarkExpression,
-        client,
+        browserContext,
         pageSettleMs,
         timeoutMs,
         url,
@@ -541,14 +536,19 @@ export const browser = {
 }
 
 async function createRealPageBenchmarkExpression(): Promise<string> {
-  const [englishSource, eventsSource, extractBlocksSource] = await Promise.all([
+  // The injected benchmark is self-contained because public pages cannot
+  // import the extension's local source graph. Keep direct runtime dependency
+  // sources explicit so new imports fail here instead of inside a page.
+  const [englishSource, eventsSource, metricsSource, extractBlocksSource] = await Promise.all([
     readFile(path.join(PROJECT_ROOT, 'src/analysis/english.ts'), 'utf8'),
     readFile(path.join(PROJECT_ROOT, 'src/domain/events.ts'), 'utf8'),
+    readFile(path.join(PROJECT_ROOT, 'src/domain/metrics.ts'), 'utf8'),
     readFile(path.join(PROJECT_ROOT, 'src/content/extractBlocks.ts'), 'utf8'),
   ]);
   const source = [
     stripModuleSyntax(englishSource),
     stripModuleSyntax(eventsSource),
+    stripModuleSyntax(metricsSource),
     stripModuleSyntax(extractBlocksSource),
     `
 function runYuelRealPageBenchmark() {
@@ -608,13 +608,13 @@ function stripModuleSyntax(source: string): string {
 
 async function benchmarkRealPage({
   benchmarkExpression,
-  client,
+  browserContext,
   pageSettleMs,
   timeoutMs,
   url,
 }: {
   benchmarkExpression: string;
-  client: CdpClient;
+  browserContext: BrowserContext;
   pageSettleMs: number;
   timeoutMs: number;
   url: string;
@@ -622,31 +622,23 @@ async function benchmarkRealPage({
   const startedAt = Date.now();
 
   try {
-    const result = await client.withOpenPage(
+    const result = await withOpenPage(
+      browserContext,
       url,
       timeoutMs,
-      async (sessionId) => {
-        return waitFor(async () => {
-          if (pageSettleMs > 0) {
-            await client.evaluate(
-              `new Promise((resolve) => setTimeout(resolve, ${JSON.stringify(pageSettleMs)}))`,
-              sessionId,
-              {
-                awaitPromise: true,
-              },
-            );
-          }
+      async (page) => {
+        if (pageSettleMs > 0) {
+          await page.waitForTimeout(pageSettleMs);
+        }
 
-          const result = await client.evaluate<Omit<RealPagePerformanceSuccess, 'elapsedMs' | 'ok' | 'requestedUrl'>>(
-            benchmarkExpression,
-            sessionId,
-          );
-          if (!result || typeof result.collectMs !== 'number') {
-            throw new Error('Real page benchmark did not return performance metrics');
-          }
+        const result = await page.evaluate<Omit<RealPagePerformanceSuccess, 'elapsedMs' | 'ok' | 'requestedUrl'>>(
+          benchmarkExpression,
+        );
+        if (!result || typeof result.collectMs !== 'number') {
+          throw new Error('Real page benchmark did not return performance metrics');
+        }
 
-          return result;
-        }, timeoutMs, 500);
+        return result;
       },
       { readiness: 'interactive' },
     );
@@ -836,114 +828,73 @@ function escapeHtml(value: string): string {
 async function withBrowser<T>(
   {
     chromeArgs = [],
-    chromePath = process.env.CHROME_PATH ?? MAC_CHROME_PATH,
+    chromePath = process.env.CHROME_PATH,
     headless = process.env.YUEL_BROWSER_DOM_HEADLESS !== 'false',
     timeoutMs = DEFAULT_TIMEOUT_MS,
   }: BrowserDomSmokeOptions,
-  runSmoke: (context: { client: CdpClient; timeoutMs: number }) => Promise<T>,
+  runSmoke: (context: { browserContext: BrowserContext; timeoutMs: number }) => Promise<T>,
 ): Promise<T> {
-  const userDataDir = await mkdtemp(path.join(tmpdir(), 'yuel-browser-dom-'));
-  const chrome = launchChrome(chromePath, userDataDir, headless, chromeArgs);
-  const chromeLogs = collectProcessLogs(chrome);
+  const browser = await chromium.launch({
+    args: chromeArgs,
+    channel: chromePath ? undefined : 'chromium',
+    executablePath: chromePath,
+    headless,
+  });
 
   try {
-    const browserWsUrl = await waitForBrowserWebSocketUrl(userDataDir, timeoutMs);
-    const client = await CdpClient.connect(browserWsUrl);
+    const browserContext = await browser.newContext({ locale: 'en-US' });
 
     try {
-      return await runSmoke({ client, timeoutMs });
+      return await runSmoke({ browserContext, timeoutMs });
     } finally {
-      client.close();
+      await browserContext.close();
     }
-  } catch (error) {
-    const logs = chromeLogs();
-    if (!logs) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`${message}\nChrome output:\n${logs}`);
   } finally {
-    await stopChrome(chrome);
-    await rm(userDataDir, { force: true, recursive: true });
+    await browser.close();
   }
 }
 
-function launchChrome(
-  chromePath: string,
-  userDataDir: string,
-  headless: boolean,
-  extraArgs: string[],
-): ChildProcessWithoutNullStreams {
-  const args = [
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-background-networking',
-    '--disable-component-update',
-    '--disable-default-apps',
-    '--disable-sync',
-    '--disable-translate',
-    '--disable-gpu',
-    `--user-data-dir=${userDataDir}`,
-    '--remote-debugging-port=0',
-    ...extraArgs,
-    'about:blank',
-  ];
+async function withOpenPage<T>(
+  browserContext: BrowserContext,
+  url: string,
+  timeoutMs: number,
+  readPage: (page: Page) => Promise<T>,
+  { readiness = 'complete' }: { readiness?: 'complete' | 'interactive' } = {},
+): Promise<T> {
+  const page = await browserContext.newPage();
+  page.setDefaultTimeout(timeoutMs);
+  page.setDefaultNavigationTimeout(timeoutMs);
 
-  if (headless) {
-    args.unshift('--headless=new');
-  }
-
-  return spawn(chromePath, args);
-}
-
-function collectProcessLogs(chrome: ChildProcessWithoutNullStreams): () => string {
-  const chunks: string[] = [];
-  const append = (chunk: Buffer) => {
-    chunks.push(chunk.toString('utf8'));
-    while (chunks.join('').length > 8_000) {
-      chunks.shift();
+  try {
+    return await withTimeout(
+      (async () => {
+        await page.goto(url, {
+          timeout: timeoutMs,
+          waitUntil: readiness === 'complete' ? 'load' : 'domcontentloaded',
+        });
+        return readPage(page);
+      })(),
+      timeoutMs,
+      `Timed out after ${timeoutMs}ms while testing ${url}`,
+    );
+  } finally {
+    if (!page.isClosed()) {
+      await page.close();
     }
-  };
-
-  chrome.stdout.on('data', append);
-  chrome.stderr.on('data', append);
-
-  return () => chunks.join('').trim();
-}
-
-async function waitForBrowserWebSocketUrl(userDataDir: string, timeoutMs: number): Promise<string> {
-  const activePortPath = path.join(userDataDir, 'DevToolsActivePort');
-  const [port, browserPath] = await waitFor(async () => {
-    const content = await readFile(activePortPath, 'utf8');
-    const lines = content.trim().split('\n');
-    if (!lines[0] || !lines[1]) {
-      throw new Error('DevToolsActivePort is incomplete');
-    }
-
-    return lines;
-  }, timeoutMs);
-
-  return `ws://127.0.0.1:${port}${browserPath}`;
-}
-
-async function stopChrome(chrome: ChildProcessWithoutNullStreams): Promise<void> {
-  if (chrome.exitCode !== null || chrome.signalCode !== null) {
-    return;
   }
+}
 
-  await new Promise<void>((resolve) => {
-    const timeout = setTimeout(() => {
-      chrome.kill('SIGKILL');
-      resolve();
-    }, 2_000);
-
-    chrome.once('exit', () => {
-      clearTimeout(timeout);
-      resolve();
-    });
-    chrome.kill('SIGTERM');
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutResult = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), Math.max(1, timeoutMs));
   });
+
+  try {
+    return await Promise.race([operation, timeoutResult]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 async function listenOnLocalhost(server: Server): Promise<number> {
@@ -997,125 +948,4 @@ async function waitFor<T>(operation: () => Promise<T>, timeoutMs: number, interv
   }
 
   throw lastError instanceof Error ? lastError : new Error('Timed out waiting for browser DOM smoke condition');
-}
-
-class CdpClient {
-  private nextMessageId = 1;
-  private readonly pendingMessages = new Map<number, { reject: (error: Error) => void; resolve: (value: unknown) => void }>();
-
-  private constructor(private readonly socket: WebSocket) {
-    socket.addEventListener('message', (event) => {
-      const message = JSON.parse(String(event.data)) as {
-        id?: number;
-        error?: { message?: string };
-        result?: unknown;
-      };
-
-      if (!message.id) {
-        return;
-      }
-
-      const pending = this.pendingMessages.get(message.id);
-      if (!pending) {
-        return;
-      }
-
-      this.pendingMessages.delete(message.id);
-      if (message.error) {
-        pending.reject(new Error(message.error.message ?? 'Chrome DevTools Protocol error'));
-      } else {
-        pending.resolve(message.result);
-      }
-    });
-  }
-
-  static async connect(webSocketUrl: string): Promise<CdpClient> {
-    const socket = new WebSocket(webSocketUrl);
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener('open', () => resolve(), { once: true });
-      socket.addEventListener('error', () => reject(new Error('Failed to connect to Chrome DevTools Protocol')), { once: true });
-    });
-
-    return new CdpClient(socket);
-  }
-
-  async send<T>(method: string, params?: Record<string, unknown>, sessionId?: string): Promise<T> {
-    const id = this.nextMessageId;
-    this.nextMessageId += 1;
-
-    const response = new Promise<T>((resolve, reject) => {
-      this.pendingMessages.set(id, {
-        reject,
-        resolve: (value) => resolve(value as T),
-      });
-    });
-
-    this.socket.send(JSON.stringify({ id, method, params, sessionId }));
-    return response;
-  }
-
-  close(): void {
-    this.socket.close();
-  }
-
-  async withOpenPage<T>(
-    url: string,
-    timeoutMs: number,
-    readPage: (sessionId: string) => Promise<T>,
-    { readiness = 'complete' }: { readiness?: 'complete' | 'interactive' } = {},
-  ): Promise<T> {
-    const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
-    const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
-      flatten: true,
-      targetId,
-    });
-
-    try {
-      await this.waitForPageReady(sessionId, timeoutMs, readiness);
-      return await readPage(sessionId);
-    } finally {
-      await this.send('Target.closeTarget', { targetId });
-    }
-  }
-
-  async evaluate<T>(
-    expression: string,
-    sessionId: string,
-    { awaitPromise = false }: { awaitPromise?: boolean } = {},
-  ): Promise<T> {
-    const { result, exceptionDetails } = await this.send<{
-      result: { value: T };
-      exceptionDetails?: { text?: string; exception?: { description?: string } };
-    }>(
-      'Runtime.evaluate',
-      {
-        awaitPromise,
-        expression,
-        returnByValue: true,
-      },
-      sessionId,
-    );
-
-    if (exceptionDetails) {
-      throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text ?? 'Runtime evaluation failed');
-    }
-
-    return result.value;
-  }
-
-  private async waitForPageReady(
-    sessionId: string,
-    timeoutMs: number,
-    readiness: 'complete' | 'interactive',
-  ): Promise<void> {
-    await waitFor(async () => {
-      const state = await this.evaluate<{ hasBody: boolean; readyState: string }>(
-        '({ hasBody: Boolean(document.body), readyState: document.readyState })',
-        sessionId,
-      );
-      if (!state.hasBody || (readiness === 'complete' ? state.readyState !== 'complete' : state.readyState === 'loading')) {
-        throw new Error(`Page is not ready: ${state.readyState}`);
-      }
-    }, timeoutMs);
-  }
 }

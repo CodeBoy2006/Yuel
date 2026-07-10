@@ -37,7 +37,7 @@ describeRealPageCorpus('real page corpus performance', () => {
         expect(chromeDocsPage.blockCount).toBeGreaterThan(0);
       }
     },
-    240_000,
+    300_000,
   );
 });
 

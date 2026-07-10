@@ -11,11 +11,12 @@
     "entrypoints",
     "src",
     "smoke",
+    "tests",
     ".wxt/wxt.d.ts",
+    "playwright.config.ts",
     "wxt.config.ts",
     "vitest.config.ts",
     "vitest.smoke.config.ts",
-    "vitest.browser-smoke.config.ts",
     "vitest.browser-dom.config.ts",
     "vitest.large-text-stress.config.ts",
     "vitest.real-pages.config.ts"
