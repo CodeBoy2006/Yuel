@@ -1011,3 +1011,9 @@
 - **Status:** Completed
 - **Next Steps:** Re-run live corpus when expanding selector coverage to watch for false positives on non-English Latin-script pages.
 - **Context:** English articles inside pages declaring another language now collect normally; Chinese prose and localized technology keyword lists remain skipped by token, script-ratio, and English signal-word checks.
+
+## [2026-07-10 15:26] Unified Reading Interface Redesign
+- **Changes:** Established shared OKLCH design tokens and UI primitives, redesigned Popup/Side Panel/Dashboard into a quiet reading instrument, localized visible metrics and documents, added responsive/accessibility states, made Side Panel data live and race-safe, corrected Popup busy actions, and hardened calibration timing/session handling. Expanded entrypoint UI coverage for permissions, refresh races, loading/error/empty states, share disclosure, progress semantics, and calibration locking.
+- **Status:** Completed
+- **Next Steps:** Validate visual density during real reading sessions and tune only from observed usage; the implementation, package build, unit suite, browser DOM/stress checks, and loaded-extension smoke are passing.
+- **Context:** `DESIGN.md` is now the interface source of truth. The in-app browser declined the local extension preview under its URL security policy, so no alternate visual-control workaround was used; packaged Chrome smoke and deterministic DOM checks were used for final runtime verification.
