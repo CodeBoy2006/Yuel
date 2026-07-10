@@ -1203,3 +1203,9 @@
 - **Status:** Completed
 - **Next Steps:** Complete the final SidePanel/UI test fixture deduplication and rerun the full verification matrix.
 - **Context:** The schema loses 33 duplicate lines. A Chromium probe confirmed identical fresh-v5 tables/indexes and a v1-to-v5 upgrade with 11 tables, 27 indexes, and preserved legacy records; 72 storage tests, TypeScript checks, and the production build pass.
+
+## [2026-07-11 03:49] Entrypoint Test Fixture Consolidation
+- **Changes:** Reused typed site-access, enable-result, reading-pace, microtask-flush, and button-action fixtures across SidePanel and Dashboard behavior tests, retaining only each scenario's meaningful differences.
+- **Status:** Completed
+- **Next Steps:** Rerun the complete verification matrix, then perform a no-edit final repository audit.
+- **Context:** The entrypoint smoke file removes 267 net lines without changing production code. All 55 UI behavior tests, TypeScript checks, and whitespace validation pass; the UI audit found no further evidence-backed simplification above the completion threshold.

@@ -48,6 +48,12 @@ async function clickButton(button: HTMLButtonElement | undefined) {
   });
 }
 
+async function flushReactMicrotasks(rounds = 1) {
+  await act(async () => {
+    for (let index = 0; index < rounds; index += 1) await Promise.resolve();
+  });
+}
+
 async function revealTodayCard(container: HTMLElement) {
   const toggle = findButton(container, '查看今日卡片');
   expect(toggle?.getAttribute('aria-controls')).toBeNull();
@@ -115,6 +121,7 @@ type SuccessfulSiteEnable = Extract<
   Awaited<ReturnType<PopupAppDependencies['enableCurrentTabSite']>>,
   { supported: true }
 >;
+type ReadingPaceSummaryFixture = Awaited<ReturnType<DashboardAppDependencies['getReadingPaceSummary']>>;
 
 function createSupportedSiteAccess(
   overrides: Partial<SupportedSiteAccess> = {},
@@ -139,6 +146,18 @@ function createSuccessfulSiteEnable(
   return {
     ...createSupportedSiteAccess(accessOverrides),
     injected,
+  };
+}
+
+function createReadingPaceSummary(overrides: Partial<ReadingPaceSummaryFixture> = {}): ReadingPaceSummaryFixture {
+  return {
+    language: 'en',
+    contentType: 'general',
+    baseWordsPerMinute: 220,
+    sampleCount: 0,
+    source: 'default',
+    hasProfile: false,
+    ...overrides,
   };
 }
 
@@ -167,24 +186,16 @@ function createDashboardDependencies(
     exportSummaryCardPng: async () => undefined,
     getWebsiteFaviconUrl: () => undefined,
     getReadingDashboardDetails: async () => createDashboardDetails(),
-    getReadingPaceSummary: async () => ({
-      language: 'en',
-      contentType: 'general',
-      baseWordsPerMinute: 220,
-      sampleCount: 0,
-      source: 'default',
-      hasProfile: false,
-    }),
+    getReadingPaceSummary: async () => createReadingPaceSummary(),
     getShareCardSettings: async () => ({
       theme: 'forest',
       siteLimit: 3,
       showSiteIcons: true,
       showStreak: true,
     }),
-    saveOnboardingReadingPaceCalibration: async (input) => ({
+    saveOnboardingReadingPaceCalibration: async (input) => createReadingPaceSummary({
       language: input.language ?? 'en',
       contentType: input.contentType ?? 'general',
-      baseWordsPerMinute: 220,
       sampleCount: 1,
       source: 'onboarding',
       hasProfile: true,
@@ -216,15 +227,10 @@ function createSidePanelDependencies(
 ): SidePanelAppDependencies {
   return {
     getSidePanelReadingDetails: async () => createSidePanelDetails(),
-    getCurrentTabSiteAccess: async () => ({
-      supported: true,
-      tabId: 1,
+    getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
       url: 'https://docs.example.com/article',
       origin: 'https://docs.example.com/*',
       host: 'docs.example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
       collectorState: 'recording',
     }),
     getCurrentPageReadingSummary: async () => ({
@@ -236,17 +242,11 @@ function createSidePanelDependencies(
       effectiveMinutes: 0,
       hasData: false,
     }),
-    enableCurrentTabSite: async () => ({
-      supported: true,
-      tabId: 1,
+    enableCurrentTabSite: async () => createSuccessfulSiteEnable({
       url: 'https://docs.example.com/article',
       origin: 'https://docs.example.com/*',
       host: 'docs.example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
       collectorState: 'recording',
-      injected: true,
     }),
     subscribeToRefresh: () => () => undefined,
     openDashboard: async () => undefined,
@@ -408,38 +408,18 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('uses the live collector signal instead of permission alone for the side-panel status', async () => {
-    const recording = await renderSidePanelWithAccess({
-      supported: true,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
+    const recording = await renderSidePanelWithAccess(createSupportedSiteAccess({
       collectorState: 'recording',
-    });
-    const idle = await renderSidePanelWithAccess({
-      supported: true,
+    }));
+    const idle = await renderSidePanelWithAccess(createSupportedSiteAccess({
       tabId: 2,
       url: 'https://example.com/zh',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
       collectorState: 'idle',
-    });
-    const unconfirmed = await renderSidePanelWithAccess({
-      supported: true,
+    }));
+    const unconfirmed = await renderSidePanelWithAccess(createSupportedSiteAccess({
       tabId: 3,
       url: 'https://example.com/loading',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
-    });
+    }));
 
     expect(recording.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('记录中');
     expect(idle.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('未检测到英文');
@@ -625,9 +605,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(listEnabledSites).toHaveBeenCalledOnce();
     await clickButton(findButton(container, '启用当前网站'));
-    await act(async () => {
-      for (let index = 0; index < 4; index += 1) await Promise.resolve();
-    });
+    await flushReactMicrotasks(4);
 
     expect(listEnabledSites).toHaveBeenCalledTimes(2);
     await clickButton(container.querySelector<HTMLButtonElement>('.popup-sites__toggle') ?? undefined);
@@ -652,12 +630,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const sidePanelButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开侧栏');
-    expect(sidePanelButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      sidePanelButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickButton(findButton(container, '打开侧栏'));
 
     expect(openSidePanel).toHaveBeenCalledOnce();
   });
@@ -674,15 +647,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '查看仪表盘');
-    expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      dashboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '查看仪表盘'));
+    await flushReactMicrotasks();
 
     expect(openDashboard).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('仪表盘暂时不可用');
@@ -794,9 +760,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     await clickButton(findButton(container, '暂停记录'));
-    await act(async () => {
-      for (let index = 0; index < 4; index += 1) await Promise.resolve();
-    });
+    await flushReactMicrotasks(4);
 
     expect(listEnabledSites).toHaveBeenCalledTimes(2);
     expect(getCurrentTabSiteAccess).toHaveBeenCalledTimes(2);
@@ -823,15 +787,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '启用当前网站');
-    expect(enableButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      enableButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '启用当前网站'));
+    await flushReactMicrotasks();
 
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('权限未授予');
@@ -857,15 +814,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const enableButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '启用当前网站');
-    expect(enableButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      enableButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '启用当前网站'));
+    await flushReactMicrotasks();
 
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('已为后续页面启用');
@@ -926,17 +876,12 @@ describe('extension UI entrypoint smoke rendering', () => {
       manageButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const removeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '移除');
-    expect(removeButton).toBeInstanceOf(HTMLButtonElement);
+    const removeButton = findButton(container, '移除');
     removeButton?.focus();
     expect(document.activeElement).toBe(removeButton);
 
-    await act(async () => {
-      removeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(removeButton);
+    await flushReactMicrotasks();
 
     expect(disableEnabledSite).toHaveBeenCalledWith('https://developer.mozilla.org/*');
     expect(container.textContent).toContain('默认记录站点');
@@ -964,15 +909,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const pauseButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '暂停记录');
-    expect(pauseButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      pauseButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '暂停记录'));
+    await flushReactMicrotasks();
 
     expect(disableEnabledSite).toHaveBeenCalledWith('https://example.com/*');
     expect(listEnabledSites).toHaveBeenCalledOnce();
@@ -1166,14 +1104,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     >();
     const getReadingPaceSummary = vi
       .fn()
-      .mockResolvedValueOnce({
-        language: 'en',
-        contentType: 'general',
-        baseWordsPerMinute: 220,
-        sampleCount: 0,
-        source: 'default',
-        hasProfile: false,
-      })
+      .mockResolvedValueOnce(createReadingPaceSummary())
       .mockImplementationOnce(() => stalePaceRefresh.promise);
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
     const container = await renderForSmoke(
@@ -1185,21 +1116,13 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const startButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '开始校准');
-    expect(startButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      startButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickButton(findButton(container, '开始校准'));
     expect(container.textContent).toContain('我已读完');
     expect(container.querySelector('article.calibration-passage')?.getAttribute('lang')).toBe('en');
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-reading-title'));
 
     nowSpy.mockReturnValue(61_000);
-    const finishedButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '我已读完');
-    await act(async () => {
-      finishedButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickButton(findButton(container, '我已读完'));
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-questions-title'));
 
     for (const label of ['Duplicating visible paragraphs', 'When answers are solid', 'High confidence real-page samples']) {
@@ -1217,12 +1140,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(findButton(container, '取消')?.closest('[lang="en"]')).toBeNull();
     expect(findButton(container, '保存校准')?.closest('[lang="en"]')).toBeNull();
 
-    const saveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '保存校准');
-    expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+    const saveButton = findButton(container, '保存校准');
     nowSpy.mockReturnValue(181_000);
-    await act(async () => {
-      saveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickButton(saveButton);
 
     const pendingSaveButton = findButton(container, '保存中...');
     const cancelButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).filter(
@@ -1242,26 +1162,18 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(getReadingPaceSummary).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      saveResult.resolve({
-        language: 'en',
-        contentType: 'general',
+      saveResult.resolve(createReadingPaceSummary({
         baseWordsPerMinute: 233,
-        sampleCount: 0,
         source: 'onboarding',
         updatedAt: 61_000,
         hasProfile: true,
-      });
+      }));
       await saveResult.promise;
     });
     await act(async () => {
-      stalePaceRefresh.resolve({
-        language: 'en',
-        contentType: 'general',
+      stalePaceRefresh.resolve(createReadingPaceSummary({
         baseWordsPerMinute: 180,
-        sampleCount: 0,
-        source: 'default',
-        hasProfile: false,
-      });
+      }));
       await stalePaceRefresh.promise;
     });
 
@@ -1294,19 +1206,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       <DashboardApp
         dependencies={createDashboardDependencies({
           getReadingDashboardDetails: () => pendingDetails.promise,
-          getReadingPaceSummary: async () => ({
-            language: 'en',
-            contentType: 'general',
-            baseWordsPerMinute: 220,
-            sampleCount: 0,
-            source: 'default',
-            hasProfile: false,
-          }),
-          saveOnboardingReadingPaceCalibration: async () => ({
-            language: 'en',
-            contentType: 'general',
+          getReadingPaceSummary: async () => createReadingPaceSummary(),
+          saveOnboardingReadingPaceCalibration: async () => createReadingPaceSummary({
             baseWordsPerMinute: 230,
-            sampleCount: 0,
             source: 'onboarding',
             hasProfile: true,
           }),
@@ -1413,15 +1315,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     await revealTodayCard(container);
-    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '复制文案');
-    expect(copyButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      copyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '复制文案'));
+    await flushReactMicrotasks();
 
     expect(copyTextToClipboard).toHaveBeenCalledWith(expectedCopyText);
     expect(container.textContent).toContain('已复制');
@@ -1538,15 +1433,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.querySelector('.share-carousel__slide:not([aria-hidden="true"]) .share-card-preview')?.getAttribute('data-card-theme'))
       .toBe('berry');
 
-    const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '下载 PNG');
-    expect(downloadButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      downloadButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '下载 PNG'));
+    await flushReactMicrotasks();
 
     expect(exportSummaryCardPng).toHaveBeenCalledWith(expect.any(HTMLElement), 'yuel-reading-2026-06-27-berry.png');
     expect((exportSummaryCardPng.mock.calls[0]?.[0] as HTMLElement).dataset.cardTheme).toBe('berry');
@@ -1568,15 +1456,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
-    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '清空本地数据'));
+    await flushReactMicrotasks();
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
@@ -1601,27 +1482,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     await revealTodayCard(container);
-    const copyButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '复制文案');
-    expect(copyButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      copyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '复制文案'));
+    await flushReactMicrotasks();
 
     expect(container.textContent).toContain('已复制');
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
-    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '清空本地数据'));
+    await flushReactMicrotasks();
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(container.querySelectorAll('.dashboard-state--empty')).toHaveLength(1);
@@ -1648,15 +1515,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
-    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '清空本地数据'));
+    await flushReactMicrotasks();
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
@@ -1679,15 +1539,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
-    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '清空本地数据'));
+    await flushReactMicrotasks();
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
@@ -1709,15 +1562,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const clearButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '清空本地数据');
-    expect(clearButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      clearButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '清空本地数据'));
+    await flushReactMicrotasks();
 
     expect(clearLocalReadingData).not.toHaveBeenCalled();
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
@@ -1767,29 +1613,15 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('asks for a tab refresh when side panel enablement succeeds but current-page injection misses', async () => {
-    const enableCurrentTabSite = vi.fn(async () => ({
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
+    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
       injected: false,
     }));
     const container = await renderForSmoke(
       <SidePanelApp
         dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
           enableCurrentTabSite,
         })}
@@ -1811,16 +1643,11 @@ describe('extension UI entrypoint smoke rendering', () => {
     >();
     const getCurrentTabSiteAccess = vi
       .fn()
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         url: 'https://old.example/article',
         origin: 'https://old.example/*',
         host: 'old.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      })
+      }))
       .mockImplementationOnce(() => nextAccess.promise);
     const getCurrentPageReadingSummary = vi.fn(async (url: string) => (
       url.includes('new.example')
@@ -1873,16 +1700,12 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('正在读取当前页面');
 
     await act(async () => {
-      nextAccess.resolve({
-        supported: true,
+      nextAccess.resolve(createSupportedSiteAccess({
         tabId: 2,
         url: 'https://new.example/guide',
         origin: 'https://new.example/*',
         host: 'new.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      });
+      }));
       for (let index = 0; index < 5; index += 1) {
         await Promise.resolve();
       }
@@ -1903,37 +1726,24 @@ describe('extension UI entrypoint smoke rendering', () => {
     >();
     const getCurrentTabSiteAccess = vi
       .fn()
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         url: 'https://initial.example/article',
         origin: 'https://initial.example/*',
         host: 'initial.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      })
+      }))
       .mockImplementationOnce(() => staleAccess.promise)
-      .mockResolvedValueOnce({
-        supported: true as const,
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         tabId: 3,
         url: 'https://fresh.example/guide',
         origin: 'https://fresh.example/*',
         host: 'fresh.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      })
-      .mockResolvedValue({
-        supported: true as const,
+      }))
+      .mockResolvedValue(createSupportedSiteAccess({
         tabId: 3,
         url: 'https://fresh.example/guide',
         origin: 'https://fresh.example/*',
         host: 'fresh.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      });
+      }));
     const getCurrentPageReadingSummary = vi.fn((url: string) => {
       if (url.includes('stale.example')) return stalePage.promise;
       return Promise.resolve(
@@ -1975,16 +1785,12 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     await act(async () => {
       requestRefresh?.('tick');
-      staleAccess.resolve({
-        supported: true,
+      staleAccess.resolve(createSupportedSiteAccess({
         tabId: 2,
         url: 'https://stale.example/article',
         origin: 'https://stale.example/*',
         host: 'stale.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      });
+      }));
       for (let index = 0; index < 3; index += 1) {
         await Promise.resolve();
       }
@@ -2039,26 +1845,17 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockResolvedValueOnce(createSidePanelDetails(createDashboardDetails(1540, 'second.example').summary));
     const getCurrentTabSiteAccess = vi
       .fn()
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         url: 'https://first.example/article',
         origin: 'https://first.example/*',
         host: 'first.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      })
-      .mockResolvedValueOnce({
-        supported: true as const,
+      }))
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         tabId: 2,
         url: 'https://second.example/guide',
         origin: 'https://second.example/*',
         host: 'second.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      });
+      }));
     const getCurrentPageReadingSummary = vi.fn(async (url: string) => (
       url.includes('second.example')
         ? {
@@ -2121,15 +1918,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <SidePanelApp
         dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
           enableCurrentTabSite,
         })}
@@ -2149,18 +1940,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
 
     await act(async () => {
-      enableResult.resolve({
-        supported: true,
-        tabId: 1,
-        url: 'https://example.com/article',
-        origin: 'https://example.com/*',
-        host: 'example.com',
-        granted: true,
-        enabled: true,
-        starterSite: false,
+      enableResult.resolve(createSuccessfulSiteEnable({
         collectorState: 'recording',
-        injected: true,
-      });
+      }));
       await enableResult.promise;
     });
 
@@ -2177,32 +1959,16 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockImplementationOnce(() => staleDetails.promise)
       .mockResolvedValue(createSidePanelDetails(createDashboardDetails(320, 'fresh.example').summary));
-    const getCurrentTabSiteAccess = vi.fn(async () => ({
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
+    const getCurrentTabSiteAccess = vi.fn(async () => createSupportedSiteAccess({
       granted: false,
       enabled: false,
-      starterSite: false,
     }));
     const container = await renderForSmoke(
       <SidePanelApp
         dependencies={createSidePanelDependencies({
           getSidePanelReadingDetails,
           getCurrentTabSiteAccess,
-          enableCurrentTabSite: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-            injected: true,
-          }),
+          enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return vi.fn();
@@ -2232,16 +1998,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const delayedEnablePage = createDeferred<
       Awaited<ReturnType<SidePanelAppDependencies['getCurrentPageReadingSummary']>>
     >();
-    const currentAccess = {
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
+    const currentAccess = createSupportedSiteAccess({
       granted: false,
       enabled: false,
-      starterSite: false,
-    };
+    });
     const getCurrentPageReadingSummary = vi
       .fn()
       .mockResolvedValueOnce({
@@ -2271,11 +2031,9 @@ describe('extension UI entrypoint smoke rendering', () => {
           getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(420).summary),
           getCurrentTabSiteAccess: async () => currentAccess,
           getCurrentPageReadingSummary,
-          enableCurrentTabSite: async () => ({
-            ...currentAccess,
+          enableCurrentTabSite: async () => createSuccessfulSiteEnable({
             granted: true,
             enabled: true,
-            injected: true,
           }),
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
@@ -2318,26 +2076,19 @@ describe('extension UI entrypoint smoke rendering', () => {
     const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
     const getCurrentTabSiteAccess = vi
       .fn()
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         url: 'https://first.example/article',
         origin: 'https://first.example/*',
         host: 'first.example',
         granted: false,
         enabled: false,
-        starterSite: false,
-      })
-      .mockResolvedValueOnce({
-        supported: true as const,
+      }))
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         tabId: 2,
         url: 'https://second.example/guide',
         origin: 'https://second.example/*',
         host: 'second.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      });
+      }));
     const container = await renderForSmoke(
       <SidePanelApp
         dependencies={createSidePanelDependencies({
@@ -2359,17 +2110,11 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('second.example');
 
     await act(async () => {
-      enableResult.resolve({
-        supported: true,
-        tabId: 1,
+      enableResult.resolve(createSuccessfulSiteEnable({
         url: 'https://first.example/article',
         origin: 'https://first.example/*',
         host: 'first.example',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-        injected: true,
-      });
+      }));
       await enableResult.promise;
     });
 
@@ -2452,12 +2197,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开仪表盘');
-    expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      dashboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickButton(findButton(container, '打开仪表盘'));
 
     expect(openDashboard).toHaveBeenCalledOnce();
   });
@@ -2474,15 +2214,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       />,
     );
 
-    const dashboardButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '打开仪表盘');
-    expect(dashboardButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      dashboardButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await clickButton(findButton(container, '打开仪表盘'));
+    await flushReactMicrotasks();
 
     expect(openDashboard).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('仪表盘暂时不可用');
