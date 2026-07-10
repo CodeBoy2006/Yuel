@@ -1233,3 +1233,9 @@
 - **Status:** Completed
 - **Next Steps:** Resolve the independent audit of higher-level test wrappers, then rerun the complete verification matrix.
 - **Context:** The collector test removes 81 net lines without hiding visibility transitions or lifecycle actions. All 35 collector tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:28] Invalid Payload Assertion Consolidation
+- **Changes:** Replaced 61 identical construct-validate-expect-false wrappers with one typed `expectInvalidPayload` helper, while preserving valid, missing-payload, and raw-unknown paths explicitly.
+- **Status:** Completed
+- **Next Steps:** Commit the independently verified entrypoint render wrappers, then finish the remaining read-model and collector-fixture review.
+- **Context:** The message-contract test removes 240 net lines without changing any malformed inputs, validator calls, or expected results. All 48 contract tests, TypeScript checks, and whitespace validation pass.

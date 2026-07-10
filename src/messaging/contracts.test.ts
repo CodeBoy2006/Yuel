@@ -81,6 +81,10 @@ function createMessageWithPayload(overrides: ReadingEventBatchPayloadOverrides):
   };
 }
 
+function expectInvalidPayload(overrides: ReadingEventBatchPayloadOverrides): void {
+  expect(isReadingEventBatchMessage(createMessageWithPayload(overrides))).toBe(false);
+}
+
 type ReadingEventOverrides = Partial<
   Record<keyof ReadingEventBatchMessage['payload']['events'][number], unknown>
 >;
@@ -131,643 +135,471 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects reading event batches without events', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      events: [],
+    });
   });
 
   it('rejects batches containing malformed page, chunk, or event records', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            totalWords: '120',
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        totalWords: '120',
+      },
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], wordCount: Number.NaN }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], wordCount: Number.NaN }],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [createEvent({ kind: 'UnknownEvent' })],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      events: [createEvent({ kind: 'UnknownEvent' })],
+    });
   });
 
   it('rejects batches containing negative page, chunk, or event numeric fields', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            totalWords: -1,
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        totalWords: -1,
+      },
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: -1 }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: -1 }],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [createEvent({ occurredAt: -1 })],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      events: [createEvent({ occurredAt: -1 })],
+    });
   });
 
   it('rejects page total words that differ from the chunk word count total', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            totalWords: validMessage.payload.chunks[0].wordCount + 1,
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        totalWords: validMessage.payload.chunks[0].wordCount + 1,
+      },
+    });
   });
 
   it('rejects page domains that do not match the page id prefix', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            domain: 'other.example.com',
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        domain: 'other.example.com',
+      },
+    });
   });
 
   it('rejects non-English page snapshots before local English analysis', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            language: 'fr',
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        language: 'fr',
+      },
+    });
   });
 
   it('rejects chunks below the collector word threshold', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            totalWords: 7,
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        totalWords: 7,
+      },
+      chunks: [{ ...validMessage.payload.chunks[0], wordCount: 7 }],
+      events: [
+        createEvent({
+          value: {
+            dwellMs: 30_000,
+            visibleRatio: 1,
+            wordCount: 7,
+            activeTab: true,
+            scrollSpeedWordsPerMinute: 180,
+            idle: false,
           },
-          chunks: [{ ...validMessage.payload.chunks[0], wordCount: 7 }],
-          events: [
-            createEvent({
-              value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
-                wordCount: 7,
-                activeTab: true,
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
-              },
-            }),
-          ],
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects chunks without positive sentence counts', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 0 }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 0 }],
+    });
   });
 
   it('rejects chunk text that is blank or not trimmed', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], text: '   ' }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], text: '   ' }],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
+    });
   });
 
   it('rejects chunks without raw text needed for local vocabulary analysis', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], text: undefined }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], text: undefined }],
+    });
   });
 
   it('rejects chunk text whose hash does not match its text snapshot', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [
-            {
-              ...validMessage.payload.chunks[0],
-              text: 'Architecture performance guides keep local extension telemetry private.',
-            },
-          ],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [
+        {
+          ...validMessage.payload.chunks[0],
+          text: 'Architecture performance guides keep local extension telemetry private.',
+        },
+      ],
+    });
   });
 
   it('rejects chunk text whose chunk id does not match its text snapshot', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], chunkId: 'stale-chunk-id' }],
-          events: [createEvent({ chunkId: 'stale-chunk-id' })],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], chunkId: 'stale-chunk-id' }],
+      events: [createEvent({ chunkId: 'stale-chunk-id' })],
+    });
   });
 
   it('rejects chunk word counts that do not match the text snapshot analysis', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            totalWords: 9,
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        totalWords: 9,
+      },
+      chunks: [{ ...validMessage.payload.chunks[0], wordCount: 9 }],
+      events: [
+        createEvent({
+          value: {
+            dwellMs: 30_000,
+            visibleRatio: 1,
+            wordCount: 9,
+            activeTab: true,
+            scrollSpeedWordsPerMinute: 180,
+            idle: false,
           },
-          chunks: [{ ...validMessage.payload.chunks[0], wordCount: 9 }],
-          events: [
-            createEvent({
-              value: {
-                dwellMs: 30_000,
-                visibleRatio: 1,
-                wordCount: 9,
-                activeTab: true,
-                scrollSpeedWordsPerMinute: 180,
-                idle: false,
-              },
-            }),
-          ],
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects chunk sentence counts that do not match the text snapshot analysis', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 2 }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 2 }],
+    });
   });
 
   it('rejects viewport exposure ticks without positive tick duration', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                tickMs: undefined,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            tickMs: undefined,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                tickMs: 0,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            tickMs: 0,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects viewport exposure ticks without collector-shaped reading metadata', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                baseWordsPerMinute: undefined,
-                activeTab: true,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            baseWordsPerMinute: undefined,
+            activeTab: true,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                activeTab: 'yes',
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            activeTab: 'yes',
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                scrollSpeedWordsPerMinute: -1,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            scrollSpeedWordsPerMinute: -1,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects viewport exposure ticks below the collector visibility threshold', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects visibility events without bounded visible ratios', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockVisible',
-              value: {
-                wordCount: 6,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockVisible',
+          value: {
+            wordCount: 6,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockHidden',
-              value: {
-                visibleRatio: 1.2,
-                wordCount: 6,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockHidden',
+          value: {
+            visibleRatio: 1.2,
+            wordCount: 6,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                dwellMs: 30_000,
-                visibleRatio: -0.1,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            dwellMs: 30_000,
+            visibleRatio: -0.1,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects visibility events without positive word counts', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockVisible',
-              value: {
-                visibleRatio: 0.5,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockVisible',
+          value: {
+            visibleRatio: 0.5,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockHidden',
-              value: {
-                visibleRatio: 0,
-                wordCount: 0,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockHidden',
+          value: {
+            visibleRatio: 0,
+            wordCount: 0,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects visible block events below the collector visibility threshold', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockVisible',
-              value: {
-                visibleRatio: 0.14,
-                wordCount: validMessage.payload.chunks[0].wordCount,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockVisible',
+          value: {
+            visibleRatio: 0.14,
+            wordCount: validMessage.payload.chunks[0].wordCount,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects hidden block events at or above the collector visibility threshold', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'TextBlockHidden',
-              value: {
-                visibleRatio: 0.15,
-                wordCount: validMessage.payload.chunks[0].wordCount,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'TextBlockHidden',
+          value: {
+            visibleRatio: 0.15,
+            wordCount: validMessage.payload.chunks[0].wordCount,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects viewport visible chunk entries whose word counts differ from the linked chunk', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects selection telemetry without positive hashed metadata', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'TextSelected',
-              value: {
-                characterCount: 12,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'TextSelected',
+          value: {
+            characterCount: 12,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'TextSelected',
-              value: {
-                textHash: 'selection-hash',
-                characterCount: 0,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'TextSelected',
+          value: {
+            textHash: 'selection-hash',
+            characterCount: 0,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects raw text in selection telemetry', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'TextSelected',
-              value: {
-                text: 'private selected text',
-                textHash: 'selection-hash',
-                characterCount: 21,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'TextSelected',
+          value: {
+            text: 'private selected text',
+            textHash: 'selection-hash',
+            characterCount: 21,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects scroll velocity events without valid movement metadata', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'ScrollVelocityChanged',
-              value: {
-                scrollDeltaPx: 12,
-                scrollSpeedWordsPerMinute: 240,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'ScrollVelocityChanged',
+          value: {
+            scrollDeltaPx: 12,
+            scrollSpeedWordsPerMinute: 240,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'ScrollVelocityChanged',
-              value: {
-                scrollDeltaPx: 0.5,
-                elapsedMs: 100,
-                scrollSpeedWordsPerMinute: 240,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'ScrollVelocityChanged',
+          value: {
+            scrollDeltaPx: 0.5,
+            elapsedMs: 100,
+            scrollSpeedWordsPerMinute: 240,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'ScrollVelocityChanged',
-              value: {
-                scrollDeltaPx: 12,
-                elapsedMs: 99,
-                scrollSpeedWordsPerMinute: -1,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'ScrollVelocityChanged',
+          value: {
+            scrollDeltaPx: 12,
+            elapsedMs: 99,
+            scrollSpeedWordsPerMinute: -1,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects activity events without nonnegative idle duration metadata', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'UserIdle',
-              value: {},
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'UserIdle',
+          value: {},
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'UserActive',
-              value: {
-                idleMs: -1,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'UserActive',
+          value: {
+            idleMs: -1,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects page lifecycle events with unexpected payloads', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'PageVisible',
-              value: {
-                visible: true,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'PageVisible',
+          value: {
+            visible: true,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              chunkId: undefined,
-              kind: 'PageHidden',
-              value: {
-                reason: 'visibilitychange',
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          chunkId: undefined,
+          kind: 'PageHidden',
+          value: {
+            reason: 'visibilitychange',
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it.each(['LookupTriggered', 'ChunkSaved', 'PageExcluded'])(
@@ -788,263 +620,191 @@ describe('isReadingEventBatchMessage', () => {
   );
 
   it('rejects page-level events linked to chunks', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              kind: 'PageVisible',
-              value: undefined,
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          kind: 'PageVisible',
+          value: undefined,
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects blank required page, chunk, and event strings', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            domain: '   ',
-          },
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        domain: '   ',
+      },
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], selector: '' }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], selector: '' }],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [createEvent({ id: '   ' })],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      events: [createEvent({ id: '   ' })],
+    });
   });
 
   it('rejects required strings with surrounding whitespace before they become local keys', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          page: {
-            ...validMessage.payload.page,
-            pageId: ' page-1 ',
-          },
-          chunks: [
-            {
-              ...validMessage.payload.chunks[0],
-              chunkId: ' chunk-1 ',
-              pageId: ' page-1 ',
-            },
-          ],
-          events: [
-            createEvent({
-              pageId: ' page-1 ',
-              chunkId: ' chunk-1 ',
-            }),
-          ],
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        pageId: ' page-1 ',
+      },
+      chunks: [
+        {
+          ...validMessage.payload.chunks[0],
+          chunkId: ' chunk-1 ',
+          pageId: ' page-1 ',
+        },
+      ],
+      events: [
+        createEvent({
+          pageId: ' page-1 ',
+          chunkId: ' chunk-1 ',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects chunks linked to a different page', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [{ ...validMessage.payload.chunks[0], pageId: 'page-2' }],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [{ ...validMessage.payload.chunks[0], pageId: 'page-2' }],
+    });
   });
 
   it('rejects duplicate chunk IDs in a batch', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          chunks: [
-            validMessage.payload.chunks[0],
-            {
-              ...validMessage.payload.chunks[0],
-              textHash: 'chunk-text-copy',
-              text: 'A duplicate chunk identity would make local aggregate writes ambiguous.',
-            },
-          ],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      chunks: [
+        validMessage.payload.chunks[0],
+        {
+          ...validMessage.payload.chunks[0],
+          textHash: 'chunk-text-copy',
+          text: 'A duplicate chunk identity would make local aggregate writes ambiguous.',
+        },
+      ],
+    });
   });
 
   it('rejects duplicate event IDs in a batch', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            validMessage.payload.events[0],
-            createEvent({
-              chunkId: undefined,
-              kind: 'PageVisible',
-              value: undefined,
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        validMessage.payload.events[0],
+        createEvent({
+          chunkId: undefined,
+          kind: 'PageVisible',
+          value: undefined,
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects event IDs whose kind prefix does not match the event kind', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              id: 'PageVisible_event-1',
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          id: 'PageVisible_event-1',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects event IDs without a unique suffix after the kind prefix', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              id: 'TextViewportExposureTick_',
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          id: 'TextViewportExposureTick_',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects session IDs that do not match the collector session shape', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              sessionId: 'manual-session-1',
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          sessionId: 'manual-session-1',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
 
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              sessionId: 'session_',
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          sessionId: 'session_',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects batches whose events move backward in time', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            validMessage.payload.events[0],
-            createEvent({
-              id: 'TextViewportExposureTick_event-2',
-              occurredAt: validMessage.payload.events[0].occurredAt - 1,
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        validMessage.payload.events[0],
+        createEvent({
+          id: 'TextViewportExposureTick_event-2',
+          occurredAt: validMessage.payload.events[0].occurredAt - 1,
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects events that occurred before the page snapshot was captured', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              occurredAt: validMessage.payload.page.capturedAt - 1,
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          occurredAt: validMessage.payload.page.capturedAt - 1,
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects batches that mix reading session IDs', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            validMessage.payload.events[0],
-            createEvent({
-              id: 'TextViewportExposureTick_event-2',
-              sessionId: 'session_2',
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        validMessage.payload.events[0],
+        createEvent({
+          id: 'TextViewportExposureTick_event-2',
+          sessionId: 'session_2',
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects events linked to a different page', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [createEvent({ pageId: 'page-2' })],
-        }),
-      ),
-    ).toBe(false);
+    expectInvalidPayload({
+      events: [createEvent({ pageId: 'page-2' })],
+    });
   });
 
   it('rejects chunk-scoped reading events without chunk links', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              id: 'TextBlockVisible_event-1',
-              kind: 'TextBlockVisible',
-              chunkId: undefined,
-              value: {
-                visibleRatio: 1,
-                wordCount: validMessage.payload.chunks[0].wordCount,
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          id: 'TextBlockVisible_event-1',
+          kind: 'TextBlockVisible',
+          chunkId: undefined,
+          value: {
+            visibleRatio: 1,
+            wordCount: validMessage.payload.chunks[0].wordCount,
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 
   it('rejects events linked to an unknown chunk', () => {
-    expect(
-      isReadingEventBatchMessage(
-        createMessageWithPayload({
-          events: [
-            createEvent({
-              value: {
-                ...validViewportTickValue,
-                visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
-              },
-            }),
-          ],
+    expectInvalidPayload({
+      events: [
+        createEvent({
+          value: {
+            ...validViewportTickValue,
+            visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
+          },
         }),
-      ),
-    ).toBe(false);
+      ],
+    });
   });
 });
