@@ -107,6 +107,56 @@ function createTodayReadingSummary(overrides: Partial<TodaySummary> = {}): Today
   };
 }
 
+type SupportedSiteAccess = Extract<
+  Awaited<ReturnType<PopupAppDependencies['getCurrentTabSiteAccess']>>,
+  { supported: true }
+>;
+type SuccessfulSiteEnable = Extract<
+  Awaited<ReturnType<PopupAppDependencies['enableCurrentTabSite']>>,
+  { supported: true }
+>;
+
+function createSupportedSiteAccess(
+  overrides: Partial<SupportedSiteAccess> = {},
+): SupportedSiteAccess {
+  return {
+    supported: true,
+    tabId: 1,
+    url: 'https://example.com/article',
+    origin: 'https://example.com/*',
+    host: 'example.com',
+    granted: true,
+    enabled: true,
+    starterSite: false,
+    ...overrides,
+  };
+}
+
+function createSuccessfulSiteEnable(
+  overrides: Partial<SuccessfulSiteEnable> = {},
+): SuccessfulSiteEnable {
+  const { injected = true, ...accessOverrides } = overrides;
+  return {
+    ...createSupportedSiteAccess(accessOverrides),
+    injected,
+  };
+}
+
+function createPopupDependencies(
+  overrides: Partial<PopupAppDependencies> = {},
+): PopupAppDependencies {
+  return {
+    getTodayReadingSummary: async () => createTodayReadingSummary(),
+    getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
+    listEnabledSites: async () => [],
+    enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
+    disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
+    openDashboard: async () => undefined,
+    openSidePanel: async () => undefined,
+    ...overrides,
+  };
+}
+
 function createDashboardDependencies(
   overrides: Partial<DashboardAppDependencies> = {},
 ): DashboardAppDependencies {
@@ -304,7 +354,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders the popup as a current-site control center first', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
+        dependencies={createPopupDependencies({
           getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
@@ -315,22 +365,9 @@ describe('extension UI entrypoint smoke rendering', () => {
             learningWords: 9,
             hasData: true,
           }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
           listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -467,7 +504,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders popup metrics and current-site controls from injected local services', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
+        dependencies={createPopupDependencies({
           getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
@@ -478,22 +515,9 @@ describe('extension UI entrypoint smoke rendering', () => {
             learningWords: 9,
             hasData: true,
           }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
           listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -507,7 +531,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('shows zero popup reading time when only non-time local data exists', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
+        dependencies={createPopupDependencies({
           getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 0,
@@ -518,22 +542,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             learningWords: 5,
             hasData: true,
           }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
-          listEnabledSites: async () => [],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -544,26 +553,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('shows unavailable popup metrics when local reading stats fail to load', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
+        dependencies={createPopupDependencies({
           getTodayReadingSummary: async () => {
             throw new Error('stats unavailable');
           },
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
-          listEnabledSites: async () => [],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -577,17 +571,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('keeps the popup permission detail consistent when current-site access fails', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails().summary,
+        dependencies={createPopupDependencies({
           getCurrentTabSiteAccess: async () => {
             throw new Error('site access unavailable');
           },
-          listEnabledSites: async () => [],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -599,33 +587,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('does not show popup enabled-sites empty state while persisted sites are loading', async () => {
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
+        dependencies={createPopupDependencies({
           listEnabledSites: () => new Promise(() => undefined),
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -641,34 +605,21 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockResolvedValueOnce([{ origin: 'https://fresh.example/*', host: 'fresh.example' }]);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails().summary,
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             url: 'https://current.example/article',
             origin: 'https://current.example/*',
             host: 'current.example',
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
           listEnabledSites,
-          enableCurrentTabSite: async () => ({
-            supported: true,
-            tabId: 1,
+          enableCurrentTabSite: async () => createSuccessfulSiteEnable({
             url: 'https://current.example/article',
             origin: 'https://current.example/*',
             host: 'current.example',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-            injected: true,
           }),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -695,33 +646,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     const openSidePanel = vi.fn(async () => undefined);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
-          listEnabledSites: async () => [],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
+        dependencies={createPopupDependencies({
           openSidePanel,
-        }}
+        })}
       />,
     );
 
@@ -741,33 +668,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
-          }),
-          listEnabledSites: async () => [],
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
+        dependencies={createPopupDependencies({
           openDashboard,
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -790,33 +693,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     const enableCurrentTabSite = vi.fn(() => enableResult.promise);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 0,
-            hasData: false,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
-          listEnabledSites: async () => [],
           enableCurrentTabSite,
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -834,18 +717,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(enableCurrentTabSite).toHaveBeenCalledOnce();
 
     await act(async () => {
-      enableResult.resolve({
-        supported: true,
-        tabId: 1,
-        url: 'https://example.com/article',
-        origin: 'https://example.com/*',
-        host: 'example.com',
-        granted: true,
-        enabled: true,
-        starterSite: false,
+      enableResult.resolve(createSuccessfulSiteEnable({
         collectorState: 'recording',
-        injected: true,
-      });
+      }));
       await enableResult.promise;
     });
 
@@ -858,49 +732,21 @@ describe('extension UI entrypoint smoke rendering', () => {
     const disableEnabledSite = vi.fn(() => disableResult.promise);
     const getCurrentTabSiteAccess = vi
       .fn()
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
-        url: 'https://example.com/article',
-        origin: 'https://example.com/*',
-        host: 'example.com',
-        granted: true,
-        enabled: true,
-        starterSite: false,
-      })
-      .mockResolvedValueOnce({
-        supported: true as const,
-        tabId: 1,
-        url: 'https://example.com/article',
-        origin: 'https://example.com/*',
-        host: 'example.com',
+      .mockResolvedValueOnce(createSupportedSiteAccess())
+      .mockResolvedValueOnce(createSupportedSiteAccess({
         granted: false,
         enabled: false,
-        starterSite: false,
-      });
+      }));
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
+        dependencies={createPopupDependencies({
           getCurrentTabSiteAccess,
           listEnabledSites: vi
             .fn()
             .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }])
             .mockResolvedValueOnce([]),
-          enableCurrentTabSite: vi.fn(),
           disableEnabledSite,
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -932,30 +778,18 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('shows an origin that another context re-enables after a popup pause completes', async () => {
-    const currentAccess = {
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
+    const currentAccess = createSupportedSiteAccess({
       collectorState: 'recording' as const,
-    };
+    });
     const listEnabledSites = vi.fn(async () => [{ origin: currentAccess.origin, host: currentAccess.host }]);
     const getCurrentTabSiteAccess = vi.fn(async () => currentAccess);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails(320).summary,
+        dependencies={createPopupDependencies({
           getCurrentTabSiteAccess,
           listEnabledSites,
-          enableCurrentTabSite: vi.fn(),
           disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -972,46 +806,20 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('shows when current-site permission is denied from the popup', async () => {
-    const enableCurrentTabSite = vi.fn(async () => ({
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
+    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
       granted: false,
       enabled: false,
-      starterSite: false,
       injected: false,
     }));
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
-          listEnabledSites: async () => [],
           enableCurrentTabSite,
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -1030,49 +838,22 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('tells the user to reload when enabling succeeds but current-tab injection fails', async () => {
-    const enableCurrentTabSite = vi.fn(async () => ({
-      supported: true as const,
-      tabId: 1,
-      url: 'https://example.com/article',
-      origin: 'https://example.com/*',
-      host: 'example.com',
-      granted: true,
-      enabled: true,
-      starterSite: false,
+    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
       injected: false,
     }));
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             granted: false,
             enabled: false,
-            starterSite: false,
           }),
           listEnabledSites: vi
             .fn()
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }]),
           enableCurrentTabSite,
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -1095,33 +876,16 @@ describe('extension UI entrypoint smoke rendering', () => {
     const enableCurrentTabSite = vi.fn();
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 0,
-            hasData: false,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             url: 'https://developer.mozilla.org/en-US/docs/Web/API',
             origin: 'https://developer.mozilla.org/*',
             host: 'developer.mozilla.org',
             granted: false,
-            enabled: true,
             starterSite: true,
           }),
-          listEnabledSites: async () => [],
           enableCurrentTabSite,
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -1142,33 +906,16 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockResolvedValueOnce([]);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 0,
-            hasData: false,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             url: 'https://developer.mozilla.org/en-US/docs/Web/API',
             origin: 'https://developer.mozilla.org/*',
             host: 'developer.mozilla.org',
-            granted: true,
-            enabled: true,
             starterSite: true,
           }),
           listEnabledSites,
-          enableCurrentTabSite: vi.fn(),
           disableEnabledSite,
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -1207,34 +954,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     const listEnabledSites = vi.fn(async () => [{ origin: 'https://example.com/*', host: 'example.com' }]);
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             collectorState: 'recording',
           }),
           listEnabledSites,
-          enableCurrentTabSite: vi.fn(),
           disableEnabledSite,
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -1261,34 +987,12 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
     const container = await renderForSmoke(
       <PopupApp
-        dependencies={{
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => ({
-            supported: true,
-            tabId: 1,
-            url: 'https://example.com/article',
-            origin: 'https://example.com/*',
-            host: 'example.com',
-            granted: true,
-            enabled: true,
-            starterSite: false,
+        dependencies={createPopupDependencies({
+          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
             collectorState: 'recording',
           }),
           listEnabledSites,
-          enableCurrentTabSite: vi.fn(),
-          disableEnabledSite: vi.fn(),
-          openDashboard: vi.fn(),
-          openSidePanel: vi.fn(),
-        }}
+        })}
       />,
     );
 

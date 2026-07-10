@@ -1185,3 +1185,9 @@
 - **Status:** Completed
 - **Next Steps:** Simplify the remaining repeated Popup test dependency setup, then perform the full verification and repository re-audit.
 - **Context:** One shared implementation replaces two identical local helpers for a 13-line net reduction. All 51 related metrics, aggregation, and repository tests plus TypeScript checks pass.
+
+## [2026-07-11 03:22] Popup Test Dependency Simplification
+- **Changes:** Replaced 18 repeated Popup dependency objects with one typed default factory and compact supported-site/enable-result builders, keeping each test focused on its behavioral variation.
+- **Status:** Completed
+- **Next Steps:** Run the complete verification matrix and commission a final evidence-based repository simplification audit.
+- **Context:** The UI smoke suite loses 296 net lines and all repeated no-op Popup mocks. All 55 entrypoint behavior tests and TypeScript checks pass.
