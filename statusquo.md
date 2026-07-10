@@ -1269,3 +1269,9 @@
 - **Status:** Completed
 - **Next Steps:** Run the final unit/type verification and no-edit stop audit, then push the completed refactor series.
 - **Context:** The message-contract test removes 132 net lines. All 48 contract tests, TypeScript checks, and whitespace validation pass; the final nested-wrapper scan found no remaining fixture family above the simplification threshold.
+
+## [2026-07-11 04:49] Behavior-Preserving Repository Simplification Complete
+- **Changes:** Completed 27 small refactor commits across domain, storage, collector, UI dependency contracts, read models, and test fixtures without changing the persisted event contract or user-facing flows.
+- **Status:** Completed
+- **Next Steps:** None; future changes should preserve the verified narrow contracts and add complexity only for demonstrated behavior.
+- **Context:** Across 31 files, production code removes 391 net lines and tests remove 1,828 net lines, excluding this append-only ledger. All 351 unit tests, normal and strict TypeScript checks, production build, static extension smoke, Chromium DOM and large-text suites, both packaged-extension Playwright gates, real-page corpus, and the Dexie v1-to-v5 upgrade probe pass. Architecture, duplication, and independent final audits all report STOP; existing transparent-export work remains unstaged.
