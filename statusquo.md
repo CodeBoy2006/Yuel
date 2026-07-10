@@ -1029,3 +1029,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Functional action and status icons remain semantic Lucide icons; all brand and application identity surfaces now use the supplied logo artwork. The canonical SVG is byte-for-byte identical to the source file.
+
+## [2026-07-10 19:02] Brand Icon Safe-Area Crop
+- **Changes:** Tightened the canonical SVG from a `1254×1254` canvas to a centered `900×900` viewBox and regenerated every manifest PNG size so the brand mark reads larger across the interface, favicon, toolbar, and extension management surfaces.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Logo path geometry and color are unchanged. The revised framing keeps approximately 5.5% vertical and 9.2% horizontal safe space while increasing visible artwork coverage to roughly 89% high and 81% wide.
