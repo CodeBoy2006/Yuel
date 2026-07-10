@@ -130,7 +130,7 @@ async function withLoadedExtension<T>(
   {
     chromeArgs = [],
     chromePath = process.env.CHROME_PATH ?? MAC_CHROME_PATH,
-    headless = process.env.YUEL_BROWSER_SMOKE_HEADLESS === 'true',
+    headless = process.env.YUEL_BROWSER_SMOKE_HEADLESS !== 'false',
     timeoutMs = DEFAULT_TIMEOUT_MS,
   }: BrowserLoadedSmokeOptions,
   runSmoke: (context: { client: CdpClient; extensionId: string; timeoutMs: number }) => Promise<T>,

@@ -26,6 +26,7 @@ pnpm dev
 ```
 
 The production extension output is generated at `.output/chrome-mv3/`.
+`pnpm dev` keeps the WXT watcher running without automatically opening Chrome; load `.output/chrome-mv3-dev/` manually when interactive browser testing is needed.
 
 ## Local Extension Flow
 
@@ -83,7 +84,7 @@ The browser DOM smoke suite also runs a source-module collector fixture with a `
 
 `test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
 
-`test:extension-browser-smoke` builds the same output, loads it into a temporary Google Chrome profile through Chrome DevTools Protocol, verifies the popup, side panel, and dashboard pages render, records a sample reading batch through the extension runtime, and serves a local HTTPS starter-site page to prove the packaged content script can auto-capture reading data. Set `CHROME_PATH` if Chrome is installed outside `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; the starter-site check also needs `openssl` for a temporary self-signed certificate.
+`test:extension-browser-smoke` builds the same output, loads it into a temporary Google Chrome profile through Chrome DevTools Protocol, verifies the popup, side panel, and dashboard pages render, records a sample reading batch through the extension runtime, and serves a local HTTPS starter-site page to prove the packaged content script can auto-capture reading data. It runs headlessly by default; set `YUEL_BROWSER_SMOKE_HEADLESS=false` to watch the run. Set `CHROME_PATH` if Chrome is installed outside `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; the starter-site check also needs `openssl` for a temporary self-signed certificate. Chrome/CDP suites must run outside process sandboxes that block browser startup or localhost debugging ports.
 
 ## Architecture
 

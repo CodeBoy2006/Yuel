@@ -1041,3 +1041,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Icons are resolved through Chrome's local `/_favicon/` extension service, so opening reading history does not directly request icon files from recorded websites.
+
+## [2026-07-10 19:51] Headless Chrome Automation
+- **Changes:** Disabled WXT's automatic development-browser launch, made the packaged-extension Chrome smoke suite headless by default, and documented manual dev loading, visible-run opt-in, and process-sandbox requirements.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Chrome 150 and both CDP harnesses are healthy. Sandboxed launch reproduced a missing `DevToolsActivePort`, while the same DOM and packaged-extension suites passed outside the process sandbox; set `YUEL_BROWSER_SMOKE_HEADLESS=false` only when a visible run is intentional.

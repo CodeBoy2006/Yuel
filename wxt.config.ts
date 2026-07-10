@@ -3,6 +3,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   manifestVersion: 3,
   modules: ['@wxt-dev/module-react'],
+  webExt: {
+    disabled: true,
+  },
   manifest: {
     name: 'Yuel Reading',
     short_name: 'Yuel',
