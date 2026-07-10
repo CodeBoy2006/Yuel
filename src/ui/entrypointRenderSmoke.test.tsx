@@ -83,6 +83,45 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
   };
 }
 
+function createDashboardDependencies(
+  overrides: Partial<DashboardAppDependencies> = {},
+): DashboardAppDependencies {
+  return {
+    clearLocalReadingData: async () => undefined,
+    confirmClearLocalReadingData: () => true,
+    copyTextToClipboard: async () => undefined,
+    exportSummaryCardPng: async () => undefined,
+    getWebsiteFaviconUrl: () => undefined,
+    getReadingDashboardDetails: async () => createDashboardDetails(),
+    getReadingPaceSummary: async () => ({
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 220,
+      sampleCount: 0,
+      source: 'default',
+      hasProfile: false,
+    }),
+    getShareCardSettings: async () => ({
+      theme: 'forest',
+      siteLimit: 3,
+      showSiteIcons: true,
+      showStreak: true,
+    }),
+    saveOnboardingReadingPaceCalibration: async (input) => ({
+      language: input.language ?? 'en',
+      contentType: input.contentType ?? 'general',
+      baseWordsPerMinute: 220,
+      sampleCount: 1,
+      source: 'onboarding',
+      hasProfile: true,
+      calibrationAccepted: true,
+    }),
+    saveDailyCheckInThresholdWords: async (thresholdWords) => thresholdWords,
+    saveShareCardSettings: async (settings) => ({ ...settings }),
+    ...overrides,
+  };
+}
+
 type SidePanelDetails = Awaited<ReturnType<SidePanelAppDependencies['getSidePanelReadingDetails']>>;
 type SidePanelSummary = SidePanelDetails['summary'];
 
@@ -173,11 +212,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockResolvedValueOnce(createDashboardDetails(960, 'visible.example'));
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
-        }}
+        })}
       />,
     );
 
@@ -224,11 +261,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockRejectedValueOnce(new Error('resume refresh failed'));
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
-        }}
+        })}
       />,
     );
 
@@ -375,9 +410,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders the dashboard as a progress instrument panel with the danger action demoted', async () => {
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails: async () => ({
             summary: {
               date: '2026-06-27',
@@ -396,7 +429,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             recentSavedItems: [],
             hasData: true,
           }),
-        }}
+        })}
       />,
     );
 
@@ -1276,9 +1309,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails: async () => ({
             summary: {
               date: '2026-06-27',
@@ -1326,7 +1357,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             ],
             hasData: true,
           }),
-        }}
+        })}
       />,
     );
 
@@ -1378,12 +1409,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           saveDailyCheckInThresholdWords,
-        }}
+        })}
       />,
     );
 
@@ -1431,13 +1460,13 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('saves dashboard onboarding reading pace calibration', async () => {
     const saveResult = createDeferred<
-      Awaited<ReturnType<NonNullable<DashboardAppDependencies['saveOnboardingReadingPaceCalibration']>>>
+      Awaited<ReturnType<DashboardAppDependencies['saveOnboardingReadingPaceCalibration']>>
     >();
-    const saveOnboardingReadingPaceCalibration = vi.fn<NonNullable<DashboardAppDependencies['saveOnboardingReadingPaceCalibration']>>(
+    const saveOnboardingReadingPaceCalibration = vi.fn<DashboardAppDependencies['saveOnboardingReadingPaceCalibration']>(
       () => saveResult.promise,
     );
     const stalePaceRefresh = createDeferred<
-      Awaited<ReturnType<NonNullable<DashboardAppDependencies['getReadingPaceSummary']>>>
+      Awaited<ReturnType<DashboardAppDependencies['getReadingPaceSummary']>>
     >();
     const getReadingPaceSummary = vi
       .fn()
@@ -1453,30 +1482,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingPaceSummary,
           saveOnboardingReadingPaceCalibration,
-          getReadingDashboardDetails: async () => ({
-            summary: {
-              date: '2026-06-27',
-              effectiveWords: 0,
-              minutes: 0,
-              advancedWords: 0,
-              expressions: 0,
-              streak: 0,
-              topDomains: [],
-              readPages: 0,
-              learningWords: 0,
-              hasData: false,
-            },
-            recentPages: [],
-            recentVocabulary: [],
-            recentSavedItems: [],
-            hasData: false,
-          }),
-        }}
+        })}
       />,
     );
 
@@ -1587,9 +1596,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const pendingDetails = createDeferred<ReturnType<typeof createDashboardDetails>>();
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails: () => pendingDetails.promise,
           getReadingPaceSummary: async () => ({
             language: 'en',
@@ -1607,7 +1614,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             source: 'onboarding',
             hasProfile: true,
           }),
-        }}
+        })}
       />,
     );
 
@@ -1653,11 +1660,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
-        }}
+        })}
       />,
     );
 
@@ -1678,11 +1683,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('does not show dashboard empty states while local reading details are loading', async () => {
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails: () => new Promise(() => undefined),
-        }}
+        })}
       />,
     );
 
@@ -1707,9 +1710,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       + '今日网站：developer.mozilla.org';
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           copyTextToClipboard,
           getReadingDashboardDetails: async () => ({
             summary: {
@@ -1729,7 +1730,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             recentSavedItems: [],
             hasData: true,
           }),
-        }}
+        })}
       />,
     );
 
@@ -1750,14 +1751,12 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('lets the user tune the compact website list and keeps copied content in sync', async () => {
     const copyTextToClipboard = vi.fn(async () => undefined);
-    const saveShareCardSettings = vi.fn<NonNullable<DashboardAppDependencies['saveShareCardSettings']>>(
+    const saveShareCardSettings = vi.fn<DashboardAppDependencies['saveShareCardSettings']>(
       async (settings) => settings,
     );
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           copyTextToClipboard,
           getReadingDashboardDetails: async () => ({
             summary: {
@@ -1784,7 +1783,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             showStreak: true,
           }),
           saveShareCardSettings,
-        }}
+        })}
       />,
     );
 
@@ -1830,34 +1829,15 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('switches the static card carousel and exports the selected style as a PNG', async () => {
-    const exportSummaryCardPng = vi.fn<NonNullable<DashboardAppDependencies['exportSummaryCardPng']>>(
+    const exportSummaryCardPng = vi.fn<DashboardAppDependencies['exportSummaryCardPng']>(
       async () => undefined,
     );
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
-          clearLocalReadingData: vi.fn(),
-          confirmClearLocalReadingData: () => true,
+        dependencies={createDashboardDependencies({
           exportSummaryCardPng,
-          getReadingDashboardDetails: async () => ({
-            summary: {
-              date: '2026-06-27',
-              effectiveWords: 960,
-              minutes: 11,
-              advancedWords: 0,
-              expressions: 0,
-              streak: 0,
-              topDomains: ['developer.mozilla.org'],
-              readPages: 2,
-              learningWords: 5,
-              hasData: true,
-            },
-            recentPages: [],
-            recentVocabulary: [],
-            recentSavedItems: [],
-            hasData: true,
-          }),
-        }}
+          getReadingDashboardDetails: async () => createDashboardDetails(960, 'developer.mozilla.org'),
+        })}
       />,
     );
 
@@ -1900,49 +1880,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
       .fn()
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 960,
-          minutes: 11,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: ['developer.mozilla.org'],
-          readPages: 2,
-          learningWords: 5,
-          hasData: true,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: true,
-      })
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 0,
-          minutes: 0,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: [],
-          readPages: 0,
-          learningWords: 0,
-          hasData: false,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: false,
-      });
+      .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
+      .mockResolvedValueOnce(createDashboardDetails());
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           clearLocalReadingData,
-          confirmClearLocalReadingData: () => true,
-        }}
+        })}
       />,
     );
 
@@ -1966,50 +1911,15 @@ describe('extension UI entrypoint smoke rendering', () => {
     const copyTextToClipboard = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
       .fn()
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 960,
-          minutes: 11,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: ['developer.mozilla.org'],
-          readPages: 2,
-          learningWords: 5,
-          hasData: true,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: true,
-      })
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 0,
-          minutes: 0,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: [],
-          readPages: 0,
-          learningWords: 0,
-          hasData: false,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: false,
-      });
+      .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
+      .mockResolvedValueOnce(createDashboardDetails());
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           clearLocalReadingData,
-          confirmClearLocalReadingData: () => true,
           copyTextToClipboard,
-        }}
+        })}
       />,
     );
 
@@ -2051,31 +1961,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     const clearLocalReadingData = vi.fn(async () => {
       throw new Error('clear failed');
     });
-    const getReadingDashboardDetails = vi.fn(async () => ({
-      summary: {
-        date: '2026-06-27',
-        effectiveWords: 960,
-        minutes: 11,
-        advancedWords: 0,
-        expressions: 0,
-        streak: 0,
-        topDomains: ['developer.mozilla.org'],
-        readPages: 2,
-        learningWords: 5,
-        hasData: true,
-      },
-      recentPages: [],
-      recentVocabulary: [],
-      recentSavedItems: [],
-      hasData: true,
-    }));
+    const getReadingDashboardDetails = vi.fn(async () => createDashboardDetails(960, 'developer.mozilla.org'));
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           clearLocalReadingData,
-          confirmClearLocalReadingData: () => true,
-        }}
+        })}
       />,
     );
 
@@ -2099,32 +1991,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
       .fn()
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 960,
-          minutes: 11,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: ['developer.mozilla.org'],
-          readPages: 2,
-          learningWords: 5,
-          hasData: true,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: true,
-      })
+      .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
       .mockRejectedValueOnce(new Error('refresh failed'));
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           clearLocalReadingData,
-          confirmClearLocalReadingData: () => true,
-        }}
+        })}
       />,
     );
 
@@ -2147,31 +2021,14 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('does not clear local dashboard data when confirmation is declined', async () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
-    const getReadingDashboardDetails = vi.fn(async () => ({
-      summary: {
-        date: '2026-06-27',
-        effectiveWords: 960,
-        minutes: 11,
-        advancedWords: 0,
-        expressions: 0,
-        streak: 0,
-        topDomains: ['developer.mozilla.org'],
-        readPages: 2,
-        learningWords: 5,
-        hasData: true,
-      },
-      recentPages: [],
-      recentVocabulary: [],
-      recentSavedItems: [],
-      hasData: true,
-    }));
+    const getReadingDashboardDetails = vi.fn(async () => createDashboardDetails(960, 'developer.mozilla.org'));
     const container = await renderForSmoke(
       <DashboardApp
-        dependencies={{
+        dependencies={createDashboardDependencies({
           getReadingDashboardDetails,
           clearLocalReadingData,
           confirmClearLocalReadingData: () => false,
-        }}
+        })}
       />,
     );
 

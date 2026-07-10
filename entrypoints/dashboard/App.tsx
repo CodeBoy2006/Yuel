@@ -26,7 +26,6 @@ import {
   MIN_DAILY_CHECK_IN_THRESHOLD_WORDS,
   isValidDailyCheckInThresholdWords,
 } from '../../src/domain/checkIn';
-import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
 import { saveDailyCheckInThresholdWords } from '../../src/storage/checkInSettings';
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
@@ -78,14 +77,14 @@ export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
   clearLocalReadingData: typeof clearLocalReadingData;
   confirmClearLocalReadingData: () => boolean;
-  copyTextToClipboard?: (text: string) => Promise<void>;
-  exportSummaryCardPng?: (element: HTMLElement, filename: string) => Promise<unknown>;
-  getWebsiteFaviconUrl?: (domain: string) => string | undefined;
-  getReadingPaceSummary?: typeof getReadingPaceSummary;
-  getShareCardSettings?: typeof getShareCardSettings;
-  saveOnboardingReadingPaceCalibration?: typeof saveOnboardingReadingPaceCalibration;
-  saveDailyCheckInThresholdWords?: typeof saveDailyCheckInThresholdWords;
-  saveShareCardSettings?: typeof saveShareCardSettings;
+  copyTextToClipboard: (text: string) => Promise<void>;
+  exportSummaryCardPng: (element: HTMLElement, filename: string) => Promise<unknown>;
+  getWebsiteFaviconUrl: (domain: string) => string | undefined;
+  getReadingPaceSummary: typeof getReadingPaceSummary;
+  getShareCardSettings: typeof getShareCardSettings;
+  saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
+  saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
+  saveShareCardSettings: typeof saveShareCardSettings;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -141,11 +140,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareCardSettingsTouchedRef = useRef(false);
   const resumeRefreshScheduledRef = useRef(false);
   const clearBusyRef = useRef(false);
-  const loadPaceSummary = dependencies.getReadingPaceSummary ?? getFallbackReadingPaceSummary;
-  const savePaceCalibration = dependencies.saveOnboardingReadingPaceCalibration ?? saveOnboardingReadingPaceCalibration;
-  const saveCheckInGoal = dependencies.saveDailyCheckInThresholdWords ?? saveDailyCheckInThresholdWords;
-  const loadShareCardSettings = dependencies.getShareCardSettings ?? getShareCardSettings;
-  const persistShareCardSettings = dependencies.saveShareCardSettings ?? saveShareCardSettings;
 
   const refreshDashboard = useCallback(async (): Promise<{ detailsLoaded: boolean; paceLoaded: boolean }> => {
     const detailsRequestId = ++detailsRefreshSequenceRef.current;
@@ -168,7 +162,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           if (!isCurrentDetailsRequest()) return;
           setLoadFailed(true);
         }),
-      loadPaceSummary()
+      dependencies.getReadingPaceSummary()
         .then((nextPaceSummary) => {
           paceLoaded = true;
           if (!isCurrentPaceRequest()) return;
@@ -183,7 +177,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     ]);
 
     return { detailsLoaded, paceLoaded };
-  }, [dependencies, loadPaceSummary]);
+  }, [dependencies]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -220,7 +214,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     const requestId = ++shareCardSettingsSequenceRef.current;
     setShareCardSettingsStatus('loading');
 
-    void loadShareCardSettings()
+    void dependencies.getShareCardSettings()
       .then((settings) => {
         if (
           !mountedRef.current
@@ -235,7 +229,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         if (!mountedRef.current || requestId !== shareCardSettingsSequenceRef.current) return;
         setShareCardSettingsStatus('failed');
       });
-  }, [loadShareCardSettings]);
+  }, [dependencies.getShareCardSettings]);
 
   useEffect(() => {
     if (!shareCardOpen || !details?.hasData || window.location.hash !== '#share-card') return;
@@ -301,8 +295,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     : paceLoadFailed
       ? '阅读速度不可用'
       : '正在读取阅读速度';
-  const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
-  const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
   const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
   const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
   const todayDomain = shareCardContent?.domains[0] ?? '暂无今日网站';
@@ -364,7 +356,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
     setCheckInGoalSaveStatus('saving');
     try {
-      await saveCheckInGoal(nextThresholdWords);
+      await dependencies.saveDailyCheckInThresholdWords(nextThresholdWords);
       if (!mountedRef.current) return;
 
       await refreshDashboard();
@@ -436,7 +428,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setCopyStatus('copying');
 
     try {
-      await copyCardText(createShareCardCopyText(shareCardContent, shareCardSettings));
+      await dependencies.copyTextToClipboard(createShareCardCopyText(shareCardContent, shareCardSettings));
       if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setCopyStatus('copied');
     } catch (error) {
@@ -457,7 +449,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setDownloadStatus('downloading');
 
     try {
-      await exportCardPng(
+      await dependencies.exportSummaryCardPng(
         shareCardRef.current,
         `yuel-reading-${details.summary.date}-${selectedShareCardTheme}.png`,
       );
@@ -486,7 +478,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
     const requestId = ++shareCardSettingsSequenceRef.current;
     void Promise.resolve()
-      .then(() => persistShareCardSettings(nextSettings))
+      .then(() => dependencies.saveShareCardSettings(nextSettings))
       .then((savedSettings) => {
         if (!mountedRef.current || requestId !== shareCardSettingsSequenceRef.current) return;
         setShareCardSettings(savedSettings);
@@ -551,7 +543,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setCalibrationSaveStatus('saving');
 
     try {
-      const nextPaceSummary = await savePaceCalibration({
+      const nextPaceSummary = await dependencies.saveOnboardingReadingPaceCalibration({
         language: 'en',
         contentType: 'general',
         wordCount: PACE_CALIBRATION_WORD_COUNT,
@@ -720,7 +712,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                       content={shareCardContent}
                       disabled={shareActionBusy}
                       onThemeChange={selectShareCardTheme}
-                      resolveFaviconUrl={dependencies.getWebsiteFaviconUrl ?? getWebsiteFaviconUrl}
+                      resolveFaviconUrl={dependencies.getWebsiteFaviconUrl}
                       selectedTheme={selectedShareCardTheme}
                       settings={shareCardSettings}
                     />
@@ -1007,7 +999,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                         <RecentPageCard
                           key={page.pageId}
                           page={page}
-                          resolveFaviconUrl={dependencies.getWebsiteFaviconUrl ?? getWebsiteFaviconUrl}
+                          resolveFaviconUrl={dependencies.getWebsiteFaviconUrl}
                         />
                       ))
                     : <EmptyState>还没有阅读记录。</EmptyState>}
@@ -1199,17 +1191,6 @@ function scrollToSection(root: HTMLElement | null, id: string) {
   const focusTarget = target.querySelector<HTMLElement>('[tabindex="-1"]')
     ?? target.querySelector<HTMLElement>('h1, h2, h3');
   focusTarget?.focus({ preventScroll: true });
-}
-
-async function getFallbackReadingPaceSummary(): Promise<ReadingPaceSummary> {
-  return {
-    language: 'en',
-    contentType: 'general',
-    baseWordsPerMinute: DEFAULT_BASE_WORDS_PER_MINUTE,
-    sampleCount: 0,
-    source: 'default',
-    hasProfile: false,
-  };
 }
 
 function formatPaceSource(summary: ReadingPaceSummary): string {

@@ -1155,3 +1155,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue removing independently proven dormant model fields.
 - **Context:** The domain union now describes only implemented events, and the protocol tests validate the actual unknown-input boundary without typed future payload fixtures. All 48 contract tests and TypeScript checks pass; the change removes 91 net lines.
+
+## [2026-07-11 02:55] Dashboard Dependency Contract Simplification
+- **Changes:** Made all Dashboard services required, removed production-inaccessible fallback implementations and aliases, and replaced sparse inline test dependencies with one typed, side-effect-free factory.
+- **Status:** Completed
+- **Next Steps:** Tighten the reading-summary field contract and remove remaining dormant counters.
+- **Context:** Dashboard production and test code drop 162 net lines without changing refresh, clear, calibration, or share-action generation guards. All 55 UI smoke tests, TypeScript checks, and the production build pass; the dashboard chunk decreased from 50.45 kB at baseline to 50.05 kB.
