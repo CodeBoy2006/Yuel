@@ -61,7 +61,7 @@ Pages that were opened but have no measured effective reading words can exist in
 
 ## Daily Check-in Goal
 
-The daily check-in goal defaults to 500 effective words and can be changed in the dashboard reading profile to any whole-word value from 1 to 100,000. A day counts toward the streak only when its effective-word total reaches the active goal. Saving a new goal recalculates historical streaks against that goal, while the setting itself remains local and is preserved when reading data is cleared. The share card stays unavailable until the current day has reached the goal.
+The daily check-in goal defaults to 500 effective words and can be changed in the dashboard reading profile to any whole-word value from 1 to 100,000. A day counts toward the streak only when its effective-word total reaches the active goal. Saving a new goal recalculates historical streaks against that goal, while the setting itself remains local and is preserved when reading data is cleared. The share card stays unavailable until the current day has reached the goal, then lets the user choose a theme, show one to three reading domains, and toggle source icons or the streak; these card preferences are stored locally.
 
 ## Reading Pace Calibration
 

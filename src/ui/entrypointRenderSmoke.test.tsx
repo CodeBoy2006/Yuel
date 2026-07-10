@@ -1653,6 +1653,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const expectedCopyText =
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 960 Words\n'
+      + '连续打卡：4 天\n'
       + '阅读时间：11 分钟\n'
       + '页面：2 页\n'
       + '学习中词汇：5 个\n'
@@ -1670,7 +1671,7 @@ describe('extension UI entrypoint smoke rendering', () => {
               minutes: 11,
               advancedWords: 0,
               expressions: 0,
-              streak: 0,
+              streak: 4,
               topDomains: ['developer.mozilla.org'],
               readPages: 2,
               learningWords: 5,
@@ -1698,6 +1699,87 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(copyTextToClipboard).toHaveBeenCalledWith(expectedCopyText);
     expect(container.textContent).toContain('已复制');
+  });
+
+  it('lets the user tune the compact website list and keeps copied content in sync', async () => {
+    const copyTextToClipboard = vi.fn(async () => undefined);
+    const saveShareCardSettings = vi.fn<NonNullable<DashboardAppDependencies['saveShareCardSettings']>>(
+      async (settings) => settings,
+    );
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          copyTextToClipboard,
+          getReadingDashboardDetails: async () => ({
+            summary: {
+              date: '2026-06-27',
+              effectiveWords: 960,
+              minutes: 11,
+              advancedWords: 0,
+              expressions: 0,
+              streak: 12,
+              topDomains: ['developer.mozilla.org', 'web.dev', 'react.dev'],
+              readPages: 4,
+              learningWords: 5,
+              hasData: true,
+            },
+            recentPages: [],
+            recentVocabulary: [],
+            recentSavedItems: [],
+            hasData: true,
+          }),
+          getShareCardSettings: async () => ({
+            theme: 'forest',
+            siteLimit: 3,
+            showSiteIcons: true,
+            showStreak: true,
+          }),
+          saveShareCardSettings,
+        }}
+      />,
+    );
+
+    await revealTodayCard(container);
+    const activeCard = () => container.querySelector<HTMLElement>(
+      '.share-carousel__slide:not([aria-hidden="true"]) .share-card-preview',
+    );
+    expect(activeCard()?.querySelectorAll('.share-card-preview__sites li')).toHaveLength(3);
+    expect(activeCard()?.querySelectorAll('.share-card-preview__site-icon')).toHaveLength(3);
+    expect(activeCard()?.querySelector('[aria-label="连续打卡 12 天"]')).not.toBeNull();
+
+    await act(async () => {
+      container.querySelector<HTMLInputElement>('input[name="share-card-site-limit"][value="2"]')?.click();
+    });
+    expect(activeCard()?.querySelectorAll('.share-card-preview__sites li')).toHaveLength(2);
+
+    const iconToggle = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+      .find((input) => input.closest('label')?.textContent?.includes('网站图标'));
+    const streakToggle = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+      .find((input) => input.closest('label')?.textContent?.includes('连续天数'));
+    await act(async () => iconToggle?.click());
+    await act(async () => streakToggle?.click());
+
+    expect(activeCard()?.querySelector('.share-card-preview__site-icon')).toBeNull();
+    expect(activeCard()?.querySelector('.share-card-preview__site-list--plain')).not.toBeNull();
+    expect(activeCard()?.querySelector('[aria-label^="连续打卡"]')).toBeNull();
+    expect(saveShareCardSettings).toHaveBeenLastCalledWith({
+      theme: 'forest',
+      siteLimit: 2,
+      showSiteIcons: false,
+      showStreak: false,
+    });
+
+    await clickButton(findButton(container, '复制文案'));
+    expect(copyTextToClipboard).toHaveBeenCalledWith(
+      '阅量 · 今日英文阅读 · 2026-06-27\n'
+      + '今天计入 960 Words\n'
+      + '阅读时间：11 分钟\n'
+      + '页面：4 页\n'
+      + '学习中词汇：5 个\n'
+      + '今日网站：developer.mozilla.org、web.dev',
+    );
   });
 
   it('switches the static card carousel and exports the selected style as a PNG', async () => {

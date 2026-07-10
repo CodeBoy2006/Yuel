@@ -1095,3 +1095,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** All data remains local. TypeScript, 344 unit/UI tests, the production build, the design detector, and diff checks pass; live screenshots were unavailable because the in-app browser blocks local development URLs and local files.
+
+## [2026-07-10 22:44] Customizable Check-in Share Card
+- **Changes:** Added continuous check-in days to the share card, replaced the single-domain footer with a compact one-to-three-site list, added optional Chrome-local favicons, and introduced locally persisted controls for theme, source count, icons, and streak visibility. Kept copied text aligned with the selected visible content and updated card, storage, UI, and accessibility coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** All four themes were visually verified at desktop and 390px widths; the 240px card retained 12px bottom clearance without vertical clipping. The interface detector reported no findings, all 344 unit/UI tests and TypeScript checks passed, and the production extension build succeeded.

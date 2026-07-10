@@ -42,6 +42,13 @@ import {
   type RecentVocabularySummary,
 } from '../../src/storage/readingStats';
 import {
+  DEFAULT_SHARE_CARD_SETTINGS,
+  SHARE_CARD_SITE_LIMITS,
+  getShareCardSettings,
+  saveShareCardSettings,
+  type ShareCardSettings,
+} from '../../src/storage/shareCardSettings';
+import {
   formatCount,
   formatDateTime,
   formatMinutes,
@@ -58,10 +65,9 @@ import {
   StatusPill,
 } from '../../src/ui/primitives';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
-import { createShareCardContent } from '../../src/ui/shareCardContent';
+import { createShareCardContent, createShareCardCopyText } from '../../src/ui/shareCardContent';
 import { getWebsiteFaviconUrl, SiteFavicon } from '../../src/ui/siteFavicon';
 import {
-  DEFAULT_SHARE_CARD_THEME,
   getShareCardTheme,
   ShareCardCarousel,
   type ShareCardThemeId,
@@ -76,8 +82,10 @@ export interface DashboardAppDependencies {
   exportSummaryCardPng?: (element: HTMLElement, filename: string) => Promise<unknown>;
   getWebsiteFaviconUrl?: (domain: string) => string | undefined;
   getReadingPaceSummary?: typeof getReadingPaceSummary;
+  getShareCardSettings?: typeof getShareCardSettings;
   saveOnboardingReadingPaceCalibration?: typeof saveOnboardingReadingPaceCalibration;
   saveDailyCheckInThresholdWords?: typeof saveDailyCheckInThresholdWords;
+  saveShareCardSettings?: typeof saveShareCardSettings;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -89,8 +97,10 @@ const defaultDependencies: DashboardAppDependencies = {
   getWebsiteFaviconUrl,
   getReadingDashboardDetails,
   getReadingPaceSummary,
+  getShareCardSettings,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
+  saveShareCardSettings,
 };
 
 type DashboardViewState = 'loading' | 'error' | 'empty' | 'ready';
@@ -107,7 +117,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded' | 'failed'>('idle');
   const [shareCardOpen, setShareCardOpen] = useState(() => window.location.hash === '#share-card');
-  const [selectedShareCardTheme, setSelectedShareCardTheme] = useState<ShareCardThemeId>(DEFAULT_SHARE_CARD_THEME);
+  const [shareCardSettings, setShareCardSettings] = useState<ShareCardSettings>(DEFAULT_SHARE_CARD_SETTINGS);
+  const [shareCardSettingsStatus, setShareCardSettingsStatus] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'failed'>('loading');
   const [calibrationStep, setCalibrationStep] = useState<CalibrationStep>('idle');
   const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
@@ -126,11 +137,15 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const paceRefreshSequenceRef = useRef(0);
   const shareActionSequenceRef = useRef(0);
   const shareActionBusyRef = useRef(false);
+  const shareCardSettingsSequenceRef = useRef(0);
+  const shareCardSettingsTouchedRef = useRef(false);
   const resumeRefreshScheduledRef = useRef(false);
   const clearBusyRef = useRef(false);
   const loadPaceSummary = dependencies.getReadingPaceSummary ?? getFallbackReadingPaceSummary;
   const savePaceCalibration = dependencies.saveOnboardingReadingPaceCalibration ?? saveOnboardingReadingPaceCalibration;
   const saveCheckInGoal = dependencies.saveDailyCheckInThresholdWords ?? saveDailyCheckInThresholdWords;
+  const loadShareCardSettings = dependencies.getShareCardSettings ?? getShareCardSettings;
+  const persistShareCardSettings = dependencies.saveShareCardSettings ?? saveShareCardSettings;
 
   const refreshDashboard = useCallback(async (): Promise<{ detailsLoaded: boolean; paceLoaded: boolean }> => {
     const detailsRequestId = ++detailsRefreshSequenceRef.current;
@@ -194,11 +209,33 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       paceRefreshSequenceRef.current += 1;
       shareActionSequenceRef.current += 1;
       shareActionBusyRef.current = false;
+      shareCardSettingsSequenceRef.current += 1;
       calibrationSessionRef.current += 1;
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [refreshDashboard]);
+
+  useEffect(() => {
+    const requestId = ++shareCardSettingsSequenceRef.current;
+    setShareCardSettingsStatus('loading');
+
+    void loadShareCardSettings()
+      .then((settings) => {
+        if (
+          !mountedRef.current
+          || requestId !== shareCardSettingsSequenceRef.current
+          || shareCardSettingsTouchedRef.current
+        ) return;
+        setShareCardSettings(settings);
+        setShareCardSettingsStatus('saved');
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel share card settings', error);
+        if (!mountedRef.current || requestId !== shareCardSettingsSequenceRef.current) return;
+        setShareCardSettingsStatus('failed');
+      });
+  }, [loadShareCardSettings]);
 
   useEffect(() => {
     if (!shareCardOpen || !details?.hasData || window.location.hash !== '#share-card') return;
@@ -270,6 +307,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
   const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
+  const selectedShareCardTheme = shareCardSettings.theme;
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
   const insightHistory = details?.history?.length
     ? details.history
@@ -398,7 +436,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setCopyStatus('copying');
 
     try {
-      await copyCardText(shareCardContent.copyText);
+      await copyCardText(createShareCardCopyText(shareCardContent, shareCardSettings));
       if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setCopyStatus('copied');
     } catch (error) {
@@ -436,12 +474,34 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     }
   };
 
-  const selectShareCardTheme = (theme: ShareCardThemeId) => {
-    if (shareActionBusyRef.current || theme === selectedShareCardTheme) return;
+  const applyShareCardSettings = (nextSettings: ShareCardSettings) => {
+    if (shareActionBusyRef.current) return;
+
+    shareCardSettingsTouchedRef.current = true;
     shareActionSequenceRef.current += 1;
     setCopyStatus('idle');
     setDownloadStatus('idle');
-    setSelectedShareCardTheme(theme);
+    setShareCardSettings(nextSettings);
+    setShareCardSettingsStatus('saving');
+
+    const requestId = ++shareCardSettingsSequenceRef.current;
+    void Promise.resolve()
+      .then(() => persistShareCardSettings(nextSettings))
+      .then((savedSettings) => {
+        if (!mountedRef.current || requestId !== shareCardSettingsSequenceRef.current) return;
+        setShareCardSettings(savedSettings);
+        setShareCardSettingsStatus('saved');
+      })
+      .catch((error) => {
+        console.error('Failed to save Yuel share card settings', error);
+        if (!mountedRef.current || requestId !== shareCardSettingsSequenceRef.current) return;
+        setShareCardSettingsStatus('failed');
+      });
+  };
+
+  const selectShareCardTheme = (theme: ShareCardThemeId) => {
+    if (shareActionBusyRef.current || theme === selectedShareCardTheme) return;
+    applyShareCardSettings({ ...shareCardSettings, theme });
   };
 
   const startPaceCalibration = () => {
@@ -653,7 +713,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                       content={shareCardContent}
                       disabled={shareActionBusy}
                       onThemeChange={selectShareCardTheme}
+                      resolveFaviconUrl={dependencies.getWebsiteFaviconUrl ?? getWebsiteFaviconUrl}
                       selectedTheme={selectedShareCardTheme}
+                      settings={shareCardSettings}
                     />
                   ) : null}
                   <aside className="share-section__actions" aria-label="打卡卡片操作">
@@ -662,6 +724,60 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                       <h3>{selectedShareCardStyle.name}</h3>
                       <p aria-live="polite">导出会使用当前选择的卡片，轮播不会自动播放。</p>
                     </div>
+                    <fieldset className="share-content-settings" disabled={shareActionBusy}>
+                      <legend>卡片内容</legend>
+                      <p
+                        className={`share-content-settings__status${shareCardSettingsStatus === 'failed' ? ' is-failed' : ''}`}
+                        aria-live="polite"
+                      >
+                        {formatShareCardSettingsStatus(shareCardSettingsStatus)}
+                      </p>
+                      <div className="share-content-settings__limit">
+                        <span>网站数量</span>
+                        <div className="share-site-limit" aria-label="卡片显示的网站数量">
+                          {SHARE_CARD_SITE_LIMITS.map((limit) => (
+                            <label key={limit}>
+                              <input
+                                type="radio"
+                                name="share-card-site-limit"
+                                value={limit}
+                                checked={shareCardSettings.siteLimit === limit}
+                                onChange={() => applyShareCardSettings({ ...shareCardSettings, siteLimit: limit })}
+                              />
+                              <span>{limit}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <label className="share-content-toggle">
+                        <span>
+                          <strong>网站图标</strong>
+                          <small>快速识别阅读来源</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={shareCardSettings.showSiteIcons}
+                          onChange={(event) => applyShareCardSettings({
+                            ...shareCardSettings,
+                            showSiteIcons: event.target.checked,
+                          })}
+                        />
+                      </label>
+                      <label className="share-content-toggle">
+                        <span>
+                          <strong>连续天数</strong>
+                          <small>显示本次连续打卡</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={shareCardSettings.showStreak}
+                          onChange={(event) => applyShareCardSettings({
+                            ...shareCardSettings,
+                            showStreak: event.target.checked,
+                          })}
+                        />
+                      </label>
+                    </fieldset>
                     <ActionButton
                       icon={Clipboard}
                       disabled={shareActionBusy}
@@ -1095,6 +1211,16 @@ function formatPaceSource(summary: ReadingPaceSummary): string {
     return summary.updatedAt ? `${formatDateTime(summary.updatedAt)} 完成校准` : '已完成初始校准';
   }
   return `${summary.sampleCount} 个可靠样本正在缓慢调整速度`;
+}
+
+function formatShareCardSettingsStatus(
+  status: 'idle' | 'loading' | 'saving' | 'saved' | 'failed',
+): string {
+  if (status === 'loading') return '正在读取偏好';
+  if (status === 'saving') return '正在自动保存';
+  if (status === 'failed') return '设置仅对本次有效';
+  if (status === 'saved') return '已自动保存到本地';
+  return '调整会自动保存';
 }
 
 function formatSavedItemType(type: RecentSavedItemSummary['type']): string {

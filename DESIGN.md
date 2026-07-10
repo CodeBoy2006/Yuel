@@ -68,7 +68,7 @@ Current-page progress is the visual anchor. Daily totals, vocabulary, and the la
 
 ### Dashboard
 
-The page is organized as a reading ledger: today summary, goal-based check-in progress, a 13-week reading-rhythm view, recent reading, vocabulary, excerpts, and reading profile. The rhythm view combines a goal-relative activity heatmap with effective-word trends, weekday averages, and first-read/review composition without turning the page into a scoreboard. The reading profile owns the editable daily effective-word goal, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached, calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
+The page is organized as a reading ledger: today summary, goal-based check-in progress, a 13-week reading-rhythm view, recent reading, vocabulary, excerpts, and reading profile. The rhythm view combines a goal-relative activity heatmap with effective-word trends, weekday averages, and first-read/review composition without turning the page into a scoreboard. The reading profile owns the editable daily effective-word goal, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached; it keeps the streak quiet, presents up to three domains as a compact source list, and locally remembers the user's theme, source-count, favicon, and streak-display choices. Calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
 
 ## Accessibility baseline
 

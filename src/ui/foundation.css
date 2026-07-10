@@ -331,6 +331,12 @@ summary:focus-visible {
   line-height: 1.25;
 }
 
+.yuel-section-heading [tabindex="-1"]:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--y-focus);
+  outline-offset: 3px;
+}
+
 .yuel-section-heading__meta {
   flex: 0 0 auto;
   color: var(--y-ink-muted);

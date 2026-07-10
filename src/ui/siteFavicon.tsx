@@ -4,9 +4,11 @@ import { useState } from 'react';
 export type WebsiteFaviconUrlResolver = (domain: string) => string | undefined;
 
 export function SiteFavicon({
+  className = 'record-row__favicon',
   domain,
   resolveUrl,
 }: {
+  className?: string;
   domain: string;
   resolveUrl: WebsiteFaviconUrlResolver;
 }) {
@@ -15,7 +17,7 @@ export function SiteFavicon({
   const showImage = faviconUrl !== undefined && faviconUrl !== failedUrl;
 
   return (
-    <span className="record-row__favicon" aria-hidden="true">
+    <span className={className} aria-hidden="true">
       {showImage ? (
         <img
           src={faviconUrl}
@@ -32,7 +34,7 @@ export function SiteFavicon({
 }
 
 export function getWebsiteFaviconUrl(domain: string): string | undefined {
-  if (typeof browser === 'undefined') return undefined;
+  if (typeof browser === 'undefined' || !browser.runtime?.getURL) return undefined;
 
   // Chrome exposes favicons through a virtual extension path that is not part of WXT's generated PublicPath union.
   const getRuntimeUrl = browser.runtime.getURL as unknown as (path: string) => string;
