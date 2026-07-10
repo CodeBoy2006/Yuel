@@ -9,7 +9,7 @@ export default defineConfig({
     description: 'Local-first English reading analytics and pack-based vocabulary insights.',
     version: '0.1.0',
     minimum_chrome_version: '116',
-    permissions: ['activeTab', 'alarms', 'contextMenus', 'idle', 'sidePanel', 'scripting', 'storage'],
+    permissions: ['activeTab', 'alarms', 'contextMenus', 'favicon', 'idle', 'sidePanel', 'scripting', 'storage'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
     icons: {
       '16': 'icon/16.png',

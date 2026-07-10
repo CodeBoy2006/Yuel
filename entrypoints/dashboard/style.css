@@ -518,6 +518,38 @@
   gap: 16px;
 }
 
+.record-row__identity {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.record-row__favicon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--y-surface-subtle);
+  color: var(--y-ink-muted);
+}
+
+.record-row__favicon img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.record-row__favicon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+}
+
 .record-row h3 {
   min-width: 0;
   margin: 0;
@@ -932,6 +964,10 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .record-row__identity {
+    width: 100%;
   }
 }
 

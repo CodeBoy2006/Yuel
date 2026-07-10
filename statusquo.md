@@ -1035,3 +1035,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Logo path geometry and color are unchanged. The revised framing keeps approximately 5.5% vertical and 9.2% horizontal safe space while increasing visible artwork coverage to roughly 89% high and 81% wide.
+
+## [2026-07-10 19:42] Recent Website Favicons
+- **Changes:** Added browser-cached website icons to dashboard recent-reading rows, a neutral globe fallback for unavailable icons, the Chrome `favicon` manifest permission, focused component coverage, and privacy documentation.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Icons are resolved through Chrome's local `/_favicon/` extension service, so opening reading history does not directly request icon files from recorded websites.

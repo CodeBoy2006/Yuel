@@ -51,6 +51,7 @@ import {
 } from '../../src/ui/primitives';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
 import { createShareCardContent, type ShareCardContent } from '../../src/ui/shareCardContent';
+import { getWebsiteFaviconUrl, SiteFavicon } from '../../src/ui/siteFavicon';
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -58,6 +59,7 @@ export interface DashboardAppDependencies {
   confirmClearLocalReadingData: () => boolean;
   copyTextToClipboard?: (text: string) => Promise<void>;
   exportSummaryCardPng?: (element: HTMLElement, filename: string) => Promise<unknown>;
+  getWebsiteFaviconUrl?: (domain: string) => string | undefined;
   getReadingPaceSummary?: typeof getReadingPaceSummary;
   saveOnboardingReadingPaceCalibration?: typeof saveOnboardingReadingPaceCalibration;
 }
@@ -68,6 +70,7 @@ const defaultDependencies: DashboardAppDependencies = {
     window.confirm('清空所有阅量本地阅读数据？已启用网站和浏览器权限会保留。'),
   copyTextToClipboard,
   exportSummaryCardPng: exportDashboardSummaryCardPng,
+  getWebsiteFaviconUrl,
   getReadingDashboardDetails,
   getReadingPaceSummary,
   saveOnboardingReadingPaceCalibration,
@@ -618,7 +621,13 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               <Panel title="近期阅读量" meta={`${details.recentPages.length} 个页面`} icon={BookOpen}>
                 <div className="record-list">
                   {details.recentPages.length
-                    ? details.recentPages.map((page) => <RecentPageCard key={page.pageId} page={page} />)
+                    ? details.recentPages.map((page) => (
+                        <RecentPageCard
+                          key={page.pageId}
+                          page={page}
+                          resolveFaviconUrl={dependencies.getWebsiteFaviconUrl ?? getWebsiteFaviconUrl}
+                        />
+                      ))
                     : <EmptyState>还没有阅读记录。</EmptyState>}
                 </div>
               </Panel>
@@ -724,11 +733,20 @@ const ShareCardPreview = ({
   </div>
 );
 
-function RecentPageCard({ page }: { page: RecentPageSummary }) {
+function RecentPageCard({
+  page,
+  resolveFaviconUrl,
+}: {
+  page: RecentPageSummary;
+  resolveFaviconUrl: (domain: string) => string | undefined;
+}) {
   return (
     <article className="record-row">
       <div className="record-row__heading">
-        <h3 title={page.domain}>{page.domain}</h3>
+        <div className="record-row__identity">
+          <SiteFavicon domain={page.domain} resolveUrl={resolveFaviconUrl} />
+          <h3 title={page.domain}>{page.domain}</h3>
+        </div>
         <time dateTime={new Date(page.lastReadAt).toISOString()}>{formatDateTime(page.lastReadAt)}</time>
       </div>
       <p>

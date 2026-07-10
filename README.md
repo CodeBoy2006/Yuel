@@ -50,7 +50,7 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
-- Dashboard: a reading ledger with a compact today summary, disclosure-based share-card preview and export actions, recent measured pages, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
+- Dashboard: a reading ledger with a compact today summary, disclosure-based share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
@@ -111,3 +111,5 @@ Key boundaries:
 The V0.1 manifest avoids mandatory `<all_urls>` access. Broad host access is optional, while the static starter content script covers MDN, GitHub, Medium, Wikipedia, and arXiv for early validation.
 
 By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text is stored only when the user explicitly chooses the Yuel context-menu save action. The dashboard can clear local reading data after confirmation without changing enabled-site permissions.
+
+Recent-page icons use Chrome's local favicon service through the manifest's `favicon` permission. Opening the dashboard does not fetch icon files directly from the recorded websites.
