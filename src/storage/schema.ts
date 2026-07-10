@@ -166,53 +166,20 @@ export class YuelDatabase extends Dexie {
     });
 
     this.version(2).stores({
-      pages: 'pageId, domain, language, lastReadAt',
-      textChunks: 'chunkId, pageId, textHash',
       chunkSessions: 'id, sessionId, chunkId',
       chunkDays: 'id, date, chunkId',
-      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
-      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
-      savedItems: 'id, type, sourceDomain, createdAt',
-      dailyStats: 'date',
     });
 
     this.version(3).stores({
-      pages: 'pageId, domain, language, lastReadAt',
-      textChunks: 'chunkId, pageId, textHash',
-      chunkSessions: 'id, sessionId, chunkId',
-      chunkDays: 'id, date, chunkId',
-      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
-      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
-      savedItems: 'id, type, sourceDomain, createdAt',
-      dailyStats: 'date',
       readingPaceProfiles: 'id, language, contentType, source, updatedAt',
     });
 
     this.version(4).stores({
-      pages: 'pageId, domain, language, lastReadAt',
-      textChunks: 'chunkId, pageId, textHash',
-      chunkSessions: 'id, sessionId, chunkId',
-      chunkDays: 'id, date, chunkId',
-      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
-      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
-      savedItems: 'id, type, sourceDomain, createdAt',
-      dailyStats: 'date',
-      readingPaceProfiles: 'id, language, contentType, source, updatedAt',
       metadata: 'key',
     });
 
     this.version(5).stores({
-      pages: 'pageId, domain, language, lastReadAt',
-      textChunks: 'chunkId, pageId, textHash',
-      chunkSessions: 'id, sessionId, chunkId',
-      chunkDays: 'id, date, chunkId',
-      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
-      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
-      savedItems: 'id, type, sourceDomain, createdAt',
-      dailyStats: 'date',
-      readingPaceProfiles: 'id, language, contentType, source, updatedAt',
       readingPaceEpisodes: 'id, sessionId, pageId, lastObservedAt',
-      metadata: 'key',
     });
   }
 }

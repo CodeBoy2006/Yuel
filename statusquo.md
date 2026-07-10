@@ -1197,3 +1197,9 @@
 - **Status:** Completed
 - **Next Steps:** Finish the independently identified SidePanel fixture and incremental Dexie schema simplifications.
 - **Context:** Production has no call or documentation path to the removed exports; the batch removes 60 net lines. The remaining pack matcher test and TypeScript checks pass.
+
+## [2026-07-11 03:38] Incremental Dexie Schema Declarations
+- **Changes:** Kept the complete v1 schema and reduced v2-v5 to their newly introduced tables, relying on Dexie's verified cumulative version schema semantics without changing versions or indexes.
+- **Status:** Completed
+- **Next Steps:** Complete the final SidePanel/UI test fixture deduplication and rerun the full verification matrix.
+- **Context:** The schema loses 33 duplicate lines. A Chromium probe confirmed identical fresh-v5 tables/indexes and a v1-to-v5 upgrade with 11 tables, 27 indexes, and preserved legacy records; 72 storage tests, TypeScript checks, and the production build pass.
