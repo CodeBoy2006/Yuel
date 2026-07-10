@@ -1191,3 +1191,9 @@
 - **Status:** Completed
 - **Next Steps:** Run the complete verification matrix and commission a final evidence-based repository simplification audit.
 - **Context:** The UI smoke suite loses 296 net lines and all repeated no-op Popup mocks. All 55 entrypoint behavior tests and TypeScript checks pass.
+
+## [2026-07-11 03:35] Dormant Pack Validator Removal
+- **Changes:** Removed the private app's uncalled pack validation result, executable-field scanner, object guard, and their two self-only tests while preserving the static pack matcher used at runtime.
+- **Status:** Completed
+- **Next Steps:** Finish the independently identified SidePanel fixture and incremental Dexie schema simplifications.
+- **Context:** Production has no call or documentation path to the removed exports; the batch removes 60 net lines. The remaining pack matcher test and TypeScript checks pass.

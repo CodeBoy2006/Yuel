@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchPackRules, validatePack, type YuelPack } from './packs';
+import { matchPackRules, type YuelPack } from './packs';
 
 const basePack: YuelPack = {
   manifest: {
@@ -21,24 +21,6 @@ const basePack: YuelPack = {
     { text: 'backward compatible', weight: 0.84, tags: ['release'] },
   ],
 };
-
-describe('validatePack', () => {
-  it('accepts declarative data packs without executable payloads', () => {
-    expect(validatePack(basePack).valid).toBe(true);
-  });
-
-  it('rejects executable payload fields so packs stay data-only', () => {
-    const unsafePack = {
-      ...basePack,
-      scripts: ['https://example.com/remote.js'],
-    };
-
-    const result = validatePack(unsafePack);
-
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Pack contains forbidden executable field: scripts');
-  });
-});
 
 describe('matchPackRules', () => {
   it('matches lexicon terms and phrases from normalized English text', () => {
