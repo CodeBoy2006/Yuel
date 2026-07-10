@@ -860,9 +860,10 @@ describe('isReadingEventBatchMessage', () => {
     ).toBe(false);
   });
 
-  it('rejects unshaped future event payloads before they enter raw storage', () => {
-    expect(
-      isReadingEventBatchMessage({
+  it.each(['LookupTriggered', 'ChunkSaved', 'PageExcluded'])(
+    'rejects unsupported raw event kind %s until a collector and contract exist',
+    (kind) => {
+      const rawMessage: unknown = {
         ...validMessage,
         payload: {
           ...validMessage.payload,
@@ -870,105 +871,16 @@ describe('isReadingEventBatchMessage', () => {
             {
               ...validMessage.payload.events[0],
               chunkId: undefined,
-              kind: 'LookupTriggered',
-              value: {
-                text: 'private lookup text',
-              },
-            },
-          ],
-        },
-      }),
-    ).toBe(false);
-
-    expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              chunkId: undefined,
-              kind: 'PageExcluded',
-              value: {
-                url: 'https://example.com/private',
-              },
-            },
-          ],
-        },
-      }),
-    ).toBe(false);
-
-    expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              kind: 'ChunkSaved',
-              value: {
-                text: validMessage.payload.chunks[0].text,
-              },
-            },
-          ],
-        },
-      }),
-    ).toBe(false);
-  });
-
-  it('rejects unimplemented future event kinds until their collectors exist', () => {
-    expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              chunkId: undefined,
-              kind: 'LookupTriggered',
+              kind,
               value: undefined,
             },
           ],
         },
-      }),
-    ).toBe(false);
+      };
 
-    expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              chunkId: undefined,
-              kind: 'PageExcluded',
-              value: undefined,
-            },
-          ],
-        },
-      }),
-    ).toBe(false);
-
-    expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              kind: 'ChunkSaved',
-              value: undefined,
-            },
-          ],
-        },
-      }),
-    ).toBe(false);
-  });
+      expect(isReadingEventBatchMessage(rawMessage)).toBe(false);
+    },
+  );
 
   it('rejects page-level events linked to chunks', () => {
     expect(

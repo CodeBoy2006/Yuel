@@ -9,10 +9,7 @@ export type ReadingEventKind =
   | 'ScrollVelocityChanged'
   | 'UserIdle'
   | 'UserActive'
-  | 'TextSelected'
-  | 'LookupTriggered'
-  | 'ChunkSaved'
-  | 'PageExcluded';
+  | 'TextSelected';
 
 export interface PageSnapshot {
   pageId: string;

@@ -1149,3 +1149,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue with read-model contract tightening and remaining proven dead fields.
 - **Context:** Aggregate now owns budget projection and adaptive logic owns reliability filtering, while production implementation drops 16 net lines across the three modules. Two direct decoder tests plus all 41 aggregation/repository tests and TypeScript checks pass.
+
+## [2026-07-11 02:53] Reading Event Kind Narrowing
+- **Changes:** Removed three future event kinds that no collector emits and the runtime validator explicitly rejects, while retaining one raw-message rejection case per unsupported kind.
+- **Status:** Completed
+- **Next Steps:** Continue removing independently proven dormant model fields.
+- **Context:** The domain union now describes only implemented events, and the protocol tests validate the actual unknown-input boundary without typed future payload fixtures. All 48 contract tests and TypeScript checks pass; the change removes 91 net lines.
