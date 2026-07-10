@@ -1101,3 +1101,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** All four themes were visually verified at desktop and 390px widths; the 240px card retained 12px bottom clearance without vertical clipping. The interface detector reported no findings, all 344 unit/UI tests and TypeScript checks passed, and the production extension build succeeded.
+
+## [2026-07-11 00:10] Reading Progress Brand Mark
+- **Changes:** Rebuilt the shared BrandLockup as a semantic daily-goal indicator, wired popup/side-panel/dashboard reading totals into it, added bottom-up gray-to-green filling, a one-shot champagne-gold completion bloom with a static finished state, forced-color and reduced-motion handling, product/design documentation, and focused regression coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Approved visual direction A preserves the compact horizontal lockup while increasing the mark to 32px/36px for perception. Visual QA covered 1280px and 320px viewports plus a 240px header, all 347 unit/UI tests and TypeScript checks pass, the design detector reported no findings, the production build succeeds, and all three packaged-extension E2E flows pass outside the Chromium-restricted process sandbox.

@@ -402,7 +402,15 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   return (
     <div className={`yuel-app sidepanel-app ${dashboardFailed ? 'sidepanel-app--action-error' : ''}`}>
       <header className="sidepanel-header">
-        <BrandLockup compact />
+        <BrandLockup
+          compact
+          progress={summary ? {
+            effectiveWords: summary.effectiveWords,
+            thresholdWords: checkInThresholdWords,
+            completed: checkInCompleted,
+          } : undefined}
+          progressStatus={loadFailed ? 'unavailable' : 'loading'}
+        />
         <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed, currentTabInjectionMissed)}>{statusText}</StatusPill>
       </header>
 

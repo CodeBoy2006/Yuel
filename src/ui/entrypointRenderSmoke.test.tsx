@@ -223,7 +223,8 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     const text = container.textContent ?? '';
     expect(text).toContain('阅量 Yuel');
-    expect(container.querySelector('.yuel-brand__mark')?.getAttribute('src')).toBe('/logo.svg');
+    expect(container.querySelector('.popup-header .yuel-brand')?.getAttribute('role')).toBe('progressbar');
+    expect(container.querySelector<HTMLElement>('.popup-header .yuel-brand__mark')?.dataset.state).toBe('complete');
     expect(text).toContain('当前站点');
     expect(text).toContain('今日有效阅读');
     expect(text).toContain('打开侧栏');
@@ -265,6 +266,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('值得关注');
     expect(container.textContent).toContain('摘录');
     expect(container.textContent).not.toContain('Observe');
+    expect(container.querySelector<HTMLElement>('.sidepanel-header .yuel-brand__mark')?.dataset.state).toBe('complete');
   });
 
   it('uses the live collector signal instead of permission alone for the side-panel status', async () => {
@@ -361,6 +363,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(text).toContain('本地数据');
     expect(text.indexOf('今日有效阅读')).toBeLessThan(text.indexOf('清空本地数据'));
     expect(text).not.toContain('Event driven');
+    expect(container.querySelector<HTMLElement>('.dashboard-header .yuel-brand__mark')?.dataset.state).toBe('complete');
   });
 
   it('renders popup metrics and current-site controls from injected local services', async () => {
@@ -2481,7 +2484,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('420 / 1,000 词');
     expect(container.textContent).not.toContain('stale.example');
     expect(container.textContent).not.toContain('777 / 900 词');
-    expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('420');
+    expect(container.querySelector('.sidepanel-page [role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('420');
   });
 
   it('refreshes side panel totals and current-page context when the active tab changes', async () => {
@@ -2589,7 +2592,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('second.example');
     expect(container.textContent).toContain('1,540 词');
     expect(container.textContent).toContain('420 / 1,200 词');
-    expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('420');
+    expect(container.querySelector('.sidepanel-page [role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('420');
   });
 
   it('keeps the side panel enable action stable and single-shot while permission is pending', async () => {

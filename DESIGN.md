@@ -19,6 +19,7 @@ A bilingual reader is working through long documentation at a desk and glances a
 - **Background:** near-neutral with a slight green tint, never cream or parchment.
 - **Ink:** deep green-black rather than blue-black.
 - **Primary:** forest green, reserved for the current selection and primary action.
+- **Brand progress:** the shared Logo is a quiet daily-goal gauge: green rises through a visible gray mark, then a champagne-gold edge and bounded glow signal completion.
 - **Signal:** rust orange, reserved for warnings or attention.
 - **Geometry:** 10–14px radii for controls and containers; pills only for compact statuses.
 - **Elevation:** borders and tonal surfaces do the work. Shadows are limited to the extension popup shell and never paired with a wide blur.
@@ -40,6 +41,9 @@ The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
 | Divider | `--y-line` |
 | Control boundary | `--y-control-line` |
 | Primary action | `--y-accent` |
+| Inactive Logo progress | `--y-brand-inactive` |
+| Completed Logo edge | `--y-celebration` |
+| Completed Logo glow | `--y-celebration-soft` |
 | Warning signal | `--y-signal` |
 | Warning text | `--y-signal-ink` |
 | Informational state | `--y-info` |
@@ -47,7 +51,7 @@ The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
 
 ## Shared components
 
-- `BrandLockup`: one consistent mark and name.
+- `BrandLockup`: one consistent mark and name; it exposes today's effective-word goal as a semantic progressbar, fills green from bottom to top, and uses a one-shot gold completion bloom with a static reduced-motion-safe finish.
 - `ActionButton`: primary, secondary, quiet, and danger variants with complete focus/disabled states.
 - `StatusPill`: neutral, positive, warning, and danger states.
 - `Metric`: compact label/value pair.

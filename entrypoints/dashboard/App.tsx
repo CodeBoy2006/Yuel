@@ -579,7 +579,14 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     <main ref={dashboardRootRef} className="yuel-app dashboard-app" aria-busy={viewState === 'loading'}>
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
-          <BrandLockup />
+          <BrandLockup
+            progress={summary ? {
+              effectiveWords: summary.effectiveWords,
+              thresholdWords: checkInThresholdWords,
+              completed: checkInCompleted,
+            } : undefined}
+            progressStatus={viewState === 'error' ? 'unavailable' : 'loading'}
+          />
           <nav className="dashboard-header__nav" aria-label="页面区段">
             {viewState === 'ready' ? (
               <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-insights')}>

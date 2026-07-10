@@ -14,6 +14,9 @@
   --y-accent-hover: oklch(0.415 0.105 158);
   --y-accent-soft: oklch(0.925 0.036 158);
   --y-on-accent: oklch(0.99 0.004 158);
+  --y-brand-inactive: oklch(0.62 0.02 158);
+  --y-celebration: oklch(0.78 0.14 85);
+  --y-celebration-soft: oklch(0.92 0.07 90);
   --y-signal: oklch(0.59 0.15 38);
   --y-signal-soft: oklch(0.945 0.035 55);
   --y-signal-ink: oklch(0.4 0.11 38);
@@ -87,11 +90,113 @@ button {
 }
 
 .yuel-brand__mark {
-  display: block;
-  width: 32px;
-  height: 32px;
+  --y-brand-progress: 0%;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
-  object-fit: contain;
+  place-items: center;
+}
+
+.yuel-brand__mark::before,
+.yuel-brand__mark::after {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.yuel-brand__mark::before {
+  inset: -8px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--y-celebration-soft) 78%, transparent) 0%,
+    color-mix(in oklch, var(--y-celebration) 28%, transparent) 44%,
+    transparent 72%
+  );
+  filter: blur(2px);
+  transform: scale(0.78);
+  transition:
+    opacity 220ms var(--y-ease),
+    transform 480ms var(--y-ease);
+}
+
+.yuel-brand__mark::after {
+  inset: -5px;
+  border: 1px solid color-mix(in oklch, var(--y-celebration) 76%, transparent);
+  box-shadow: 0 0 8px color-mix(in oklch, var(--y-celebration) 42%, transparent);
+}
+
+.yuel-brand__mark-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.yuel-brand__mark-layer--base {
+  color: var(--y-brand-inactive);
+}
+
+.yuel-brand__mark-layer--fill {
+  color: var(--y-accent);
+  clip-path: inset(calc(100% - var(--y-brand-progress)) 0 0 0);
+  transition:
+    clip-path 480ms var(--y-ease),
+    filter 220ms var(--y-ease);
+}
+
+.yuel-brand__mark-layer--celebration {
+  color: var(--y-celebration);
+  filter: drop-shadow(0 0 2px color-mix(in oklch, var(--y-celebration) 62%, transparent));
+  opacity: 0;
+  transition: opacity 220ms var(--y-ease);
+}
+
+.yuel-brand__mark[data-state="complete"] {
+  animation: yuel-brand-complete-pop 520ms var(--y-ease) both;
+}
+
+.yuel-brand__mark[data-state="complete"]::before {
+  opacity: 0.88;
+  transform: scale(1);
+}
+
+.yuel-brand__mark[data-state="complete"]::after {
+  animation: yuel-brand-halo-bloom 520ms var(--y-ease) both;
+}
+
+.yuel-brand__mark[data-state="complete"] .yuel-brand__mark-layer--fill {
+  filter:
+    drop-shadow(0 0 2px color-mix(in oklch, var(--y-celebration) 58%, transparent))
+    drop-shadow(0 0 5px color-mix(in oklch, var(--y-celebration) 28%, transparent));
+}
+
+.yuel-brand__mark[data-state="complete"] .yuel-brand__mark-layer--celebration {
+  opacity: 1;
+}
+
+@keyframes yuel-brand-complete-pop {
+  0% { transform: scale(0.96); }
+  54% { transform: scale(1.055); }
+  100% { transform: scale(1); }
+}
+
+@keyframes yuel-brand-halo-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  38% { opacity: 0.9; }
+  100% {
+    opacity: 0;
+    transform: scale(1.58);
+  }
 }
 
 .yuel-brand__name {
@@ -115,8 +220,8 @@ button {
 }
 
 .yuel-brand--compact .yuel-brand__mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 
 .yuel-status {
@@ -429,6 +534,22 @@ summary:focus-visible {
 }
 
 @media (forced-colors: active) {
+  .yuel-brand__mark::before,
+  .yuel-brand__mark::after {
+    display: none;
+  }
+
+  .yuel-brand__mark-layer--base {
+    color: GrayText;
+  }
+
+  .yuel-brand__mark-layer--fill,
+  .yuel-brand__mark-layer--celebration {
+    color: Highlight;
+    filter: none;
+    forced-color-adjust: none;
+  }
+
   .yuel-progress {
     border: 1px solid CanvasText;
     background: Canvas;

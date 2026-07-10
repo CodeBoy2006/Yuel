@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 
+import { DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS } from '../../src/domain/checkIn';
 import {
   disableEnabledSite,
   enableCurrentTabSite,
@@ -308,12 +309,21 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     ? siteAccessBusy
     : siteAccessBusy || sidePanelBusy || currentSiteUnavailable || !currentSiteEnabled || isPausingCurrentSite;
   const siteStatus = formatSiteAccessStatus(siteAccess, siteAccessFailed, siteAccessDenied);
+  const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
 
   return (
     <main className="yuel-app popup-app">
       <section className="popup-shell" aria-label="阅量快捷控制">
         <header className="popup-header">
-          <BrandLockup compact />
+          <BrandLockup
+            compact
+            progress={summary ? {
+              effectiveWords: summary.effectiveWords,
+              thresholdWords: checkInThresholdWords,
+              completed: summary.checkInCompleted,
+            } : undefined}
+            progressStatus={loadFailed ? 'unavailable' : 'loading'}
+          />
           <span className="popup-local-state" title="阅读数据仅保存在本机">
             <ShieldCheck aria-hidden="true" />
             本地保存
