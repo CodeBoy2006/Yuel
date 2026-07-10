@@ -1221,3 +1221,9 @@
 - **Status:** Completed
 - **Next Steps:** Rerun the full affected verification and perform the final no-edit duplication audit.
 - **Context:** The contract test removes 112 net lines without changing validators or assertions. All 48 message-contract tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:21] Message Event Fixture Consolidation
+- **Changes:** Replaced 44 repeated base-event spreads with one typed shallow event fixture whose override values remain intentionally permissive for malformed-input tests.
+- **Status:** Completed
+- **Next Steps:** Commit the independently verified collector visibility-entry fixture, then reassess higher-level test wrappers.
+- **Context:** The contract test removes another 31 net lines while keeping every invalid event field explicit. All 48 message-contract tests, TypeScript checks, and whitespace validation pass.

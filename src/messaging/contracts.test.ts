@@ -81,6 +81,14 @@ function createMessageWithPayload(overrides: ReadingEventBatchPayloadOverrides):
   };
 }
 
+type ReadingEventOverrides = Partial<
+  Record<keyof ReadingEventBatchMessage['payload']['events'][number], unknown>
+>;
+
+function createEvent(overrides: ReadingEventOverrides): unknown {
+  return { ...validMessage.payload.events[0], ...overrides };
+}
+
 describe('reading collector status messages', () => {
   it('accepts only the dedicated status request and a complete response', () => {
     expect(isReadingCollectorStatusRequest({
@@ -155,7 +163,7 @@ describe('isReadingEventBatchMessage', () => {
     expect(
       isReadingEventBatchMessage(
         createMessageWithPayload({
-          events: [{ ...validMessage.payload.events[0], kind: 'UnknownEvent' }],
+          events: [createEvent({ kind: 'UnknownEvent' })],
         }),
       ),
     ).toBe(false);
@@ -184,7 +192,7 @@ describe('isReadingEventBatchMessage', () => {
     expect(
       isReadingEventBatchMessage(
         createMessageWithPayload({
-          events: [{ ...validMessage.payload.events[0], occurredAt: -1 }],
+          events: [createEvent({ occurredAt: -1 })],
         }),
       ),
     ).toBe(false);
@@ -239,8 +247,7 @@ describe('isReadingEventBatchMessage', () => {
           },
           chunks: [{ ...validMessage.payload.chunks[0], wordCount: 7 }],
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 dwellMs: 30_000,
                 visibleRatio: 1,
@@ -249,7 +256,7 @@ describe('isReadingEventBatchMessage', () => {
                 scrollSpeedWordsPerMinute: 180,
                 idle: false,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -314,7 +321,7 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], chunkId: 'stale-chunk-id' }],
-          events: [{ ...validMessage.payload.events[0], chunkId: 'stale-chunk-id' }],
+          events: [createEvent({ chunkId: 'stale-chunk-id' })],
         }),
       ),
     ).toBe(false);
@@ -330,8 +337,7 @@ describe('isReadingEventBatchMessage', () => {
           },
           chunks: [{ ...validMessage.payload.chunks[0], wordCount: 9 }],
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 dwellMs: 30_000,
                 visibleRatio: 1,
@@ -340,7 +346,7 @@ describe('isReadingEventBatchMessage', () => {
                 scrollSpeedWordsPerMinute: 180,
                 idle: false,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -362,13 +368,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 tickMs: undefined,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -378,13 +383,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 tickMs: 0,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -396,14 +400,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 baseWordsPerMinute: undefined,
                 activeTab: true,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -413,13 +416,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 activeTab: 'yes',
               },
-            },
+            }),
           ],
         }),
       ),
@@ -429,13 +431,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 scrollSpeedWordsPerMinute: -1,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -447,13 +448,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 visibleChunks: [{ ...validVisibleChunk, visibleRatio: 0.14 }],
               },
-            },
+            }),
           ],
         }),
       ),
@@ -465,13 +465,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockVisible',
               value: {
                 wordCount: 6,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -481,14 +480,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockHidden',
               value: {
                 visibleRatio: 1.2,
                 wordCount: 6,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -498,13 +496,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 dwellMs: 30_000,
                 visibleRatio: -0.1,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -516,13 +513,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockVisible',
               value: {
                 visibleRatio: 0.5,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -532,14 +528,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockHidden',
               value: {
                 visibleRatio: 0,
                 wordCount: 0,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -551,14 +546,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockVisible',
               value: {
                 visibleRatio: 0.14,
                 wordCount: validMessage.payload.chunks[0].wordCount,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -570,14 +564,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'TextBlockHidden',
               value: {
                 visibleRatio: 0.15,
                 wordCount: validMessage.payload.chunks[0].wordCount,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -589,13 +582,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 visibleChunks: [{ ...validVisibleChunk, wordCount: validMessage.payload.chunks[0].wordCount + 1 }],
               },
-            },
+            }),
           ],
         }),
       ),
@@ -607,14 +599,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'TextSelected',
               value: {
                 characterCount: 12,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -624,15 +615,14 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'TextSelected',
               value: {
                 textHash: 'selection-hash',
                 characterCount: 0,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -644,8 +634,7 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'TextSelected',
               value: {
@@ -653,7 +642,7 @@ describe('isReadingEventBatchMessage', () => {
                 textHash: 'selection-hash',
                 characterCount: 21,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -665,15 +654,14 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'ScrollVelocityChanged',
               value: {
                 scrollDeltaPx: 12,
                 scrollSpeedWordsPerMinute: 240,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -683,8 +671,7 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'ScrollVelocityChanged',
               value: {
@@ -692,7 +679,7 @@ describe('isReadingEventBatchMessage', () => {
                 elapsedMs: 100,
                 scrollSpeedWordsPerMinute: 240,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -702,8 +689,7 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'ScrollVelocityChanged',
               value: {
@@ -711,7 +697,7 @@ describe('isReadingEventBatchMessage', () => {
                 elapsedMs: 99,
                 scrollSpeedWordsPerMinute: -1,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -723,12 +709,11 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'UserIdle',
               value: {},
-            },
+            }),
           ],
         }),
       ),
@@ -738,14 +723,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'UserActive',
               value: {
                 idleMs: -1,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -757,14 +741,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'PageVisible',
               value: {
                 visible: true,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -774,14 +757,13 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'PageHidden',
               value: {
                 reason: 'visibilitychange',
               },
-            },
+            }),
           ],
         }),
       ),
@@ -793,12 +775,11 @@ describe('isReadingEventBatchMessage', () => {
     (kind) => {
       const rawMessage: unknown = createMessageWithPayload({
         events: [
-          {
-            ...validMessage.payload.events[0],
+          createEvent({
             chunkId: undefined,
             kind,
             value: undefined,
-          },
+          }),
         ],
       });
 
@@ -811,11 +792,10 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               kind: 'PageVisible',
               value: undefined,
-            },
+            }),
           ],
         }),
       ),
@@ -845,7 +825,7 @@ describe('isReadingEventBatchMessage', () => {
     expect(
       isReadingEventBatchMessage(
         createMessageWithPayload({
-          events: [{ ...validMessage.payload.events[0], id: '   ' }],
+          events: [createEvent({ id: '   ' })],
         }),
       ),
     ).toBe(false);
@@ -867,11 +847,10 @@ describe('isReadingEventBatchMessage', () => {
             },
           ],
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               pageId: ' page-1 ',
               chunkId: ' chunk-1 ',
-            },
+            }),
           ],
         }),
       ),
@@ -911,12 +890,11 @@ describe('isReadingEventBatchMessage', () => {
         createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               chunkId: undefined,
               kind: 'PageVisible',
               value: undefined,
-            },
+            }),
           ],
         }),
       ),
@@ -928,10 +906,9 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               id: 'PageVisible_event-1',
-            },
+            }),
           ],
         }),
       ),
@@ -943,10 +920,9 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               id: 'TextViewportExposureTick_',
-            },
+            }),
           ],
         }),
       ),
@@ -958,10 +934,9 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               sessionId: 'manual-session-1',
-            },
+            }),
           ],
         }),
       ),
@@ -971,10 +946,9 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               sessionId: 'session_',
-            },
+            }),
           ],
         }),
       ),
@@ -987,11 +961,10 @@ describe('isReadingEventBatchMessage', () => {
         createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               id: 'TextViewportExposureTick_event-2',
               occurredAt: validMessage.payload.events[0].occurredAt - 1,
-            },
+            }),
           ],
         }),
       ),
@@ -1003,10 +976,9 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               occurredAt: validMessage.payload.page.capturedAt - 1,
-            },
+            }),
           ],
         }),
       ),
@@ -1019,11 +991,10 @@ describe('isReadingEventBatchMessage', () => {
         createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               id: 'TextViewportExposureTick_event-2',
               sessionId: 'session_2',
-            },
+            }),
           ],
         }),
       ),
@@ -1034,7 +1005,7 @@ describe('isReadingEventBatchMessage', () => {
     expect(
       isReadingEventBatchMessage(
         createMessageWithPayload({
-          events: [{ ...validMessage.payload.events[0], pageId: 'page-2' }],
+          events: [createEvent({ pageId: 'page-2' })],
         }),
       ),
     ).toBe(false);
@@ -1045,8 +1016,7 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               id: 'TextBlockVisible_event-1',
               kind: 'TextBlockVisible',
               chunkId: undefined,
@@ -1054,7 +1024,7 @@ describe('isReadingEventBatchMessage', () => {
                 visibleRatio: 1,
                 wordCount: validMessage.payload.chunks[0].wordCount,
               },
-            },
+            }),
           ],
         }),
       ),
@@ -1066,13 +1036,12 @@ describe('isReadingEventBatchMessage', () => {
       isReadingEventBatchMessage(
         createMessageWithPayload({
           events: [
-            {
-              ...validMessage.payload.events[0],
+            createEvent({
               value: {
                 ...validViewportTickValue,
                 visibleChunks: [{ ...validVisibleChunk, chunkId: 'chunk-2' }],
               },
-            },
+            }),
           ],
         }),
       ),
