@@ -1,4 +1,4 @@
-import { allocateReadingBudget, DEFAULT_BASE_WORDS_PER_MINUTE, type VisibleChunkBudgetInput } from '../domain/metrics';
+import { allocateReadingBudget, DEFAULT_BASE_WORDS_PER_MINUTE, weightedAverageConfidence, type VisibleChunkBudgetInput } from '../domain/metrics';
 import { formatLocalDate } from '../domain/localDate';
 import { decodeViewportExposureTick } from '../domain/viewportExposure';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
@@ -287,20 +287,6 @@ function incrementRunningChunkDayState(
 
 function sumChunkField(chunks: Array<{ newWords: number; reviewWords: number }>, key: 'newWords' | 'reviewWords'): number {
   return chunks.reduce((sum, chunk) => sum + chunk[key], 0);
-}
-
-function weightedAverageConfidence(
-  existingConfidence: number,
-  existingWords: number,
-  nextConfidence: number,
-  nextWords: number,
-): number {
-  const totalWords = existingWords + nextWords;
-  if (totalWords <= 0) {
-    return nextConfidence;
-  }
-
-  return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
 }
 
 function readPositiveFiniteNumber(value: number | undefined): number | undefined {

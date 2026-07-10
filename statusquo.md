@@ -1179,3 +1179,9 @@
 - **Status:** Completed
 - **Next Steps:** Consolidate the remaining exact duplicate confidence-weighting helper.
 - **Context:** The model contracts lose 17 lines without a schema migration because existing IndexedDB objects tolerate ignored properties. All 127 focused storage/UI tests, TypeScript checks, and the production build pass.
+
+## [2026-07-11 03:16] Confidence Weighting Consolidation
+- **Changes:** Moved the exact duplicate confidence-weighted average into the domain metrics module and reused it from aggregation and persistence.
+- **Status:** Completed
+- **Next Steps:** Simplify the remaining repeated Popup test dependency setup, then perform the full verification and repository re-audit.
+- **Context:** One shared implementation replaces two identical local helpers for a 13-line net reduction. All 51 related metrics, aggregation, and repository tests plus TypeScript checks pass.

@@ -2,6 +2,7 @@ import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import type { ReadingEvent } from '../domain/events';
 import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
+import { weightedAverageConfidence } from '../domain/metrics';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import {
   DEFAULT_READING_CONTENT_TYPE,
@@ -797,20 +798,6 @@ function createChunkSessionId(sessionId: string, chunkId: string): string {
 
 function createChunkDayId(date: string, chunkId: string): string {
   return `${date}:${chunkId}`;
-}
-
-function weightedAverageConfidence(
-  existingConfidence: number,
-  existingWords: number,
-  nextConfidence: number,
-  nextWords: number,
-): number {
-  const totalWords = existingWords + nextWords;
-  if (totalWords <= 0) {
-    return nextConfidence;
-  }
-
-  return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
 }
 
 function mergePageConfidence(

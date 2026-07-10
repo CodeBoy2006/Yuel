@@ -50,6 +50,20 @@ export interface ReadingBudgetEstimate {
 export const DEFAULT_BASE_WORDS_PER_MINUTE = 220;
 export const READING_METRIC_MODEL_VERSION = 2;
 
+export function weightedAverageConfidence(
+  existingConfidence: number,
+  existingWords: number,
+  nextConfidence: number,
+  nextWords: number,
+): number {
+  const totalWords = existingWords + nextWords;
+  if (totalWords <= 0) {
+    return nextConfidence;
+  }
+
+  return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
+}
+
 const MIN_EFFECTIVE_VISIBLE_RATIO = 0.5;
 const MIN_CHUNK_WORDS = 5;
 const VIEWPORT_FULL_TEXT_SUPPLY_WORDS = 80;
