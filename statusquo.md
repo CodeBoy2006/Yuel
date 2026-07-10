@@ -1239,3 +1239,9 @@
 - **Status:** Completed
 - **Next Steps:** Commit the independently verified entrypoint render wrappers, then finish the remaining read-model and collector-fixture review.
 - **Context:** The message-contract test removes 240 net lines without changing any malformed inputs, validator calls, or expected results. All 48 contract tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:29] Entrypoint Render Wrapper Consolidation
+- **Changes:** Replaced 53 repeated component/dependency-factory/render wrappers with three typed Popup, Dashboard, and SidePanel render helpers.
+- **Status:** Completed
+- **Next Steps:** Remove the independently confirmed dormant current-page view-model fields and remaining mechanical collector fixtures.
+- **Context:** The UI behavior test removes 200 net lines while preserving dependency override order, awaited rendering, and component props. All 55 entrypoint tests, TypeScript checks, and whitespace validation pass.

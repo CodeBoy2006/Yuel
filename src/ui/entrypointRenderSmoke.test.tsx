@@ -254,17 +254,25 @@ function createSidePanelDependencies(
   };
 }
 
+function renderPopup(overrides: Partial<PopupAppDependencies> = {}): Promise<HTMLElement> {
+  return renderForSmoke(<PopupApp dependencies={createPopupDependencies(overrides)} />);
+}
+
+function renderDashboard(overrides: Partial<DashboardAppDependencies> = {}): Promise<HTMLElement> {
+  return renderForSmoke(<DashboardApp dependencies={createDashboardDependencies(overrides)} />);
+}
+
+function renderSidePanel(overrides: Partial<SidePanelAppDependencies> = {}): Promise<HTMLElement> {
+  return renderForSmoke(<SidePanelApp dependencies={createSidePanelDependencies(overrides)} />);
+}
+
 async function renderSidePanelWithAccess(
   access: Awaited<ReturnType<SidePanelAppDependencies['getCurrentTabSiteAccess']>>,
 ) {
-  return renderForSmoke(
-    <SidePanelApp
-      dependencies={createSidePanelDependencies({
-        getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
-        getCurrentTabSiteAccess: async () => access,
-      })}
-    />,
-  );
+  return renderSidePanel({
+    getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
+    getCurrentTabSiteAccess: async () => access,
+  });
 }
 
 describe('extension UI entrypoint smoke rendering', () => {
@@ -283,13 +291,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockImplementationOnce(() => staleLoad.promise)
       .mockResolvedValueOnce(createDashboardDetails(840, 'fresh.example'))
       .mockResolvedValueOnce(createDashboardDetails(960, 'visible.example'));
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+    });
 
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
 
@@ -332,13 +336,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(840, 'cached.example'))
       .mockRejectedValueOnce(new Error('resume refresh failed'));
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+    });
 
     await act(async () => {
       window.dispatchEvent(new Event('focus'));
@@ -352,24 +352,20 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders the popup as a current-site control center first', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
-          listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getTodayReadingSummary: async () => createTodayReadingSummary({
+        date: '2026-06-27',
+        effectiveWords: 1280,
+        minutes: 14,
+        streak: 0,
+        topDomains: [],
+        readPages: 3,
+        learningWords: 9,
+        hasData: true,
+      }),
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
+      listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
+    });
 
     const text = container.textContent ?? '';
     expect(text).toContain('阅量 Yuel');
@@ -390,13 +386,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders the side panel around current reading, vocabulary, and highlights', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(1540).summary),
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(1540).summary),
+    });
 
     expect(container.textContent).toContain('当前阅读');
     expect(container.textContent).toContain('本页内容覆盖');
@@ -446,29 +438,25 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders the dashboard as a progress instrument panel with the danger action demoted', async () => {
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails: async () => ({
-            summary: createTodayReadingSummary({
-              date: '2026-06-27',
-              effectiveWords: 960,
-              minutes: 11,
-              streak: 2,
-              topDomains: ['developer.mozilla.org'],
-              readPages: 2,
-              learningWords: 5,
-              hasData: true,
-            }),
-            history: [],
-            recentPages: [],
-            recentVocabulary: [],
-            recentSavedItems: [],
-            hasData: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => ({
+        summary: createTodayReadingSummary({
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          streak: 2,
+          topDomains: ['developer.mozilla.org'],
+          readPages: 2,
+          learningWords: 5,
+          hasData: true,
+        }),
+        history: [],
+        recentPages: [],
+        recentVocabulary: [],
+        recentSavedItems: [],
+        hasData: true,
+      }),
+    });
 
     const text = container.textContent ?? '';
     expect(text).toContain('阅读输入仪表盘');
@@ -482,24 +470,20 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders popup metrics and current-site controls from injected local services', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 1280,
-            minutes: 14,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 9,
-            hasData: true,
-          }),
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
-          listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getTodayReadingSummary: async () => createTodayReadingSummary({
+        date: '2026-06-27',
+        effectiveWords: 1280,
+        minutes: 14,
+        streak: 0,
+        topDomains: [],
+        readPages: 3,
+        learningWords: 9,
+        hasData: true,
+      }),
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
+      listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
+    });
 
     expect(container.textContent).toContain('阅量 Yuel');
     expect(container.textContent).toContain('1,280 词');
@@ -509,37 +493,29 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('shows zero popup reading time when only non-time local data exists', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getTodayReadingSummary: async () => createTodayReadingSummary({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 5,
-            hasData: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getTodayReadingSummary: async () => createTodayReadingSummary({
+        date: '2026-06-27',
+        effectiveWords: 0,
+        minutes: 0,
+        streak: 0,
+        topDomains: [],
+        readPages: 0,
+        learningWords: 5,
+        hasData: true,
+      }),
+    });
 
     expect(container.textContent).toContain('0 分钟');
     expect(container.textContent).not.toContain('不足 1 分钟');
   });
 
   it('shows unavailable popup metrics when local reading stats fail to load', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getTodayReadingSummary: async () => {
-            throw new Error('stats unavailable');
-          },
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getTodayReadingSummary: async () => {
+        throw new Error('stats unavailable');
+      },
+    });
 
     expect(container.textContent).toContain('有效阅读不可用');
     expect(container.textContent).toContain('阅读时间不可用');
@@ -549,15 +525,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('keeps the popup permission detail consistent when current-site access fails', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => {
-            throw new Error('site access unavailable');
-          },
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => {
+        throw new Error('site access unavailable');
+      },
+    });
 
     expect(container.textContent).toContain('权限状态不可用');
     expect(container.textContent).toContain('暂时无法读取当前页面权限状态');
@@ -565,13 +537,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('does not show popup enabled-sites empty state while persisted sites are loading', async () => {
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          listEnabledSites: () => new Promise(() => undefined),
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      listEnabledSites: () => new Promise(() => undefined),
+    });
 
     expect(container.textContent).toContain('已启用网站 读取中');
     expect(container.textContent).not.toContain('还没有手动启用的网站');
@@ -583,25 +551,21 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockImplementationOnce(() => initialSites.promise)
       .mockResolvedValueOnce([{ origin: 'https://fresh.example/*', host: 'fresh.example' }]);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            url: 'https://current.example/article',
-            origin: 'https://current.example/*',
-            host: 'current.example',
-            granted: false,
-            enabled: false,
-          }),
-          listEnabledSites,
-          enableCurrentTabSite: async () => createSuccessfulSiteEnable({
-            url: 'https://current.example/article',
-            origin: 'https://current.example/*',
-            host: 'current.example',
-          }),
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        url: 'https://current.example/article',
+        origin: 'https://current.example/*',
+        host: 'current.example',
+        granted: false,
+        enabled: false,
+      }),
+      listEnabledSites,
+      enableCurrentTabSite: async () => createSuccessfulSiteEnable({
+        url: 'https://current.example/article',
+        origin: 'https://current.example/*',
+        host: 'current.example',
+      }),
+    });
 
     expect(listEnabledSites).toHaveBeenCalledOnce();
     await clickButton(findButton(container, '启用当前网站'));
@@ -622,13 +586,9 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('opens the side panel companion from the popup action', async () => {
     const openSidePanel = vi.fn(async () => undefined);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          openSidePanel,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      openSidePanel,
+    });
 
     await clickButton(findButton(container, '打开侧栏'));
 
@@ -639,13 +599,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     const openDashboard = vi.fn(async () => {
       throw new Error('tab creation failed');
     });
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          openDashboard,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      openDashboard,
+    });
 
     await clickButton(findButton(container, '查看仪表盘'));
     await flushReactMicrotasks();
@@ -657,17 +613,13 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('keeps the popup enable action stable and single-shot while permission is pending', async () => {
     const enableResult = createDeferred<Awaited<ReturnType<PopupAppDependencies['enableCurrentTabSite']>>>();
     const enableCurrentTabSite = vi.fn(() => enableResult.promise);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            granted: false,
-            enabled: false,
-          }),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        granted: false,
+        enabled: false,
+      }),
+      enableCurrentTabSite,
+    });
 
     const enableButton = findButton(container, '启用当前网站');
     await clickButton(enableButton);
@@ -703,18 +655,14 @@ describe('extension UI entrypoint smoke rendering', () => {
         granted: false,
         enabled: false,
       }));
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess,
-          listEnabledSites: vi
-            .fn()
-            .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }])
-            .mockResolvedValueOnce([]),
-          disableEnabledSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess,
+      listEnabledSites: vi
+        .fn()
+        .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }])
+        .mockResolvedValueOnce([]),
+      disableEnabledSite,
+    });
 
     const pauseButton = findButton(container, '暂停记录');
     pauseButton?.focus();
@@ -749,15 +697,11 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
     const listEnabledSites = vi.fn(async () => [{ origin: currentAccess.origin, host: currentAccess.host }]);
     const getCurrentTabSiteAccess = vi.fn(async () => currentAccess);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess,
-          listEnabledSites,
-          disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess,
+      listEnabledSites,
+      disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
+    });
 
     await clickButton(findButton(container, '暂停记录'));
     await flushReactMicrotasks(4);
@@ -775,17 +719,13 @@ describe('extension UI entrypoint smoke rendering', () => {
       enabled: false,
       injected: false,
     }));
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            granted: false,
-            enabled: false,
-          }),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        granted: false,
+        enabled: false,
+      }),
+      enableCurrentTabSite,
+    });
 
     await clickButton(findButton(container, '启用当前网站'));
     await flushReactMicrotasks();
@@ -798,21 +738,17 @@ describe('extension UI entrypoint smoke rendering', () => {
     const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
       injected: false,
     }));
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            granted: false,
-            enabled: false,
-          }),
-          listEnabledSites: vi
-            .fn()
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }]),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        granted: false,
+        enabled: false,
+      }),
+      listEnabledSites: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }]),
+      enableCurrentTabSite,
+    });
 
     await clickButton(findButton(container, '启用当前网站'));
     await flushReactMicrotasks();
@@ -824,20 +760,16 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('renders starter-site current access without asking for optional permission', async () => {
     const enableCurrentTabSite = vi.fn();
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            url: 'https://developer.mozilla.org/en-US/docs/Web/API',
-            origin: 'https://developer.mozilla.org/*',
-            host: 'developer.mozilla.org',
-            granted: false,
-            starterSite: true,
-          }),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        url: 'https://developer.mozilla.org/en-US/docs/Web/API',
+        origin: 'https://developer.mozilla.org/*',
+        host: 'developer.mozilla.org',
+        granted: false,
+        starterSite: true,
+      }),
+      enableCurrentTabSite,
+    });
 
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('默认记录站点');
@@ -854,20 +786,16 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockResolvedValueOnce([{ origin: 'https://developer.mozilla.org/*', host: 'developer.mozilla.org' }])
       .mockResolvedValueOnce([]);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            url: 'https://developer.mozilla.org/en-US/docs/Web/API',
-            origin: 'https://developer.mozilla.org/*',
-            host: 'developer.mozilla.org',
-            starterSite: true,
-          }),
-          listEnabledSites,
-          disableEnabledSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        url: 'https://developer.mozilla.org/en-US/docs/Web/API',
+        origin: 'https://developer.mozilla.org/*',
+        host: 'developer.mozilla.org',
+        starterSite: true,
+      }),
+      listEnabledSites,
+      disableEnabledSite,
+    });
 
     const manageButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('已启用网站'));
     expect(manageButton).toBeInstanceOf(HTMLButtonElement);
@@ -897,17 +825,13 @@ describe('extension UI entrypoint smoke rendering', () => {
       throw new Error('permission removal failed');
     });
     const listEnabledSites = vi.fn(async () => [{ origin: 'https://example.com/*', host: 'example.com' }]);
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            collectorState: 'recording',
-          }),
-          listEnabledSites,
-          disableEnabledSite,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        collectorState: 'recording',
+      }),
+      listEnabledSites,
+      disableEnabledSite,
+    });
 
     await clickButton(findButton(container, '暂停记录'));
     await flushReactMicrotasks();
@@ -923,16 +847,12 @@ describe('extension UI entrypoint smoke rendering', () => {
     const listEnabledSites = vi.fn(async () => {
       throw new Error('enabled sites unavailable');
     });
-    const container = await renderForSmoke(
-      <PopupApp
-        dependencies={createPopupDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            collectorState: 'recording',
-          }),
-          listEnabledSites,
-        })}
-      />,
-    );
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        collectorState: 'recording',
+      }),
+      listEnabledSites,
+    });
 
     expect(listEnabledSites).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('已启用网站 不可用');
@@ -943,57 +863,53 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails: async () => ({
-            summary: createTodayReadingSummary({
-              date: '2026-06-27',
-              effectiveWords: 960,
-              minutes: 11,
-              streak: 0,
-              topDomains: ['developer.mozilla.org'],
-              readPages: 2,
-              learningWords: 5,
-              hasData: true,
-            }),
-            history: [],
-            recentPages: [
-              {
-                pageId: 'page-1',
-                domain: 'developer.mozilla.org',
-                totalWords: 1200,
-                effectiveWords: 620,
-                coveredWords: 620,
-                lastReadAt: Date.UTC(2026, 5, 27, 10, 0, 0),
-              },
-            ],
-            recentVocabulary: [
-              {
-                lemma: 'resilience',
-                seenCount: 4,
-                effectiveSeenCount: 3,
-                savedCount: 2,
-                lastSeenAt: Date.UTC(2026, 5, 27, 10, 0, 0),
-                packTags: ['architecture'],
-                userStatus: 'learning',
-              },
-            ],
-            recentSavedItems: [
-              {
-                id: 'saved-1',
-                text: 'fail gracefully under pressure',
-                type: 'phrase',
-                sourceDomain: 'developer.mozilla.org',
-                tags: ['selection'],
-                createdAt: Date.UTC(2026, 5, 27, 10, 5, 0),
-              },
-            ],
-            hasData: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => ({
+        summary: createTodayReadingSummary({
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          streak: 0,
+          topDomains: ['developer.mozilla.org'],
+          readPages: 2,
+          learningWords: 5,
+          hasData: true,
+        }),
+        history: [],
+        recentPages: [
+          {
+            pageId: 'page-1',
+            domain: 'developer.mozilla.org',
+            totalWords: 1200,
+            effectiveWords: 620,
+            coveredWords: 620,
+            lastReadAt: Date.UTC(2026, 5, 27, 10, 0, 0),
+          },
+        ],
+        recentVocabulary: [
+          {
+            lemma: 'resilience',
+            seenCount: 4,
+            effectiveSeenCount: 3,
+            savedCount: 2,
+            lastSeenAt: Date.UTC(2026, 5, 27, 10, 0, 0),
+            packTags: ['architecture'],
+            userStatus: 'learning',
+          },
+        ],
+        recentSavedItems: [
+          {
+            id: 'saved-1',
+            text: 'fail gracefully under pressure',
+            type: 'phrase',
+            sourceDomain: 'developer.mozilla.org',
+            tags: ['selection'],
+            createdAt: Date.UTC(2026, 5, 27, 10, 5, 0),
+          },
+        ],
+        hasData: true,
+      }),
+    });
 
     expect(container.textContent).toContain('阅读输入仪表盘');
     expect(container.textContent).toContain('960');
@@ -1041,14 +957,10 @@ describe('extension UI entrypoint smoke rendering', () => {
           checkInCompleted: false,
         },
       });
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          saveDailyCheckInThresholdWords,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      saveDailyCheckInThresholdWords,
+    });
 
     const lockedShareButton = findButton(container, '达标后可打卡');
     expect(lockedShareButton?.disabled).toBe(true);
@@ -1079,13 +991,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('keeps the side-panel card action locked before the daily goal is reached', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
+    });
 
     const cardButton = findButton(container, '达标后可打卡');
     expect(cardButton?.disabled).toBe(true);
@@ -1107,14 +1015,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       .mockResolvedValueOnce(createReadingPaceSummary())
       .mockImplementationOnce(() => stalePaceRefresh.promise);
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingPaceSummary,
-          saveOnboardingReadingPaceCalibration,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingPaceSummary,
+      saveOnboardingReadingPaceCalibration,
+    });
 
     await clickButton(findButton(container, '开始校准'));
     expect(container.textContent).toContain('我已读完');
@@ -1202,19 +1106,15 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('keeps an in-flight dashboard details load valid when pace calibration is saved', async () => {
     const pendingDetails = createDeferred<ReturnType<typeof createDashboardDetails>>();
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails: () => pendingDetails.promise,
-          getReadingPaceSummary: async () => createReadingPaceSummary(),
-          saveOnboardingReadingPaceCalibration: async () => createReadingPaceSummary({
-            baseWordsPerMinute: 230,
-            source: 'onboarding',
-            hasProfile: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails: () => pendingDetails.promise,
+      getReadingPaceSummary: async () => createReadingPaceSummary(),
+      saveOnboardingReadingPaceCalibration: async () => createReadingPaceSummary({
+        baseWordsPerMinute: 230,
+        source: 'onboarding',
+        hasProfile: true,
+      }),
+    });
 
     await clickButton(findButton(container, '开始校准'));
     await clickButton(findButton(container, '我已读完'));
@@ -1239,13 +1139,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockRejectedValueOnce(new Error('details unavailable'))
       .mockResolvedValueOnce(createDashboardDetails());
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+    });
 
     expect(container.textContent).toContain('本地数据不可用');
     expect(container.textContent).not.toContain('正在读取本地数据');
@@ -1262,13 +1158,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('does not show dashboard empty states while local reading details are loading', async () => {
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails: () => new Promise(() => undefined),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails: () => new Promise(() => undefined),
+    });
 
     expect(container.textContent).toContain('正在读取本地数据');
     expect(container.textContent).not.toContain('本地数据不可用');
@@ -1289,30 +1181,26 @@ describe('extension UI entrypoint smoke rendering', () => {
       + '页面：2 页\n'
       + '学习中词汇：5 个\n'
       + '今日网站：developer.mozilla.org';
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          copyTextToClipboard,
-          getReadingDashboardDetails: async () => ({
-            summary: createTodayReadingSummary({
-              date: '2026-06-27',
-              effectiveWords: 960,
-              minutes: 11,
-              streak: 4,
-              topDomains: ['developer.mozilla.org'],
-              readPages: 2,
-              learningWords: 5,
-              hasData: true,
-            }),
-            history: [],
-            recentPages: [],
-            recentVocabulary: [],
-            recentSavedItems: [],
-            hasData: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      copyTextToClipboard,
+      getReadingDashboardDetails: async () => ({
+        summary: createTodayReadingSummary({
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          streak: 4,
+          topDomains: ['developer.mozilla.org'],
+          readPages: 2,
+          learningWords: 5,
+          hasData: true,
+        }),
+        history: [],
+        recentPages: [],
+        recentVocabulary: [],
+        recentSavedItems: [],
+        hasData: true,
+      }),
+    });
 
     await revealTodayCard(container);
     await clickButton(findButton(container, '复制文案'));
@@ -1327,37 +1215,33 @@ describe('extension UI entrypoint smoke rendering', () => {
     const saveShareCardSettings = vi.fn<DashboardAppDependencies['saveShareCardSettings']>(
       async (settings) => settings,
     );
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          copyTextToClipboard,
-          getReadingDashboardDetails: async () => ({
-            summary: createTodayReadingSummary({
-              date: '2026-06-27',
-              effectiveWords: 960,
-              minutes: 11,
-              streak: 12,
-              topDomains: ['developer.mozilla.org', 'web.dev', 'react.dev'],
-              readPages: 4,
-              learningWords: 5,
-              hasData: true,
-            }),
-            history: [],
-            recentPages: [],
-            recentVocabulary: [],
-            recentSavedItems: [],
-            hasData: true,
-          }),
-          getShareCardSettings: async () => ({
-            theme: 'forest',
-            siteLimit: 3,
-            showSiteIcons: true,
-            showStreak: true,
-          }),
-          saveShareCardSettings,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      copyTextToClipboard,
+      getReadingDashboardDetails: async () => ({
+        summary: createTodayReadingSummary({
+          date: '2026-06-27',
+          effectiveWords: 960,
+          minutes: 11,
+          streak: 12,
+          topDomains: ['developer.mozilla.org', 'web.dev', 'react.dev'],
+          readPages: 4,
+          learningWords: 5,
+          hasData: true,
+        }),
+        history: [],
+        recentPages: [],
+        recentVocabulary: [],
+        recentSavedItems: [],
+        hasData: true,
+      }),
+      getShareCardSettings: async () => ({
+        theme: 'forest',
+        siteLimit: 3,
+        showSiteIcons: true,
+        showStreak: true,
+      }),
+      saveShareCardSettings,
+    });
 
     await revealTodayCard(container);
     const activeCard = () => container.querySelector<HTMLElement>(
@@ -1404,14 +1288,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const exportSummaryCardPng = vi.fn<DashboardAppDependencies['exportSummaryCardPng']>(
       async () => undefined,
     );
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          exportSummaryCardPng,
-          getReadingDashboardDetails: async () => createDashboardDetails(960, 'developer.mozilla.org'),
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      exportSummaryCardPng,
+      getReadingDashboardDetails: async () => createDashboardDetails(960, 'developer.mozilla.org'),
+    });
 
     await revealTodayCard(container);
     const themeInputs = Array.from(
@@ -1447,14 +1327,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
       .mockResolvedValueOnce(createDashboardDetails());
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          clearLocalReadingData,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      clearLocalReadingData,
+    });
 
     await clickButton(findButton(container, '清空本地数据'));
     await flushReactMicrotasks();
@@ -1471,15 +1347,11 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
       .mockResolvedValueOnce(createDashboardDetails());
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          clearLocalReadingData,
-          copyTextToClipboard,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      clearLocalReadingData,
+      copyTextToClipboard,
+    });
 
     await revealTodayCard(container);
     await clickButton(findButton(container, '复制文案'));
@@ -1506,14 +1378,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       throw new Error('clear failed');
     });
     const getReadingDashboardDetails = vi.fn(async () => createDashboardDetails(960, 'developer.mozilla.org'));
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          clearLocalReadingData,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      clearLocalReadingData,
+    });
 
     await clickButton(findButton(container, '清空本地数据'));
     await flushReactMicrotasks();
@@ -1530,14 +1398,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
       .mockRejectedValueOnce(new Error('refresh failed'));
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          clearLocalReadingData,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      clearLocalReadingData,
+    });
 
     await clickButton(findButton(container, '清空本地数据'));
     await flushReactMicrotasks();
@@ -1552,15 +1416,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('does not clear local dashboard data when confirmation is declined', async () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi.fn(async () => createDashboardDetails(960, 'developer.mozilla.org'));
-    const container = await renderForSmoke(
-      <DashboardApp
-        dependencies={createDashboardDependencies({
-          getReadingDashboardDetails,
-          clearLocalReadingData,
-          confirmClearLocalReadingData: () => false,
-        })}
-      />,
-    );
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      clearLocalReadingData,
+      confirmClearLocalReadingData: () => false,
+    });
 
     await clickButton(findButton(container, '清空本地数据'));
     await flushReactMicrotasks();
@@ -1577,17 +1437,13 @@ describe('extension UI entrypoint smoke rendering', () => {
       .fn()
       .mockImplementationOnce(() => initialDetails.promise)
       .mockResolvedValueOnce(createDashboardDetails(740, 'latest.example'));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails,
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails,
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     expect(getSidePanelReadingDetails).toHaveBeenCalledOnce();
 
@@ -1616,17 +1472,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
       injected: false,
     }));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            granted: false,
-            enabled: false,
-          }),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        granted: false,
+        enabled: false,
+      }),
+      enableCurrentTabSite,
+    });
 
     await clickButton(findButton(container, '启用当前网站'));
 
@@ -1672,18 +1524,14 @@ describe('extension UI entrypoint smoke rendering', () => {
             hasData: true,
           }
     ));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess,
-          getCurrentPageReadingSummary,
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getCurrentTabSiteAccess,
+      getCurrentPageReadingSummary,
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     expect(container.textContent).toContain('old.example');
     expect(container.textContent).toContain('345 / 1,000 词');
@@ -1770,18 +1618,14 @@ describe('extension UI entrypoint smoke rendering', () => {
             },
       );
     });
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess,
-          getCurrentPageReadingSummary,
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getCurrentTabSiteAccess,
+      getCurrentPageReadingSummary,
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     await act(async () => {
       requestRefresh?.('tick');
@@ -1879,19 +1723,15 @@ describe('extension UI entrypoint smoke rendering', () => {
             hasData: true,
           }
     ));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails,
-          getCurrentTabSiteAccess,
-          getCurrentPageReadingSummary,
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return unsubscribe;
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails,
+      getCurrentTabSiteAccess,
+      getCurrentPageReadingSummary,
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return unsubscribe;
+      },
+    });
 
     expect(container.textContent).toContain('first.example');
     expect(container.textContent).toContain('600 词');
@@ -1915,17 +1755,13 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('keeps the side panel enable action stable and single-shot while permission is pending', async () => {
     const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
     const enableCurrentTabSite = vi.fn(() => enableResult.promise);
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-            granted: false,
-            enabled: false,
-          }),
-          enableCurrentTabSite,
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        granted: false,
+        enabled: false,
+      }),
+      enableCurrentTabSite,
+    });
 
     const pendingEnableButton = findButton(container, '启用当前网站');
     pendingEnableButton?.focus();
@@ -1963,19 +1799,15 @@ describe('extension UI entrypoint smoke rendering', () => {
       granted: false,
       enabled: false,
     }));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails,
-          getCurrentTabSiteAccess,
-          enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails,
+      getCurrentTabSiteAccess,
+      enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     expect(getSidePanelReadingDetails).toHaveBeenCalledOnce();
     await clickButton(findButton(container, '启用当前网站'));
@@ -2025,23 +1857,19 @@ describe('extension UI entrypoint smoke rendering', () => {
         confidence: 0.8,
         hasData: true,
       });
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(420).summary),
-          getCurrentTabSiteAccess: async () => currentAccess,
-          getCurrentPageReadingSummary,
-          enableCurrentTabSite: async () => createSuccessfulSiteEnable({
-            granted: true,
-            enabled: true,
-          }),
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(420).summary),
+      getCurrentTabSiteAccess: async () => currentAccess,
+      getCurrentPageReadingSummary,
+      enableCurrentTabSite: async () => createSuccessfulSiteEnable({
+        granted: true,
+        enabled: true,
+      }),
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     await clickButton(findButton(container, '启用当前网站'));
     expect(getCurrentPageReadingSummary).toHaveBeenCalledTimes(2);
@@ -2089,18 +1917,14 @@ describe('extension UI entrypoint smoke rendering', () => {
         origin: 'https://second.example/*',
         host: 'second.example',
       }));
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getCurrentTabSiteAccess,
-          enableCurrentTabSite: () => enableResult.promise,
-          subscribeToRefresh: (refresh) => {
-            requestRefresh = refresh;
-            return vi.fn();
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getCurrentTabSiteAccess,
+      enableCurrentTabSite: () => enableResult.promise,
+      subscribeToRefresh: (refresh) => {
+        requestRefresh = refresh;
+        return vi.fn();
+      },
+    });
 
     await clickButton(findButton(container, '启用当前网站'));
     await act(async () => {
@@ -2124,18 +1948,14 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('renders side panel companion metrics from injected local services', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: async () => createSidePanelDetails({
-            effectiveWords: 1540,
-            minutes: 18,
-            readPages: 4,
-            hasData: true,
-          }),
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => createSidePanelDetails({
+        effectiveWords: 1540,
+        minutes: 18,
+        readPages: 4,
+        hasData: true,
+      }),
+    });
 
     expect(container.textContent).toContain('当前阅读');
     expect(container.textContent).toContain('1,540 词');
@@ -2145,39 +1965,27 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('shows no-data side panel time metric when local reading stats are empty', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies()}
-      />,
-    );
+    const container = await renderSidePanel();
 
     expect(container.textContent).toContain('阅读时间0 分钟');
     expect(container.textContent).not.toContain('阅读时间不足 1 分钟');
   });
 
   it('does not show side panel top-domain empty state while local summary is loading', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: () => new Promise(() => undefined),
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: () => new Promise(() => undefined),
+    });
 
     expect(container.textContent).toContain('读取中');
     expect(container.textContent).not.toContain('暂无当前网站');
   });
 
   it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          getSidePanelReadingDetails: async () => {
-            throw new Error('stats unavailable');
-          },
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => {
+        throw new Error('stats unavailable');
+      },
+    });
 
     expect(container.textContent).toContain('不可用');
     expect(container.textContent).toContain('有效阅读不可用');
@@ -2189,13 +1997,9 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('opens the dashboard from the side panel companion action', async () => {
     const openDashboard = vi.fn(async () => undefined);
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          openDashboard,
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      openDashboard,
+    });
 
     await clickButton(findButton(container, '打开仪表盘'));
 
@@ -2206,13 +2010,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     const openDashboard = vi.fn(async () => {
       throw new Error('tab creation failed');
     });
-    const container = await renderForSmoke(
-      <SidePanelApp
-        dependencies={createSidePanelDependencies({
-          openDashboard,
-        })}
-      />,
-    );
+    const container = await renderSidePanel({
+      openDashboard,
+    });
 
     await clickButton(findButton(container, '打开仪表盘'));
     await flushReactMicrotasks();
