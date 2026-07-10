@@ -57,9 +57,6 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     }
 
     const batchPayload = { ...payload, events: newEvents };
-    const existingChunks = new Map<string, TextChunkRecord | undefined>();
-    const existingSessionChunks = new Map<string, ChunkSessionRecord | undefined>();
-    const existingDayChunks = new Map<string, ChunkDayRecord | undefined>();
     const eventDates = getEventDates(batchPayload);
     const sessionId = batchPayload.events[0]?.sessionId;
     const chunkStates = new Map<string, ChunkReadingState>();
@@ -98,22 +95,16 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       ? migratedCoverageBaseline / payload.page.totalWords
       : 0;
 
-    const existingChunksById = new Map(chunkIds.map((chunkId, index) => [chunkId, existingChunkValues[index]]));
-    const existingSessionChunksById = new Map(
-      sessionChunkIds.map((id, index) => [id, existingSessionChunkValues[index]]),
-    );
-    const existingDayChunksById = new Map(dayChunkIds.map((id, index) => [id, existingDayChunkValues[index]]));
+    const existingChunks = new Map(chunkIds.map((chunkId, index) => [chunkId, existingChunkValues[index]]));
+    const existingSessionChunks = new Map(chunkIds.map((chunkId, index) => [chunkId, existingSessionChunkValues[index]]));
+    const existingDayChunks = new Map(dayChunkIds.map((id, index) => [id, existingDayChunkValues[index]]));
 
     for (const chunk of payload.chunks) {
-      const existingChunk = existingChunksById.get(chunk.chunkId);
-      const existingSessionChunk = sessionId
-        ? existingSessionChunksById.get(createChunkSessionId(sessionId, chunk.chunkId))
-        : undefined;
+      const existingChunk = existingChunks.get(chunk.chunkId);
+      const existingSessionChunk = existingSessionChunks.get(chunk.chunkId);
       const migratedLifetimeCoverage = existingChunk
         ? 0
         : Math.min(chunk.wordCount, chunk.wordCount * migratedCoverageRatio);
-      existingChunks.set(chunk.chunkId, existingChunk);
-      existingSessionChunks.set(chunk.chunkId, existingSessionChunk);
       migratedLifetimeCoverageByChunk.set(chunk.chunkId, migratedLifetimeCoverage);
       chunkStates.set(chunk.chunkId, {
         sessionEffectiveWords: existingSessionChunk?.effectiveWords ?? 0,
@@ -122,8 +113,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       });
 
       for (const date of eventDates) {
-        const existingDayChunk = existingDayChunksById.get(createChunkDayId(date, chunk.chunkId));
-        existingDayChunks.set(createChunkDayId(date, chunk.chunkId), existingDayChunk);
+        const existingDayChunk = existingDayChunks.get(createChunkDayId(date, chunk.chunkId));
         const dayStates = chunkDayStates.get(date) ?? new Map();
         dayStates.set(chunk.chunkId, {
           effectiveWords: existingDayChunk?.effectiveWords ?? 0,
@@ -792,7 +782,6 @@ function createAdaptiveReadingPaceEpisodeSample(
 
 function readAdaptiveVisibleChunks(value: unknown): Array<{
   chunkId: string;
-  wordCount: number;
   visibleRatio: number;
   contentMultiplier: number;
   viewportY: number;
@@ -811,7 +800,6 @@ function readAdaptiveVisibleChunks(value: unknown): Array<{
     return [
       {
         chunkId,
-        wordCount: readPositiveNumber(visibleChunk, 'wordCount'),
         visibleRatio: readNumber(visibleChunk, 'visibleRatio', 0),
         contentMultiplier: readNumber(
           visibleChunk,

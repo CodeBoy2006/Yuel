@@ -1113,3 +1113,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue removing test-only fallback branches from production UI dependency contracts.
 - **Context:** Five date formatters and three groups of calendar-shift helpers now reduce to two functions. Month/year boundary tests, all 349 unit/UI tests, and TypeScript checks pass; existing share-card work remains unmodified and unstaged.
+
+## [2026-07-11 02:34] Storage Prefetch State Simplification
+- **Changes:** Collapsed duplicate chunk/session/day prefetch maps into one map per state dimension, removed unreachable aggregation fallbacks after state cloning, and stopped decoding an unused adaptive field.
+- **Status:** Completed
+- **Next Steps:** Continue with the SidePanel production dependency contract and test fixture cleanup.
+- **Context:** The storage path now uses three maps instead of six and removes 17 net lines without changing bulk-read keys or ordering. All 41 aggregation/repository tests and TypeScript checks pass; existing share-card work remains unstaged.

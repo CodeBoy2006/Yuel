@@ -108,7 +108,6 @@ export function summarizeReadingEventBatch(
         return [];
       }
 
-      const chunkState = state.chunkStates?.get(chunk.chunkId);
       const runningChunkState = chunkStates.get(chunk.chunkId);
       const runningChunkDayState = chunkDayStates.get(date)?.get(chunk.chunkId);
       return [
@@ -121,13 +120,9 @@ export function summarizeReadingEventBatch(
           attentionMass: visibleChunk.attentionMass,
           contentMultiplier: visibleChunk.contentMultiplier,
           visibleWordCount: visibleChunk.visibleWordCount,
-          sessionEffectiveWords: runningChunkState?.sessionEffectiveWords ?? chunkState?.sessionEffectiveWords ?? 0,
-          todayEffectiveWords:
-            runningChunkDayState?.effectiveWords ??
-            runningChunkState?.todayEffectiveWords ??
-            chunkState?.todayEffectiveWords ??
-            0,
-          lifetimeEffectiveWords: runningChunkState?.lifetimeEffectiveWords ?? chunkState?.lifetimeEffectiveWords ?? 0,
+          sessionEffectiveWords: runningChunkState?.sessionEffectiveWords ?? 0,
+          todayEffectiveWords: runningChunkDayState?.effectiveWords ?? runningChunkState?.todayEffectiveWords ?? 0,
+          lifetimeEffectiveWords: runningChunkState?.lifetimeEffectiveWords ?? 0,
         },
       ];
     });
