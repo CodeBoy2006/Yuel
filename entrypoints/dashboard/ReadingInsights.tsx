@@ -362,7 +362,6 @@ function createHeatmapWeeks(history: ReadingHistoryDay[]): HeatmapDay[][] {
       newWords: 0,
       reviewWords: 0,
       checkInCompleted: false,
-      topDomains: [],
       future,
     });
   }

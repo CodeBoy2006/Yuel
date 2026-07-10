@@ -316,7 +316,6 @@ describe('getReadingDashboardDetails', () => {
       newWords: 520,
       reviewWords: 230,
       checkInCompleted: true,
-      topDomains: ['docs.example.com'],
     });
     expect(details.hasData).toBe(true);
   });
@@ -364,10 +363,8 @@ describe('getReadingDashboardDetails', () => {
     expect(details.recentVocabulary).toEqual([
       {
         lemma: 'resilience',
-        seenCount: 4,
         effectiveSeenCount: 3,
         savedCount: 0,
-        lastSeenAt: morningOnJune27,
         packTags: ['architecture'],
         userStatus: 'learning',
       },
@@ -545,10 +542,8 @@ describe('getReadingDashboardDetails', () => {
     expect(details.recentVocabulary).toEqual([
       {
         lemma: 'resilience',
-        seenCount: 0,
         effectiveSeenCount: 0,
         savedCount: 2,
-        lastSeenAt: morningOnJune27,
         packTags: ['architecture'],
         userStatus: 'learning',
       },

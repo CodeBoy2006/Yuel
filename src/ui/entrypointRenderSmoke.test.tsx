@@ -90,7 +90,6 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
       newWords: 0,
       reviewWords: 0,
       checkInCompleted,
-      topDomains,
     }],
     recentPages: [],
     recentVocabulary: [],
@@ -887,10 +886,8 @@ describe('extension UI entrypoint smoke rendering', () => {
         recentVocabulary: [
           {
             lemma: 'resilience',
-            seenCount: 4,
             effectiveSeenCount: 3,
             savedCount: 2,
-            lastSeenAt: Date.UTC(2026, 5, 27, 10, 0, 0),
             packTags: ['architecture'],
             userStatus: 'learning',
           },

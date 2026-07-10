@@ -30,7 +30,6 @@ export interface ReadingHistoryDay {
   newWords: number;
   reviewWords: number;
   checkInCompleted: boolean;
-  topDomains: string[];
 }
 
 export interface RecentPageSummary {
@@ -53,10 +52,8 @@ export interface CurrentPageReadingSummary {
 
 export interface RecentVocabularySummary {
   lemma: string;
-  seenCount: number;
   effectiveSeenCount: number;
   savedCount: number;
-  lastSeenAt: number;
   packTags: string[];
   userStatus: VocabExposureRecord['userStatus'];
 }
@@ -269,7 +266,6 @@ async function getDashboardReadingHistory(
       newWords: Math.max(0, dailyStat?.newWords ?? 0),
       reviewWords: Math.max(0, dailyStat?.reviewWords ?? 0),
       checkInCompleted: Boolean(dailyStat && hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords)),
-      topDomains: normalizeTopDomains(dailyStat?.topDomains ?? []),
     };
   });
 }
@@ -367,10 +363,8 @@ function createRecentVocabularySummaries(
     .slice(0, limit)
     .map((vocab) => ({
       lemma: normalizeVocabularyLemma(vocab.lemma),
-      seenCount: vocab.seenCount,
       effectiveSeenCount: vocab.effectiveSeenCount,
       savedCount: vocab.savedCount,
-      lastSeenAt: vocab.lastSeenAt,
       packTags: normalizeTags(vocab.packTags),
       userStatus: vocab.userStatus,
     }));

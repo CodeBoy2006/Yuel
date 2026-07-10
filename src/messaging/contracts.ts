@@ -36,8 +36,6 @@ export interface ReadingEventBatchMessage {
   payload: ReadingEventBatchPayload;
 }
 
-export type YuelMessage = ReadingEventBatchMessage | ReadingCollectorStatusRequest;
-
 const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',

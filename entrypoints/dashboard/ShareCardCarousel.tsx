@@ -23,8 +23,6 @@ export const SHARE_CARD_THEMES: readonly ShareCardTheme[] = [
   { id: 'berry', name: '莓影', description: '深莓与珊瑚色，温润而醒目。' },
 ];
 
-export const DEFAULT_SHARE_CARD_THEME: ShareCardThemeId = 'forest';
-
 export function getShareCardTheme(themeId: ShareCardThemeId): ShareCardTheme {
   return SHARE_CARD_THEMES.find((theme) => theme.id === themeId) ?? SHARE_CARD_THEMES[0];
 }

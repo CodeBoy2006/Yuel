@@ -1257,3 +1257,9 @@
 - **Status:** Completed
 - **Next Steps:** Remove the remaining independently confirmed dormant read-model fields, then run final verification and stop audits.
 - **Context:** The collector test removes 120 net lines without absorbing flush, mock-clear, timer, or stop ordering. All 35 collector tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:38] Dormant Read Model Surface Removal
+- **Changes:** Removed unconsumed vocabulary-summary counts/timestamps, the unused history-domain projection, and two zero-reference exports while preserving storage records, indexes, and today's domain summary.
+- **Status:** Completed
+- **Next Steps:** Run the final complete verification matrix and no-edit repository stop audits.
+- **Context:** The private read-model surface removes 19 physical lines. All 134 related contract, reading-stat, and UI tests, TypeScript checks, production build, and whitespace validation pass; the bundle is 544.13 kB.
