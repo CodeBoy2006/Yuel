@@ -70,7 +70,6 @@ function createSavedVocabularyRecord(
         language: 'en',
         seenCount: 0,
         effectiveSeenCount: 0,
-        lookupCount: 0,
         savedCount: 1,
         lastSeenAt: savedAt,
         packTags: [],

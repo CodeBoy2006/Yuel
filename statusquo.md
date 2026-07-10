@@ -1173,3 +1173,9 @@
 - **Status:** Completed
 - **Next Steps:** Remove the remaining unused vocabulary lookup counter and consolidate the last exact confidence helper duplicate.
 - **Context:** The batch removes 83 net lines. All 57 UI/share-card tests, 70 reading/check-in/repository tests, TypeScript checks, and the production build pass; existing transparent-export work remains unstaged.
+
+## [2026-07-11 03:13] Dormant Vocabulary Counter Removal
+- **Changes:** Removed the never-incremented and never-rendered vocabulary lookup counter from storage records, write paths, read summaries, and test fixtures.
+- **Status:** Completed
+- **Next Steps:** Consolidate the remaining exact duplicate confidence-weighting helper.
+- **Context:** The model contracts lose 17 lines without a schema migration because existing IndexedDB objects tolerate ignored properties. All 127 focused storage/UI tests, TypeScript checks, and the production build pass.

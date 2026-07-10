@@ -73,7 +73,6 @@ export interface VocabExposureRecord {
   language: string;
   seenCount: number;
   effectiveSeenCount: number;
-  lookupCount: number;
   savedCount: number;
   lastSeenAt: number;
   packTags: string[];

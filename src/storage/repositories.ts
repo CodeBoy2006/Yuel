@@ -872,7 +872,6 @@ function extractVocabExposureUpdates(text: string, now: number, coverage: number
     language: 'en',
     seenCount: seenCount * boundedCoverage,
     effectiveSeenCount: seenCount * boundedCoverage,
-    lookupCount: 0,
     savedCount: 0,
     lastSeenAt: now,
     packTags: packTagsByLemma.get(lemma) ?? [],

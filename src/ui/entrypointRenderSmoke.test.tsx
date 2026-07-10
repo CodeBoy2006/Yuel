@@ -1331,7 +1331,6 @@ describe('extension UI entrypoint smoke rendering', () => {
                 lemma: 'resilience',
                 seenCount: 4,
                 effectiveSeenCount: 3,
-                lookupCount: 0,
                 savedCount: 2,
                 lastSeenAt: Date.UTC(2026, 5, 27, 10, 0, 0),
                 packTags: ['architecture'],

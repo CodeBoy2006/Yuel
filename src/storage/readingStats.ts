@@ -61,7 +61,6 @@ export interface RecentVocabularySummary {
   lemma: string;
   seenCount: number;
   effectiveSeenCount: number;
-  lookupCount: number;
   savedCount: number;
   lastSeenAt: number;
   packTags: string[];
@@ -381,7 +380,6 @@ function createRecentVocabularySummaries(
       lemma: normalizeVocabularyLemma(vocab.lemma),
       seenCount: vocab.seenCount,
       effectiveSeenCount: vocab.effectiveSeenCount,
-      lookupCount: vocab.lookupCount,
       savedCount: vocab.savedCount,
       lastSeenAt: vocab.lastSeenAt,
       packTags: normalizeTags(vocab.packTags),
