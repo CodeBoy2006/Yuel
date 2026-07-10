@@ -25,7 +25,7 @@ export function createShareCardContent(summary: TodayReadingSummary): ShareCardC
     ...content,
     copyText: [
       `阅量 · 今日英文阅读 · ${content.date}`,
-      `今天计入 ${content.effectiveWords} 个英文词`,
+      `今天计入 ${content.effectiveWords} Words`,
       `阅读时间：${content.readingTime}`,
       `页面：${content.pages} 页`,
       `学习中词汇：${content.learningWords} 个`,

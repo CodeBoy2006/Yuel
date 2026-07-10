@@ -1077,3 +1077,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate the new metric distribution on an opt-in real-world corpus before tuning thresholds or adding content-specific profiles.
 - **Context:** Model version 2 preserves legacy page coverage while preventing migrated words from being counted as new again. All 326 unit/UI tests, TypeScript, production build, static extension smoke, real-browser DOM tests, and the 97k-word/2,000-tick pressure suite pass.
+
+## [2026-07-10 21:57] Share Card Words Label
+- **Changes:** Replaced the share card's “个英文词” label with “Words” in both the visual preview and copied summary, and updated matching test expectations.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The preview and clipboard copy continue to use the same terminology.

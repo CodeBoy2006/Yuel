@@ -27,7 +27,7 @@ describe('createShareCardContent', () => {
     });
     expect(content.copyText).toBe(
       '阅量 · 今日英文阅读 · 2026-06-27\n'
-      + '今天计入 1,280 个英文词\n'
+      + '今天计入 1,280 Words\n'
       + '阅读时间：9 分钟\n'
       + '页面：4 页\n'
       + '学习中词汇：11 个\n'

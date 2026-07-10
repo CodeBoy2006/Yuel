@@ -1570,7 +1570,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const copyTextToClipboard = vi.fn(async () => undefined);
     const expectedCopyText =
       '阅量 · 今日英文阅读 · 2026-06-27\n'
-      + '今天计入 960 个英文词\n'
+      + '今天计入 960 Words\n'
       + '阅读时间：11 分钟\n'
       + '页面：2 页\n'
       + '学习中词汇：5 个\n'

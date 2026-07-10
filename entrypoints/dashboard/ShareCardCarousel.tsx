@@ -163,7 +163,7 @@ const ShareCardPreview = ({
       <p>今天计入</p>
       <div className="share-card-preview__statement">
         <strong>{content.effectiveWords}</strong>
-        <span>个英文词</span>
+        <span>Words</span>
       </div>
       <small>今日英文阅读</small>
     </div>
