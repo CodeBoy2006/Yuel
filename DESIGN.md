@@ -22,7 +22,7 @@ A bilingual reader is working through long documentation at a desk and glances a
 - **Signal:** rust orange, reserved for warnings or attention.
 - **Geometry:** 10–14px radii for controls and containers; pills only for compact statuses.
 - **Elevation:** borders and tonal surfaces do the work. Shadows are limited to the extension popup shell and never paired with a wide blur.
-- **Typography:** system sans for all UI, system mono only for measured values. Fixed product-scale sizes; no oversized display type.
+- **Typography:** system sans throughout, with tabular numerals for measured values. Fixed product-scale sizes; no oversized display type.
 - **Motion:** 160–220ms state transitions with an exponential ease-out. Reduced-motion users receive instant state changes.
 
 ## Tokens
@@ -38,8 +38,11 @@ The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
 | Secondary ink | `--y-ink-secondary` |
 | Muted ink | `--y-ink-muted` |
 | Divider | `--y-line` |
+| Control boundary | `--y-control-line` |
 | Primary action | `--y-accent` |
 | Warning signal | `--y-signal` |
+| Warning text | `--y-signal-ink` |
+| Informational state | `--y-info` |
 | Destructive action | `--y-danger` |
 
 ## Shared components

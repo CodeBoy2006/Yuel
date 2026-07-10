@@ -1017,3 +1017,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate visual density during real reading sessions and tune only from observed usage; the implementation, package build, unit suite, browser DOM/stress checks, and loaded-extension smoke are passing.
 - **Context:** `DESIGN.md` is now the interface source of truth. The in-app browser declined the local extension preview under its URL security policy, so no alternate visual-control workaround was used; packaged Chrome smoke and deterministic DOM checks were used for final runtime verification.
+
+## [2026-07-10 17:19] Frontend Compatibility and Technical Debt Hardening
+- **Changes:** Removed unused Tailwind and Readability dependencies; centralized formatters, starter-site labels, share-card content, and semantic design tokens; hardened Chrome 116 message responses, dynamic content-script registration, permission/collector lifecycle, Popup/Side Panel/Dashboard async generations, focus restoration, responsive controls, and local-data monotonicity. Added regression coverage for failed message acknowledgements, delayed navigation batches, permission revocation, concurrent site mutations, stale page snapshots, repeated data clears, hung refreshes, and out-of-order UI queries.
+- **Status:** Completed
+- **Next Steps:** Re-run the loaded-Chrome smoke when the execution environment permits launching Chrome outside the sandbox; no code change is pending from this audit.
+- **Context:** Final gates passed with 300 unit/UI tests, strict unused-aware TypeScript checks, the WXT production build, static extension smoke, interface anti-pattern detection, and clean diff validation. The latest loaded-Chrome rerun was blocked before assertions by sandbox `DevToolsActivePort`/localhost restrictions, and the required escalation was rejected because the environment usage limit was reached.

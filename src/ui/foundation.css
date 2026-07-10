@@ -9,12 +9,16 @@
   --y-ink-muted: oklch(0.49 0.02 158);
   --y-line: oklch(0.865 0.014 158);
   --y-line-strong: oklch(0.75 0.02 158);
+  --y-control-line: oklch(0.64 0.025 158);
   --y-accent: oklch(0.48 0.11 158);
   --y-accent-hover: oklch(0.415 0.105 158);
   --y-accent-soft: oklch(0.925 0.036 158);
   --y-on-accent: oklch(0.99 0.004 158);
   --y-signal: oklch(0.59 0.15 38);
   --y-signal-soft: oklch(0.945 0.035 55);
+  --y-signal-ink: oklch(0.4 0.11 38);
+  --y-info: oklch(0.43 0.12 250);
+  --y-info-soft: oklch(0.95 0.026 250);
   --y-danger: oklch(0.52 0.19 27);
   --y-danger-hover: oklch(0.455 0.18 27);
   --y-danger-soft: oklch(0.95 0.028 27);
@@ -25,7 +29,7 @@
   --y-duration: 180ms;
   --y-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --y-shadow-popup: 0 4px 8px color-mix(in oklch, var(--y-ink) 10%, transparent);
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -161,7 +165,7 @@ button {
 .yuel-status--warning {
   border-color: color-mix(in oklch, var(--y-signal) 30%, var(--y-line));
   background: var(--y-signal-soft);
-  color: oklch(0.4 0.11 38);
+  color: var(--y-signal-ink);
 }
 
 .yuel-status--warning .yuel-status__dot {
@@ -210,7 +214,7 @@ button {
 .yuel-button:focus-visible,
 button:focus-visible,
 summary:focus-visible {
-  outline: 3px solid color-mix(in oklch, var(--y-focus) 38%, transparent);
+  outline: 3px solid var(--y-focus);
   outline-offset: 2px;
 }
 
@@ -237,13 +241,13 @@ summary:focus-visible {
 }
 
 .yuel-button--secondary {
-  border-color: var(--y-line);
+  border-color: var(--y-control-line);
   background: var(--y-surface);
   color: var(--y-ink);
 }
 
 .yuel-button--secondary:hover:not(:disabled) {
-  border-color: var(--y-line-strong);
+  border-color: var(--y-ink-muted);
   background: var(--y-surface-subtle);
 }
 
@@ -353,10 +357,11 @@ summary:focus-visible {
 
 .yuel-progress__bar {
   position: absolute;
-  inset: 0 auto 0 0;
+  inset: 0;
   border-radius: inherit;
   background: var(--y-accent);
-  transition: width 220ms var(--y-ease);
+  transform-origin: left center;
+  transition: transform 220ms var(--y-ease);
 }
 
 .yuel-notice {
@@ -378,7 +383,7 @@ summary:focus-visible {
 
 .yuel-notice--warning {
   background: var(--y-signal-soft);
-  color: oklch(0.4 0.11 38);
+  color: var(--y-signal-ink);
 }
 
 .yuel-notice--danger {
@@ -394,6 +399,53 @@ summary:focus-visible {
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 240px) {
+  .yuel-status {
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .yuel-button {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .yuel-button > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .yuel-section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+
+  .yuel-section-heading__title,
+  .yuel-section-heading__meta {
+    flex: 1 1 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (forced-colors: active) {
+  .yuel-progress {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  .yuel-progress__bar {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .yuel-button {
+    min-height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

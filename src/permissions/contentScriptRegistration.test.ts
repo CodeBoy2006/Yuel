@@ -9,15 +9,18 @@ import {
   type ContentScriptRegistrationRuntime,
 } from './contentScriptRegistration';
 
-function createRuntime(enabledOrigins: unknown): ContentScriptRegistrationRuntime & {
+function createRuntime(enabledOrigins: unknown, registered = false): ContentScriptRegistrationRuntime & {
   registeredScripts: unknown[];
+  updatedScripts: unknown[];
   unregisteredFilters: Array<{ ids: string[] }>;
 } {
   const registeredScripts: unknown[] = [];
+  const updatedScripts: unknown[] = [];
   const unregisteredFilters: Array<{ ids: string[] }> = [];
 
   return {
     registeredScripts,
+    updatedScripts,
     unregisteredFilters,
     storage: {
       local: {
@@ -28,11 +31,18 @@ function createRuntime(enabledOrigins: unknown): ContentScriptRegistrationRuntim
       },
     },
     scripting: {
+      async getRegisteredContentScripts(filter) {
+        expect(filter).toEqual({ ids: [DYNAMIC_CONTENT_SCRIPT_ID] });
+        return registered ? [{ id: DYNAMIC_CONTENT_SCRIPT_ID }] : [];
+      },
       async unregisterContentScripts(filter) {
         unregisteredFilters.push(filter);
       },
       async registerContentScripts(scripts) {
         registeredScripts.push(...scripts);
+      },
+      async updateContentScripts(scripts) {
+        updatedScripts.push(...scripts);
       },
     },
   };
@@ -61,7 +71,7 @@ describe('registerEnabledSiteContentScripts', () => {
     const runtime = createRuntime(['https://example.com/*', 'https://developer.mozilla.org/*']);
     const result = await registerEnabledSiteContentScripts(runtime);
 
-    expect(runtime.unregisteredFilters).toEqual([{ ids: [DYNAMIC_CONTENT_SCRIPT_ID] }]);
+    expect(runtime.unregisteredFilters).toEqual([]);
     expect(runtime.registeredScripts).toEqual([
       {
         id: DYNAMIC_CONTENT_SCRIPT_ID,
@@ -78,7 +88,7 @@ describe('registerEnabledSiteContentScripts', () => {
   });
 
   it('unregisters the dynamic content script and skips registration when no origins are enabled', async () => {
-    const runtime = createRuntime([]);
+    const runtime = createRuntime([], true);
     const result = await registerEnabledSiteContentScripts(runtime);
 
     expect(runtime.unregisteredFilters).toEqual([{ ids: [DYNAMIC_CONTENT_SCRIPT_ID] }]);
@@ -87,5 +97,32 @@ describe('registerEnabledSiteContentScripts', () => {
       registered: false,
       matches: [],
     });
+  });
+
+  it('updates an existing registration without creating an unregister gap', async () => {
+    const runtime = createRuntime(['https://example.com/*'], true);
+
+    await registerEnabledSiteContentScripts(runtime);
+
+    expect(runtime.unregisteredFilters).toEqual([]);
+    expect(runtime.registeredScripts).toEqual([]);
+    expect(runtime.updatedScripts).toEqual([
+      expect.objectContaining({
+        id: DYNAMIC_CONTENT_SCRIPT_ID,
+        matches: ['https://example.com/*'],
+      }),
+    ]);
+  });
+
+  it('leaves the existing registration in place when an update fails', async () => {
+    const runtime = createRuntime(['https://example.com/*'], true);
+    runtime.scripting.updateContentScripts = async () => {
+      throw new Error('update failed');
+    };
+
+    await expect(registerEnabledSiteContentScripts(runtime)).rejects.toThrow('update failed');
+
+    expect(runtime.unregisteredFilters).toEqual([]);
+    expect(runtime.registeredScripts).toEqual([]);
   });
 });

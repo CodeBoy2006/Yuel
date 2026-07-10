@@ -1,12 +1,8 @@
-import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
 
 export default defineConfig({
   manifestVersion: 3,
   modules: ['@wxt-dev/module-react'],
-  react: {
-    vitePluginsBefore: [tailwindcss()],
-  },
   manifest: {
     name: 'Yuel Reading',
     short_name: 'Yuel',

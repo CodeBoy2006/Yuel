@@ -28,6 +28,7 @@ export interface RecentPageSummary {
   domain: string;
   totalWords: number;
   effectiveWords: number;
+  coveredWords: number;
   lastReadAt: number;
 }
 
@@ -36,6 +37,7 @@ export interface CurrentPageReadingSummary {
   domain: string;
   totalWords: number;
   effectiveWords: number;
+  coveredWords: number;
   effectiveMinutes: number;
   confidence?: number;
   lastReadAt?: number;
@@ -67,8 +69,13 @@ export interface ReadingDashboardDetails {
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
   recentSavedItems: RecentSavedItemSummary[];
-  summaryCardText: string;
   hasData: boolean;
+}
+
+export interface SidePanelReadingDetails {
+  summary: TodayReadingSummary;
+  recentVocabulary: RecentVocabularySummary[];
+  recentSavedItems: RecentSavedItemSummary[];
 }
 
 export interface ReadingStatsStore {
@@ -122,6 +129,9 @@ const RECENT_VOCABULARY_LIMIT = 8;
 const RECENT_VOCABULARY_SCAN_LIMIT = 20;
 const RECENT_SAVED_ITEM_LIMIT = 5;
 const RECENT_SAVED_ITEM_SCAN_LIMIT = 20;
+const SIDE_PANEL_VOCABULARY_LIMIT = 5;
+const SIDE_PANEL_SAVED_ITEM_LIMIT = 1;
+const legacyStreakCache = new WeakMap<ReadingStatsStore, Map<string, { signature: string; streak: number }>>();
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -135,6 +145,11 @@ export async function getTodayReadingSummary(
     store.vocabExposures.where('userStatus').equals('learning').count(),
   ]);
   const readPages = todayPages.filter(hasMeasuredReading).length;
+  const streak = dailyStat && hasMeasuredDailyReading(dailyStat)
+    ? dailyStat.streak > 0
+      ? dailyStat.streak
+      : await recoverLegacyReadingStreak(store, date, dailyStat)
+    : 0;
 
   const summary: TodayReadingSummary = {
     date,
@@ -142,7 +157,7 @@ export async function getTodayReadingSummary(
     minutes: dailyStat?.minutes ?? 0,
     advancedWords: dailyStat?.advancedWords ?? 0,
     expressions: dailyStat?.expressions ?? 0,
-    streak: dailyStat?.streak ?? 0,
+    streak,
     topDomains: normalizeTopDomains(dailyStat?.topDomains ?? []),
     readPages,
     learningWords,
@@ -159,6 +174,45 @@ export async function getTodayReadingSummary(
       summary.readPages > 0 ||
       summary.learningWords > 0,
   };
+}
+
+async function recoverLegacyReadingStreak(
+  store: ReadingStatsStore,
+  date: string,
+  today: DailyStatRecord,
+): Promise<number> {
+  const signature = [today.effectiveWords, today.effectiveReadingMs ?? 0, today.minutes].join(':');
+  const storeCache = legacyStreakCache.get(store) ?? new Map();
+  const cached = storeCache.get(date);
+  if (cached?.signature === signature) {
+    return cached.streak;
+  }
+
+  let streak = 1;
+  let cursor = previousLocalDate(date);
+
+  while (true) {
+    const dailyStat = await store.dailyStats.get(cursor);
+    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
+      storeCache.set(date, { signature, streak });
+      legacyStreakCache.set(store, storeCache);
+      return streak;
+    }
+
+    streak += 1;
+    cursor = previousLocalDate(cursor);
+  }
+}
+
+function hasMeasuredDailyReading(dailyStat: DailyStatRecord): boolean {
+  return dailyStat.effectiveWords > 0 || (dailyStat.effectiveReadingMs ?? 0) > 0 || dailyStat.minutes > 0;
+}
+
+function previousLocalDate(date: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const previous = new Date(year, month - 1, day);
+  previous.setDate(previous.getDate() - 1);
+  return formatLocalDate(previous.getTime());
 }
 
 export async function getReadingDashboardDetails(
@@ -180,32 +234,11 @@ export async function getReadingDashboardDetails(
       domain: normalizeDisplayDomain(page.domain),
       totalWords: page.totalWords,
       effectiveWords: page.effectiveWords,
+      coveredWords: getPageCoveredWords(page),
       lastReadAt: page.lastReadAt,
     }));
-  const recentVocabulary = recentVocabularyRecords
-    .filter(hasVisibleVocabularyMemory)
-    .slice(0, RECENT_VOCABULARY_LIMIT)
-    .map((vocab): RecentVocabularySummary => ({
-      lemma: normalizeVocabularyLemma(vocab.lemma),
-      seenCount: vocab.seenCount,
-      effectiveSeenCount: vocab.effectiveSeenCount,
-      lookupCount: vocab.lookupCount,
-      savedCount: vocab.savedCount,
-      lastSeenAt: vocab.lastSeenAt,
-      packTags: normalizeTags(vocab.packTags),
-      userStatus: vocab.userStatus,
-    }));
-  const recentSavedItems = recentSavedItemRecords
-    .filter(hasVisibleSavedItem)
-    .slice(0, RECENT_SAVED_ITEM_LIMIT)
-    .map((item): RecentSavedItemSummary => ({
-      id: item.id,
-      text: normalizeSavedItemText(item.text),
-      type: item.type,
-      sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-      tags: normalizeTags(item.tags),
-      createdAt: item.createdAt,
-    }));
+  const recentVocabulary = createRecentVocabularySummaries(recentVocabularyRecords);
+  const recentSavedItems = createRecentSavedItemSummaries(recentSavedItemRecords);
 
   const hasData = summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0;
 
@@ -214,8 +247,24 @@ export async function getReadingDashboardDetails(
     recentPages,
     recentVocabulary,
     recentSavedItems,
-    summaryCardText: buildSummaryCardText(summary, recentVocabulary, recentSavedItems, hasData),
     hasData,
+  };
+}
+
+export async function getSidePanelReadingDetails(
+  store: ReadingStatsStore = db,
+  now = Date.now(),
+): Promise<SidePanelReadingDetails> {
+  const [summary, recentVocabularyRecords, recentSavedItemRecords] = await Promise.all([
+    getTodayReadingSummary(store, now),
+    store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
+    store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
+  ]);
+
+  return {
+    summary,
+    recentVocabulary: createRecentVocabularySummaries(recentVocabularyRecords, SIDE_PANEL_VOCABULARY_LIMIT),
+    recentSavedItems: createRecentSavedItemSummaries(recentSavedItemRecords, SIDE_PANEL_SAVED_ITEM_LIMIT),
   };
 }
 
@@ -232,6 +281,7 @@ export async function getCurrentPageReadingSummary(
       domain: getDomain(url),
       totalWords: 0,
       effectiveWords: 0,
+      coveredWords: 0,
       effectiveMinutes: 0,
       hasData: false,
     };
@@ -242,6 +292,7 @@ export async function getCurrentPageReadingSummary(
     domain: normalizeDisplayDomain(page.domain),
     totalWords: Math.max(0, page.totalWords),
     effectiveWords: Math.max(0, page.effectiveWords),
+    coveredWords: getPageCoveredWords(page),
     effectiveMinutes: Math.max(0, page.effectiveReadingMs ?? 0) / 60_000,
     confidence: page.confidence,
     lastReadAt: page.lastReadAt,
@@ -251,6 +302,12 @@ export async function getCurrentPageReadingSummary(
 
 function hasMeasuredReading(page: PageRecord): boolean {
   return page.effectiveWords > 0;
+}
+
+function getPageCoveredWords(page: PageRecord): number {
+  const totalWords = Math.max(0, page.totalWords);
+  const measuredCoverage = Math.max(0, page.coveredWords ?? page.newWords ?? page.effectiveWords);
+  return Math.min(totalWords, measuredCoverage);
 }
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
@@ -263,6 +320,42 @@ function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
 
 function hasVisibleSavedItem(item: SavedItemRecord): boolean {
   return normalizeSavedItemText(item.text).length > 0;
+}
+
+function createRecentVocabularySummaries(
+  records: VocabExposureRecord[],
+  limit = RECENT_VOCABULARY_LIMIT,
+): RecentVocabularySummary[] {
+  return records
+    .filter(hasVisibleVocabularyMemory)
+    .slice(0, limit)
+    .map((vocab) => ({
+      lemma: normalizeVocabularyLemma(vocab.lemma),
+      seenCount: vocab.seenCount,
+      effectiveSeenCount: vocab.effectiveSeenCount,
+      lookupCount: vocab.lookupCount,
+      savedCount: vocab.savedCount,
+      lastSeenAt: vocab.lastSeenAt,
+      packTags: normalizeTags(vocab.packTags),
+      userStatus: vocab.userStatus,
+    }));
+}
+
+function createRecentSavedItemSummaries(
+  records: SavedItemRecord[],
+  limit = RECENT_SAVED_ITEM_LIMIT,
+): RecentSavedItemSummary[] {
+  return records
+    .filter(hasVisibleSavedItem)
+    .slice(0, limit)
+    .map((item) => ({
+      id: item.id,
+      text: normalizeSavedItemText(item.text),
+      type: item.type,
+      sourceDomain: normalizeDisplayDomain(item.sourceDomain),
+      tags: normalizeTags(item.tags),
+      createdAt: item.createdAt,
+    }));
 }
 
 function normalizeTopDomains(topDomains: string[]): string[] {
@@ -284,55 +377,6 @@ function normalizeTags(tags: string[]): string[] {
 function normalizeDisplayDomain(domain: string): string {
   const normalized = domain.trim();
   return normalized || 'unknown';
-}
-
-function buildSummaryCardText(
-  summary: TodayReadingSummary,
-  recentVocabulary: RecentVocabularySummary[],
-  recentSavedItems: RecentSavedItemSummary[],
-  hasData: boolean,
-): string {
-  if (!hasData) {
-    return `Yuel Reading - ${summary.date}\nNo reading data yet.`;
-  }
-
-  const lines = [
-    `Yuel Reading - ${summary.date}`,
-    `Effective words: ${formatCardCount(summary.effectiveWords)}`,
-    `Reading time: ${formatCardMinutes(summary.minutes)}`,
-    `Pages: ${summary.readPages}`,
-  ];
-
-  if (summary.topDomains.length > 0) {
-    lines.push(`Top domains: ${summary.topDomains.slice(0, 2).join(', ')}`);
-  }
-
-  if (recentVocabulary.length > 0) {
-    lines.push(`Vocabulary: ${recentVocabulary.slice(0, 3).map((vocab) => vocab.lemma).join(', ')}`);
-  }
-
-  if (recentSavedItems.length > 0) {
-    lines.push(`Saved: ${truncateCardText(recentSavedItems[0].text)}`);
-  }
-
-  return lines.join('\n');
-}
-
-function formatCardCount(value: number): string {
-  return Math.round(value).toLocaleString();
-}
-
-function formatCardMinutes(value: number): string {
-  if (value < 1 && value > 0) {
-    return '<1 min';
-  }
-
-  return `${Math.round(value)} min`;
-}
-
-function truncateCardText(text: string): string {
-  const compact = text.replace(/\s+/g, ' ').trim();
-  return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact;
 }
 
 function formatLocalDate(timestamp: number): string {

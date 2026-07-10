@@ -1,8 +1,11 @@
 import { browser } from 'wxt/browser';
 
+import { withCrossContextLock } from './crossContextLock';
+
 export const CONTENT_SCRIPT_FILE = 'content-scripts/content.js';
 export const DYNAMIC_CONTENT_SCRIPT_ID = 'yuel-enabled-sites';
 export const ENABLED_SITE_ORIGINS_KEY = 'yuel.enabledSiteOrigins';
+const CONTENT_SCRIPT_REGISTRATION_LOCK = 'yuel-content-script-registration';
 
 export interface DynamicContentScriptDefinition {
   id: string;
@@ -12,15 +15,20 @@ export interface DynamicContentScriptDefinition {
   persistAcrossSessions: boolean;
 }
 
-export interface ContentScriptRegistrationRuntime {
+export interface EnabledSiteStorageRuntime {
   storage: {
     local: {
       get: (key: string) => Promise<Record<string, unknown>>;
     };
   };
+}
+
+export interface ContentScriptRegistrationRuntime extends EnabledSiteStorageRuntime {
   scripting: {
+    getRegisteredContentScripts: (filter: { ids: string[] }) => Promise<Array<{ id: string }>>;
     unregisterContentScripts: (filter: { ids: string[] }) => Promise<void>;
     registerContentScripts: (scripts: DynamicContentScriptDefinition[]) => Promise<void>;
+    updateContentScripts: (scripts: DynamicContentScriptDefinition[]) => Promise<void>;
   };
 }
 
@@ -30,7 +38,7 @@ export interface ContentScriptRegistrationResult {
 }
 
 export async function getEnabledSiteOrigins(
-  runtime: ContentScriptRegistrationRuntime = browser as ContentScriptRegistrationRuntime,
+  runtime: EnabledSiteStorageRuntime = browser as EnabledSiteStorageRuntime,
 ): Promise<string[]> {
   const stored = await runtime.storage.local.get(ENABLED_SITE_ORIGINS_KEY);
   const value = stored[ENABLED_SITE_ORIGINS_KEY];
@@ -44,24 +52,34 @@ export async function getEnabledSiteOrigins(
 export async function registerEnabledSiteContentScripts(
   runtime: ContentScriptRegistrationRuntime = browser as ContentScriptRegistrationRuntime,
 ): Promise<ContentScriptRegistrationResult> {
-  const matches = await getEnabledSiteOrigins(runtime);
+  return withCrossContextLock(CONTENT_SCRIPT_REGISTRATION_LOCK, async () => {
+    const matches = await getEnabledSiteOrigins(runtime);
+    const [registeredScript] = await runtime.scripting.getRegisteredContentScripts({
+      ids: [DYNAMIC_CONTENT_SCRIPT_ID],
+    });
 
-  await unregisterDynamicContentScript(runtime);
-  if (matches.length === 0) {
-    return { registered: false, matches };
-  }
+    if (matches.length === 0) {
+      if (registeredScript) {
+        await runtime.scripting.unregisterContentScripts({ ids: [DYNAMIC_CONTENT_SCRIPT_ID] });
+      }
+      return { registered: false, matches };
+    }
 
-  await runtime.scripting.registerContentScripts([
-    {
+    const definition: DynamicContentScriptDefinition = {
       id: DYNAMIC_CONTENT_SCRIPT_ID,
       matches,
       js: [CONTENT_SCRIPT_FILE],
       runAt: 'document_idle',
       persistAcrossSessions: true,
-    },
-  ]);
+    };
+    if (registeredScript) {
+      await runtime.scripting.updateContentScripts([definition]);
+    } else {
+      await runtime.scripting.registerContentScripts([definition]);
+    }
 
-  return { registered: true, matches };
+    return { registered: true, matches };
+  });
 }
 
 function isEnabledSiteOrigin(value: unknown): value is string {
@@ -75,13 +93,5 @@ function isEnabledSiteOrigin(value: unknown): value is string {
     return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.port === '' && parsed.origin === origin;
   } catch {
     return false;
-  }
-}
-
-async function unregisterDynamicContentScript(runtime: ContentScriptRegistrationRuntime): Promise<void> {
-  try {
-    await runtime.scripting.unregisterContentScripts({ ids: [DYNAMIC_CONTENT_SCRIPT_ID] });
-  } catch (error) {
-    console.warn('Failed to unregister existing Yuel dynamic content script', error);
   }
 }

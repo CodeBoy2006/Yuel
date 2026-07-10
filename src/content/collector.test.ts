@@ -188,7 +188,32 @@ describe('startReadingCollector', () => {
   });
 
   it('keeps pending events for the next flush when runtime delivery fails', async () => {
-    mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce(undefined);
+    mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce({ ok: true });
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    await flushPromises();
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({
+      type: 'yuel.readingEvents.batch',
+      payload: {
+        events: [
+          {
+            kind: 'PageVisible',
+          },
+        ],
+      },
+    });
+
+    controller.stop();
+  });
+
+  it('keeps pending events when the background reports a failed write', async () => {
+    mocks.sendMessage.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: true });
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -213,7 +238,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not emit PageVisible until a hidden tab becomes visible', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     setDocumentVisibility('hidden');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
@@ -239,7 +264,7 @@ describe('startReadingCollector', () => {
   });
 
   it('starts collection from English text even when the page declares another language', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.documentElement.lang = 'zh-CN';
     document.body.innerHTML = `
       <article>
@@ -275,7 +300,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not start collection for pages without English reading text', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.documentElement.lang = 'en-US';
     document.body.innerHTML = `
       <article>
@@ -299,7 +324,7 @@ describe('startReadingCollector', () => {
   });
 
   it('uses the same text snapshot for page totals and flushed chunks', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Dynamic pages should keep page word totals aligned with emitted chunk snapshots.</p>
@@ -334,7 +359,7 @@ describe('startReadingCollector', () => {
   });
 
   it('refreshes text blocks after SPA content is injected into the current route', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article id="article">
         <p id="initial">Initial route content should start the local reading collector normally.</p>
@@ -381,7 +406,7 @@ describe('startReadingCollector', () => {
   });
 
   it('starts a new page snapshot after client-side route navigation', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="first-route">First route content should be flushed before client-side navigation replaces it.</p>
@@ -423,7 +448,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not emit idle activity while a tab remains hidden', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     setDocumentVisibility('hidden');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
@@ -450,7 +475,7 @@ describe('startReadingCollector', () => {
   });
 
   it('ignores intersection updates while a tab remains hidden', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Hidden technical articles should not record visible reading exposure before the user returns.</p>
@@ -499,7 +524,7 @@ describe('startReadingCollector', () => {
   });
 
   it('orders page visible before restored block visibility when a hidden tab becomes visible', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Restored visible documentation blocks should follow the page visible lifecycle event.</p>
@@ -528,7 +553,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not emit hidden block events for blocks that were never visible', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Below threshold documentation blocks should not create hidden events before becoming visible.</p>
@@ -562,7 +587,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not duplicate visible block events while a block stays visible', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Repeated visible observer updates should update exposure state without duplicating lifecycle events.</p>
@@ -624,7 +649,7 @@ describe('startReadingCollector', () => {
   });
 
   it('uses the current viewport visible ratio in exposure ticks instead of the historical maximum', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Viewport exposure should reflect the visible text available at the time the tick closes.</p>
@@ -672,7 +697,7 @@ describe('startReadingCollector', () => {
   });
 
   it('emits one viewport exposure tick for multiple simultaneously visible blocks', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="first">Budgeted reading exposure should allocate one viewport budget across visible article paragraphs.</p>
@@ -729,7 +754,7 @@ describe('startReadingCollector', () => {
   });
 
   it('emits viewport exposure only for split chunks that are visible within a long text element', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="long">${longReadableParagraph()}</p>
@@ -779,7 +804,7 @@ describe('startReadingCollector', () => {
   });
 
   it('uses text range client rects instead of element-height slicing for split chunks', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     mockRangeClientRects([[belowViewportRect()], [visibleRect()]]);
     document.body.innerHTML = `
       <article>
@@ -827,7 +852,7 @@ describe('startReadingCollector', () => {
   });
 
   it('ignores scroll velocity updates while a tab remains hidden', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Hidden scrolling through dense technical documentation should not affect local reading velocity.</p>
@@ -859,7 +884,7 @@ describe('startReadingCollector', () => {
   });
 
   it('ignores selection telemetry while a tab remains hidden', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     vi.spyOn(document, 'getSelection').mockReturnValue({
       toString: () => 'hidden selected text',
     } as Selection);
@@ -887,7 +912,7 @@ describe('startReadingCollector', () => {
   });
 
   it('ignores user activity while a tab remains hidden', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
 
@@ -913,7 +938,7 @@ describe('startReadingCollector', () => {
   });
 
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Memory overhead increases quickly when scrolling through dense technical documentation and architecture guides.</p>
@@ -961,7 +986,7 @@ describe('startReadingCollector', () => {
   });
 
   it('marks exposure ticks as idle after the user stops interacting', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Long visible documentation pages should not count as active reading after the user leaves the browser idle.</p>
@@ -1006,7 +1031,7 @@ describe('startReadingCollector', () => {
   });
 
   it('emits an active event and resumes non-idle exposure after user interaction', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Active reading should resume when keyboard input follows an idle visible documentation session.</p>
@@ -1056,7 +1081,7 @@ describe('startReadingCollector', () => {
   });
 
   it('keeps final visibilitychange exposure active for the visible dwell window', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Visible reading before a tab is hidden should still count as active exposure time.</p>
@@ -1107,7 +1132,7 @@ describe('startReadingCollector', () => {
   });
 
   it('resumes exposure ticks for visible blocks after the tab becomes visible again', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Visible documentation should continue accumulating local reading exposure after returning to the tab.</p>
@@ -1157,7 +1182,7 @@ describe('startReadingCollector', () => {
   });
 
   it('flushes open exposure when the page is hidden by navigation before the next interval', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Navigation away from a technical article should preserve the final visible reading exposure locally.</p>
@@ -1203,7 +1228,7 @@ describe('startReadingCollector', () => {
   });
 
   it('retries the final stop flush once when runtime delivery fails', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Stopping a collector should still preserve final visible reading exposure when delivery briefly fails.</p>
@@ -1225,7 +1250,7 @@ describe('startReadingCollector', () => {
     ]);
 
     await vi.advanceTimersByTimeAsync(500);
-    mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce(undefined);
+    mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce({ ok: true });
 
     controller.stop();
     await flushPromises();
@@ -1244,7 +1269,7 @@ describe('startReadingCollector', () => {
   });
 
   it('orders final stop exposure before the page hidden event', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Stopping a visible reading session should keep exposure before the lifecycle hidden event.</p>
@@ -1275,7 +1300,7 @@ describe('startReadingCollector', () => {
   });
 
   it('emits PageHidden when stopping a visible page collector', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
     await flushPromises();
@@ -1293,7 +1318,7 @@ describe('startReadingCollector', () => {
   });
 
   it('does not flush again when the collector is stopped twice', async () => {
-    mocks.sendMessage.mockResolvedValue(undefined);
+    mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
       <article>
         <p id="guide">Repeated collector stops should not duplicate visible reading exposure after cleanup completes.</p>

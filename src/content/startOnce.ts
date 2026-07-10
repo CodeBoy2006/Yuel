@@ -16,3 +16,14 @@ export function startReadingCollectorOnce(
 
   return pageContext[COLLECTOR_KEY];
 }
+
+export function stopReadingCollectorOnce(
+  pageContext: CollectorPageContext = globalThis as CollectorPageContext,
+): boolean {
+  const controller = pageContext[COLLECTOR_KEY];
+  if (!controller) return false;
+
+  controller.stop();
+  delete pageContext[COLLECTOR_KEY];
+  return true;
+}

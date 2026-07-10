@@ -18,12 +18,19 @@ import {
 } from '../../src/permissions/siteAccess';
 import {
   getCurrentPageReadingSummary,
-  getReadingDashboardDetails,
+  getSidePanelReadingDetails,
   getTodayReadingSummary,
   type CurrentPageReadingSummary,
-  type ReadingDashboardDetails,
+  type SidePanelReadingDetails,
   type TodayReadingSummary,
 } from '../../src/storage/readingStats';
+import {
+  formatCount,
+  formatDateTime,
+  formatMinutes,
+  formatVocabularyStatus,
+  formatWords,
+} from '../../src/ui/formatters';
 import {
   ActionButton,
   BrandLockup,
@@ -33,9 +40,9 @@ import {
   ProgressBar,
   SectionHeader,
   StatusPill,
+  type StatusTone,
 } from '../../src/ui/primitives';
 
-type StatusTone = 'neutral' | 'positive' | 'warning' | 'danger';
 export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 
 export interface SidePanelAppDependencies {
@@ -44,7 +51,7 @@ export interface SidePanelAppDependencies {
   getCurrentTabSiteAccess?: typeof getCurrentTabSiteAccess;
   enableCurrentTabSite?: typeof enableCurrentTabSite;
   getCurrentPageReadingSummary?: typeof getCurrentPageReadingSummary;
-  getReadingDashboardDetails?: typeof getReadingDashboardDetails;
+  getSidePanelReadingDetails?: typeof getSidePanelReadingDetails;
   subscribeToRefresh?: (refresh: (reason?: SidePanelRefreshReason) => void) => () => void;
 }
 
@@ -53,7 +60,7 @@ const defaultDependencies: SidePanelAppDependencies = {
   getCurrentTabSiteAccess,
   enableCurrentTabSite,
   getCurrentPageReadingSummary,
-  getReadingDashboardDetails,
+  getSidePanelReadingDetails,
   subscribeToRefresh: subscribeToDefaultRefresh,
   openDashboard: async (target) => {
     const url = new URL('/dashboard.html', window.location.href);
@@ -66,7 +73,7 @@ const defaultDependencies: SidePanelAppDependencies = {
 
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
   const [summary, setSummary] = useState<TodayReadingSummary>();
-  const [details, setDetails] = useState<ReadingDashboardDetails>();
+  const [details, setDetails] = useState<SidePanelReadingDetails>();
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [currentPage, setCurrentPage] = useState<CurrentPageReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -78,50 +85,54 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [shareCardBusy, setShareCardBusy] = useState(false);
   const [dashboardFailed, setDashboardFailed] = useState(false);
+  const [currentTabInjectionMissed, setCurrentTabInjectionMissed] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>();
   const mountedRef = useRef(false);
   const refreshSequenceRef = useRef(0);
   const enableSequenceRef = useRef(0);
+  const dashboardActionSequenceRef = useRef(0);
+  const dashboardActionBusyRef = useRef(false);
+  const currentReadingTitleRef = useRef<HTMLHeadingElement>(null);
   const currentUrlRef = useRef<string | undefined>(undefined);
+  const refreshInFlightRef = useRef(false);
+  const activeRefreshTokenRef = useRef(0);
+  const pendingRefreshReasonRef = useRef<SidePanelRefreshReason | undefined>(undefined);
+  const runRefreshRef = useRef<(reason: SidePanelRefreshReason) => Promise<void>>(async () => undefined);
 
-  const refresh = useCallback(async (reason: SidePanelRefreshReason = 'tick') => {
+  const runRefresh = useCallback(async (_reason: SidePanelRefreshReason) => {
     const requestId = ++refreshSequenceRef.current;
     const isCurrentRequest = () => mountedRef.current && requestId === refreshSequenceRef.current;
     const tasks: Promise<void>[] = [];
 
-    if (reason === 'tab' || reason === 'navigation') {
-      currentUrlRef.current = undefined;
-      setSiteAccess(undefined);
-      setCurrentPage(undefined);
-      setCurrentPageFailed(false);
-    }
-
-    tasks.push(
-      dependencies.getTodayReadingSummary()
-        .then((nextSummary) => {
-          if (!isCurrentRequest()) return;
-          setSummary(nextSummary);
-          setLoadFailed(false);
-        })
-        .catch((error) => {
-          console.error('Failed to load Yuel side panel stats', error);
-          if (!isCurrentRequest()) return;
-          setLoadFailed(true);
-        }),
-    );
-
-    if (dependencies.getReadingDashboardDetails) {
+    if (dependencies.getSidePanelReadingDetails) {
       tasks.push(
-        dependencies.getReadingDashboardDetails()
+        dependencies.getSidePanelReadingDetails()
           .then((nextDetails) => {
             if (!isCurrentRequest()) return;
             setDetails(nextDetails);
+            setSummary(nextDetails.summary);
+            setLoadFailed(false);
             setDetailsFailed(false);
           })
           .catch((error) => {
             console.error('Failed to load Yuel side panel details', error);
             if (!isCurrentRequest()) return;
+            setLoadFailed(true);
             setDetailsFailed(true);
+          }),
+      );
+    } else {
+      tasks.push(
+        dependencies.getTodayReadingSummary()
+          .then((nextSummary) => {
+            if (!isCurrentRequest()) return;
+            setSummary(nextSummary);
+            setLoadFailed(false);
+          })
+          .catch((error) => {
+            console.error('Failed to load Yuel side panel stats', error);
+            if (!isCurrentRequest()) return;
+            setLoadFailed(true);
           }),
       );
     }
@@ -175,6 +186,52 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     }
   }, [dependencies]);
 
+  runRefreshRef.current = runRefresh;
+
+  const refresh = useCallback((reason: SidePanelRefreshReason = 'tick') => {
+    if (!mountedRef.current) return;
+
+    const isUrgentRefresh = reason === 'tab' || reason === 'navigation';
+    if (isUrgentRefresh) {
+      refreshSequenceRef.current += 1;
+      enableSequenceRef.current += 1;
+      currentUrlRef.current = undefined;
+      setSiteAccess(undefined);
+      setCurrentPage(undefined);
+      setCurrentPageFailed(false);
+      setCurrentTabInjectionMissed(false);
+      setEnableBusy(false);
+      setEnableDenied(false);
+    }
+
+    const startRefresh = (nextReason: SidePanelRefreshReason) => {
+      const refreshToken = ++activeRefreshTokenRef.current;
+      refreshInFlightRef.current = true;
+      void runRefreshRef.current(nextReason).finally(() => {
+        if (refreshToken !== activeRefreshTokenRef.current) return;
+        refreshInFlightRef.current = false;
+        if (mountedRef.current && pendingRefreshReasonRef.current) {
+          const pendingReason = pendingRefreshReasonRef.current;
+          pendingRefreshReasonRef.current = undefined;
+          startRefresh(pendingReason);
+        }
+      });
+    };
+
+    if (isUrgentRefresh) {
+      pendingRefreshReasonRef.current = undefined;
+      startRefresh(reason);
+      return;
+    }
+
+    pendingRefreshReasonRef.current = mergeSidePanelRefreshReason(pendingRefreshReasonRef.current, reason);
+    if (refreshInFlightRef.current) return;
+
+    const pendingReason = pendingRefreshReasonRef.current;
+    pendingRefreshReasonRef.current = undefined;
+    startRefresh(pendingReason);
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     void refresh('resume');
@@ -186,13 +243,25 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       mountedRef.current = false;
       refreshSequenceRef.current += 1;
       enableSequenceRef.current += 1;
+      dashboardActionSequenceRef.current += 1;
+      dashboardActionBusyRef.current = false;
+      activeRefreshTokenRef.current += 1;
+      refreshInFlightRef.current = false;
+      pendingRefreshReasonRef.current = undefined;
       unsubscribe?.();
     };
   }, [dependencies, refresh]);
 
   const hasSummaryLoader = Boolean(summary) || loadFailed;
   const hasSiteAccessLoader = Boolean(dependencies.getCurrentTabSiteAccess);
-  const statusText = formatStatusText(siteAccess, siteAccessFailed, summary, hasSummaryLoader, loadFailed);
+  const statusText = formatStatusText(
+    siteAccess,
+    siteAccessFailed,
+    summary,
+    hasSummaryLoader,
+    loadFailed,
+    currentTabInjectionMissed,
+  );
   const currentHost = formatCurrentHost({
     siteAccess,
     siteAccessFailed,
@@ -205,7 +274,8 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const timeValue = summary ? (summary.hasData ? formatMinutes(summary.minutes) : '0 分钟') : loadFailed ? '不可用' : '读取中';
   const pagesValue = summary ? `${summary.readPages} 页` : loadFailed ? '不可用' : '读取中';
   const learningValue = summary ? `${summary.learningWords} 个` : loadFailed ? '不可用' : '读取中';
-  const vocabulary = details?.recentVocabulary.slice(0, 5) ?? [];
+  const dashboardActionBusy = dashboardBusy || shareCardBusy;
+  const vocabulary = details?.recentVocabulary ?? [];
   const savedItem = details?.recentSavedItems[0];
   const shouldEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled);
   const showEnableCurrentSite = shouldEnableCurrentSite || enableBusy;
@@ -223,8 +293,12 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     setEnableBusy(true);
     setEnableDenied(false);
     setSiteAccessFailed(false);
+    setCurrentTabInjectionMissed(false);
     const actionId = ++enableSequenceRef.current;
     refreshSequenceRef.current += 1;
+    activeRefreshTokenRef.current += 1;
+    refreshInFlightRef.current = false;
+    pendingRefreshReasonRef.current = undefined;
 
     try {
       const result = await enableCurrentSite();
@@ -233,9 +307,16 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       // Permission prompts can overlap a scheduled refresh. The explicit user
       // action is newer than any request that began while the prompt was open.
       refreshSequenceRef.current += 1;
+      activeRefreshTokenRef.current += 1;
+      refreshInFlightRef.current = false;
+      pendingRefreshReasonRef.current = undefined;
 
       setEnableDenied(result.supported && !result.granted && !result.enabled && !result.starterSite);
       setSiteAccess(result);
+      setCurrentTabInjectionMissed(result.supported && result.enabled && !result.starterSite && !result.injected);
+      if (result.supported && result.enabled) {
+        currentReadingTitleRef.current?.focus();
+      }
 
       if (!result.supported) {
         currentUrlRef.current = undefined;
@@ -248,14 +329,25 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       }
       currentUrlRef.current = result.url;
       if (loadCurrentPage) {
+        const pageRequestId = refreshSequenceRef.current;
         try {
           const nextPage = await loadCurrentPage(result.url);
-          if (!mountedRef.current || actionId !== enableSequenceRef.current || currentUrlRef.current !== result.url) return;
+          if (
+            !mountedRef.current
+            || actionId !== enableSequenceRef.current
+            || pageRequestId !== refreshSequenceRef.current
+            || currentUrlRef.current !== result.url
+          ) return;
           setCurrentPage(nextPage);
           setCurrentPageFailed(false);
         } catch (error) {
           console.error('Failed to load Yuel side panel current page stats after enabling', error);
-          if (!mountedRef.current || actionId !== enableSequenceRef.current) return;
+          if (
+            !mountedRef.current
+            || actionId !== enableSequenceRef.current
+            || pageRequestId !== refreshSequenceRef.current
+            || currentUrlRef.current !== result.url
+          ) return;
           setCurrentPage(undefined);
           setCurrentPageFailed(true);
         }
@@ -272,6 +364,9 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   };
 
   const openDashboard = async (target?: 'share-card') => {
+    if (dashboardActionBusyRef.current) return;
+    const actionId = ++dashboardActionSequenceRef.current;
+    dashboardActionBusyRef.current = true;
     if (target === 'share-card') {
       setShareCardBusy(true);
     } else {
@@ -283,10 +378,16 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       await dependencies.openDashboard(target);
     } catch (error) {
       console.error('Failed to open Yuel dashboard from side panel', error);
+      if (!mountedRef.current || actionId !== dashboardActionSequenceRef.current) return;
       setDashboardFailed(true);
     } finally {
-      setShareCardBusy(false);
-      setDashboardBusy(false);
+      if (actionId === dashboardActionSequenceRef.current) {
+        dashboardActionBusyRef.current = false;
+      }
+      if (mountedRef.current && actionId === dashboardActionSequenceRef.current) {
+        setShareCardBusy(false);
+        setDashboardBusy(false);
+      }
     }
   };
 
@@ -294,37 +395,37 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     <div className={`yuel-app sidepanel-app ${dashboardFailed ? 'sidepanel-app--action-error' : ''}`}>
       <header className="sidepanel-header">
         <BrandLockup compact />
-        <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed)}>{statusText}</StatusPill>
+        <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed, currentTabInjectionMissed)}>{statusText}</StatusPill>
       </header>
 
       <main className="sidepanel-content" aria-label="当前阅读伴读面板">
         <section className="sidepanel-page" aria-labelledby="current-reading-title">
           <div className="sidepanel-context">
             <p className="sidepanel-kicker">当前阅读</p>
-            <h1 id="current-reading-title" title={currentHost}>{currentHost}</h1>
+            <h1 ref={currentReadingTitleRef} id="current-reading-title" tabIndex={-1} title={currentHost}>{currentHost}</h1>
             <span title={lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : undefined}>
               {refreshLabel}
             </span>
           </div>
 
-          <div className="sidepanel-page__measure" aria-live="polite" aria-atomic="true">
-            <span>本页有效阅读</span>
+          <div className="sidepanel-page__measure">
+            <span>本页内容覆盖</span>
             <p>
-              <strong>{currentPage?.hasData ? formatCount(currentPage.effectiveWords) : '—'}</strong>
+              <strong>{currentPage?.hasData ? formatCount(currentPage.coveredWords) : '—'}</strong>
               <span> / {currentPage?.totalWords ? formatCount(currentPage.totalWords) : '—'} 词</span>
             </p>
           </div>
           {currentPage && currentPage.totalWords > 0 ? (
             <ProgressBar
-              label="本页有效阅读进度"
+              label="本页内容覆盖"
               max={currentPage.totalWords}
-              value={currentPage.effectiveWords}
-              valueText={`有效 ${formatCount(currentPage.effectiveWords)} / 总计 ${formatCount(currentPage.totalWords)} 词`}
+              value={currentPage.coveredWords}
+              valueText={`覆盖 ${formatCount(currentPage.coveredWords)} / 总计 ${formatCount(currentPage.totalWords)} 词`}
             />
           ) : null}
           <p className="sidepanel-page__meta">
             {currentPage?.hasData
-              ? `${formatMinutes(currentPage.effectiveMinutes)} · ${formatConfidence(currentPage.confidence)}`
+              ? `累计有效 ${formatWords(currentPage.effectiveWords)} · ${formatMinutes(currentPage.effectiveMinutes)} · ${formatConfidence(currentPage.confidence)}`
               : formatCurrentPageEmptyState(siteAccess, siteAccessFailed, currentPageFailed)}
           </p>
 
@@ -342,6 +443,9 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             </ActionButton>
           ) : null}
           {enableDenied ? <InlineNotice tone="warning">权限未授予，此网站尚未启用。</InlineNotice> : null}
+          {currentTabInjectionMissed ? (
+            <InlineNotice tone="warning">已为后续页面启用；刷新当前标签后开始记录。</InlineNotice>
+          ) : null}
           {siteAccessFailed ? <InlineNotice tone="danger">当前页面状态暂时不可用。</InlineNotice> : null}
           {currentPageFailed ? <InlineNotice tone="danger">本页数据暂时未更新。</InlineNotice> : null}
         </section>
@@ -406,7 +510,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             type="button"
             icon={Sparkles}
             variant="primary"
-            disabled={shareCardBusy}
+            disabled={dashboardActionBusy}
             aria-busy={shareCardBusy}
             onClick={() => void openDashboard('share-card')}
           >
@@ -416,7 +520,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             type="button"
             icon={ExternalLink}
             variant="secondary"
-            disabled={dashboardBusy}
+            disabled={dashboardActionBusy}
             aria-busy={dashboardBusy}
             onClick={() => void openDashboard()}
           >
@@ -472,8 +576,10 @@ function formatStatusText(
   summary: TodayReadingSummary | undefined,
   hasLoaded: boolean,
   loadFailed: boolean,
+  currentTabInjectionMissed = false,
 ): string {
   if (siteAccessFailed) return '状态未知';
+  if (currentTabInjectionMissed) return '待刷新';
   if (siteAccess?.supported && siteAccess.enabled) return '记录中';
   if (siteAccess?.supported && !siteAccess.enabled) return '未启用';
   if (siteAccess && !siteAccess.supported) return '不可记录';
@@ -487,8 +593,10 @@ function getStatusTone(
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   loadFailed: boolean,
+  currentTabInjectionMissed = false,
 ): StatusTone {
   if (siteAccessFailed) return 'danger';
+  if (currentTabInjectionMissed) return 'warning';
   if (siteAccess?.supported && siteAccess.enabled) return 'positive';
   if (siteAccess?.supported && !siteAccess.enabled) return 'warning';
   if (loadFailed) return 'danger';
@@ -538,34 +646,17 @@ function formatConfidence(confidence: number | undefined): string {
   return '低置信度';
 }
 
-function formatVocabularyStatus(status: ReadingDashboardDetails['recentVocabulary'][number]['userStatus']): string {
-  if (status === 'new') return '新词';
-  if (status === 'learning') return '学习中';
-  if (status === 'known') return '已掌握';
-  return '已忽略';
-}
+function mergeSidePanelRefreshReason(
+  current: SidePanelRefreshReason | undefined,
+  next: SidePanelRefreshReason,
+): SidePanelRefreshReason {
+  if (!current) return next;
 
-function formatWords(words: number): string {
-  return `${Math.round(words).toLocaleString()} 词`;
-}
-
-function formatCount(value: number): string {
-  return Math.round(value).toLocaleString();
-}
-
-function formatMinutes(minutes: number): string {
-  if (minutes < 1 && minutes > 0) {
-    return '不足 1 分钟';
-  }
-
-  return `${Math.round(minutes)} 分钟`;
-}
-
-function formatDateTime(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
+  const priority: Record<SidePanelRefreshReason, number> = {
+    tick: 0,
+    resume: 1,
+    navigation: 2,
+    tab: 3,
+  };
+  return priority[next] >= priority[current] ? next : current;
 }

@@ -534,7 +534,7 @@ export const browser = {
   runtime: {
     sendMessage(message) {
       window.__YUEL_SENT_MESSAGES__.push(message);
-      return Promise.resolve();
+      return Promise.resolve({ ok: true });
     },
   },
 };`;

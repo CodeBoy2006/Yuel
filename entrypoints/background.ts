@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { handleMaintenanceAlarm, YUEL_MAINTENANCE_ALARM } from '../src/background/maintenance';
-import { handleReadingRuntimeMessage } from '../src/background/readingMessage';
+import { respondToReadingRuntimeMessage } from '../src/background/readingMessage';
 import { registerSaveSelectionClickHandler, registerSaveSelectionContextMenu } from '../src/background/saveSelectionMenu';
 import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
 import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
@@ -31,7 +31,8 @@ export default defineBackground({
       void syncRemovedHostPermissions(permissions);
     });
 
-    browser.runtime.onMessage.addListener((message) => handleReadingRuntimeMessage(message));
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) =>
+      respondToReadingRuntimeMessage(message, sender, sendResponse));
   },
 });
 

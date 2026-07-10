@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { getCurrentPageReadingSummary, getReadingDashboardDetails, getTodayReadingSummary, type ReadingStatsStore } from './readingStats';
-import type { PageRecord, SavedItemRecord, VocabExposureRecord } from './schema';
+import { createPageId } from '../domain/events';
+import {
+  getCurrentPageReadingSummary,
+  getReadingDashboardDetails,
+  getSidePanelReadingDetails,
+  getTodayReadingSummary,
+  type ReadingStatsStore,
+} from './readingStats';
+import type { DailyStatRecord, PageRecord, SavedItemRecord, VocabExposureRecord } from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
@@ -16,6 +23,7 @@ function createStore({
   recentVocabulary = [],
   recentSavedItems = [],
   pagesById = new Map<string, PageRecord>(),
+  historicalDailyStats = new Map<string, ReturnType<typeof createDailyStat>>(),
 }: {
   dailyStat?: {
     effectiveWords: number;
@@ -34,12 +42,15 @@ function createStore({
   recentVocabulary?: VocabExposureRecord[];
   recentSavedItems?: SavedItemRecord[];
   pagesById?: Map<string, PageRecord>;
+  historicalDailyStats?: Map<string, ReturnType<typeof createDailyStat>>;
 }): ReadingStatsStore {
   return {
     dailyStats: {
       async get(date: string) {
-        expect(date).toBe('2026-06-27');
-        return dailyStat ? { date, ...dailyStat } : undefined;
+        if (date === '2026-06-27') {
+          return dailyStat ? { date, ...dailyStat } : historicalDailyStats.get(date);
+        }
+        return historicalDailyStats.get(date);
       },
     },
     pages: {
@@ -217,6 +228,31 @@ describe('getTodayReadingSummary', () => {
 
     expect(summary.topDomains).toEqual(['developer.mozilla.org', 'github.com']);
   });
+
+  it('recovers consecutive-day streaks written by older versions as zero', async () => {
+    const store = createStore({
+        dailyStat: {
+          effectiveWords: 100,
+          minutes: 1,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: [],
+        },
+        historicalDailyStats: new Map([
+          ['2026-06-26', createDailyStat('2026-06-26')],
+          ['2026-06-25', createDailyStat('2026-06-25')],
+        ]),
+      });
+    const getDailyStat = vi.spyOn(store.dailyStats, 'get');
+
+    const summary = await getTodayReadingSummary(store, morningOnJune27);
+    const repeatedSummary = await getTodayReadingSummary(store, morningOnJune27);
+
+    expect(summary.streak).toBe(3);
+    expect(repeatedSummary.streak).toBe(3);
+    expect(getDailyStat.mock.calls.filter(([date]) => date === '2026-06-26')).toHaveLength(1);
+  });
 });
 
 describe('getReadingDashboardDetails', () => {
@@ -258,6 +294,7 @@ describe('getReadingDashboardDetails', () => {
         domain: 'github.com',
         totalWords: 400,
         effectiveWords: 220,
+        coveredWords: 220,
         lastReadAt: morningOnJune27,
       },
     ]);
@@ -283,10 +320,6 @@ describe('getReadingDashboardDetails', () => {
         createdAt: morningOnJune27,
       },
     ]);
-    expect(details.summaryCardText).toContain('Yuel Reading - 2026-06-27');
-    expect(details.summaryCardText).toContain('Effective words: 620');
-    expect(details.summaryCardText).toContain('Vocabulary: resilience');
-    expect(details.summaryCardText).toContain('Saved: fail gracefully under pressure');
     expect(details.hasData).toBe(true);
   });
 
@@ -307,6 +340,7 @@ describe('getReadingDashboardDetails', () => {
         domain: 'developer.mozilla.org',
         totalWords: 400,
         effectiveWords: 120,
+        coveredWords: 120,
         lastReadAt: morningOnJune27,
       },
     ]);
@@ -352,6 +386,7 @@ describe('getReadingDashboardDetails', () => {
         domain: 'developer.mozilla.org',
         totalWords: 400,
         effectiveWords: 120,
+        coveredWords: 120,
         lastReadAt: morningOnJune27,
       },
     ]);
@@ -426,7 +461,6 @@ describe('getReadingDashboardDetails', () => {
     );
 
     expect(details.recentVocabulary).toEqual([]);
-    expect(details.summaryCardText).not.toContain('dismissed');
     expect(details.hasData).toBe(false);
   });
 
@@ -458,7 +492,6 @@ describe('getReadingDashboardDetails', () => {
         userStatus: 'learning',
       },
     ]);
-    expect(details.summaryCardText).toContain('Vocabulary: resilience');
     expect(details.hasData).toBe(true);
   });
 
@@ -476,7 +509,6 @@ describe('getReadingDashboardDetails', () => {
     );
 
     expect(details.recentVocabulary).toEqual([]);
-    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
     expect(details.hasData).toBe(false);
   });
 
@@ -498,8 +530,6 @@ describe('getReadingDashboardDetails', () => {
         lemma: 'resilience',
       }),
     ]);
-    expect(details.summaryCardText).toContain('Vocabulary: resilience');
-    expect(details.summaryCardText).not.toContain('  resilience  ');
   });
 
   it('normalizes vocabulary pack tags before dashboard display', async () => {
@@ -563,7 +593,6 @@ describe('getReadingDashboardDetails', () => {
     );
 
     expect(details.recentSavedItems).toEqual([]);
-    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
     expect(details.hasData).toBe(false);
   });
 
@@ -631,7 +660,6 @@ describe('getReadingDashboardDetails', () => {
         text: 'mitigate memory overhead',
       }),
     ]);
-    expect(details.summaryCardText).toContain('Saved: mitigate memory overhead');
   });
 
   it('normalizes saved selection tags before dashboard display', async () => {
@@ -677,10 +705,36 @@ describe('getReadingDashboardDetails', () => {
     expect(details.hasData).toBe(true);
   });
 
-  it('builds an empty dashboard card when no local reading data exists', async () => {
+  it('returns an empty dashboard model when no local reading data exists', async () => {
     const details = await getReadingDashboardDetails(createStore({}), morningOnJune27);
 
-    expect(details.summaryCardText).toBe('Yuel Reading - 2026-06-27\nNo reading data yet.');
+    expect(details.hasData).toBe(false);
+  });
+});
+
+describe('getSidePanelReadingDetails', () => {
+  it('loads only the summary, vocabulary, and saved-item collections used by the side panel', async () => {
+    const store = createStore({
+      dailyStat: {
+        effectiveWords: 320,
+        minutes: 4,
+        advancedWords: 0,
+        expressions: 0,
+        streak: 2,
+        topDomains: ['docs.example.com'],
+      },
+      recentVocabulary: [createVocabRecord({ lemma: 'resilience', effectiveSeenCount: 2 })],
+      recentSavedItems: [createSavedItemRecord({ text: 'fail gracefully' })],
+    });
+    store.pages.orderBy = () => {
+      throw new Error('side-panel query must not load recent pages');
+    };
+
+    const details = await getSidePanelReadingDetails(store, morningOnJune27);
+
+    expect(details.summary.effectiveWords).toBe(320);
+    expect(details.recentVocabulary[0]?.lemma).toBe('resilience');
+    expect(details.recentSavedItems[0]?.text).toBe('fail gracefully');
   });
 });
 
@@ -710,11 +764,37 @@ describe('getCurrentPageReadingSummary', () => {
       domain: 'developer.mozilla.org',
       totalWords: 1200,
       effectiveWords: 420,
+      coveredWords: 420,
       effectiveMinutes: 3,
       confidence: 0.82,
       lastReadAt: morningOnJune27,
       hasData: true,
     });
+  });
+
+  it('separates cumulative effective input from unique page-content coverage', async () => {
+    const url = 'https://docs.example.com/revisited';
+    const pageId = createPageId(url);
+    const summary = await getCurrentPageReadingSummary(
+      url,
+      createStore({
+        pagesById: new Map([
+          [
+            pageId,
+            createPageRecord({
+              pageId,
+              domain: 'docs.example.com',
+              totalWords: 400,
+              effectiveWords: 900,
+              coveredWords: 250,
+            }),
+          ],
+        ]),
+      }),
+    );
+
+    expect(summary.effectiveWords).toBe(900);
+    expect(summary.coveredWords).toBe(250);
   });
 
   it('returns a current-page empty state when the page has not produced local reading data', async () => {
@@ -725,6 +805,7 @@ describe('getCurrentPageReadingSummary', () => {
       domain: 'docs.example.com',
       totalWords: 0,
       effectiveWords: 0,
+      coveredWords: 0,
       effectiveMinutes: 0,
       hasData: false,
     });
@@ -770,6 +851,19 @@ function createSavedItemRecord(overrides: Partial<SavedItemRecord> = {}): SavedI
     sourceDomain: 'developer.mozilla.org',
     tags: ['selection'],
     createdAt: morningOnJune27,
+    ...overrides,
+  };
+}
+
+function createDailyStat(date: string, overrides: Partial<DailyStatRecord> = {}): DailyStatRecord {
+  return {
+    date,
+    effectiveWords: 100,
+    minutes: 1,
+    advancedWords: 0,
+    expressions: 0,
+    streak: 0,
+    topDomains: [],
     ...overrides,
   };
 }

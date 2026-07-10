@@ -11,6 +11,8 @@ import {
   removeEnabledSitesForOrigins,
   toOptionalHostOrigin,
   type SiteAccessRuntime,
+  type SiteAccessTab,
+  type SiteAccessTabQuery,
 } from './siteAccess';
 
 function createRuntime({
@@ -24,6 +26,7 @@ function createRuntime({
   requestResult = true,
   removeResult = true,
   enabledOrigins = [],
+  matchingTabs,
 }: {
   currentWindowTabId?: number;
   currentWindowTabUrl?: string;
@@ -35,29 +38,36 @@ function createRuntime({
   requestResult?: boolean;
   removeResult?: boolean;
   enabledOrigins?: string[];
+  matchingTabs?: SiteAccessTab[];
 } = {}): SiteAccessRuntime & {
   containedOrigins: string[][];
   requestedOrigins: string[][];
   removedOrigins: string[][];
   executedFiles: string[];
   executedFunctions: Array<() => unknown>;
+  executedTabIds: number[];
   operationOrder: string[];
   registeredScripts: unknown[];
-  tabQueries: Array<{ active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }>;
+  updatedScripts: unknown[];
+  tabQueries: SiteAccessTabQuery[];
   unregisteredFilters: Array<{ ids: string[] }>;
   storedValues: Record<string, unknown>[];
 } {
   let currentEnabledOrigins = enabledOrigins;
+  let hasPermission = permissionGranted;
   const containedOrigins: string[][] = [];
   const requestedOrigins: string[][] = [];
   const removedOrigins: string[][] = [];
   const executedFiles: string[] = [];
   const executedFunctions: Array<() => unknown> = [];
+  const executedTabIds: number[] = [];
   const operationOrder: string[] = [];
   const registeredScripts: unknown[] = [];
-  const tabQueries: Array<{ active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }> = [];
+  const updatedScripts: unknown[] = [];
+  const tabQueries: SiteAccessTabQuery[] = [];
   const unregisteredFilters: Array<{ ids: string[] }> = [];
   const storedValues: Record<string, unknown>[] = [];
+  let dynamicScriptRegistered = false;
 
   return {
     containedOrigins,
@@ -65,14 +75,19 @@ function createRuntime({
     removedOrigins,
     executedFiles,
     executedFunctions,
+    executedTabIds,
     operationOrder,
     registeredScripts,
+    updatedScripts,
     tabQueries,
     unregisteredFilters,
     storedValues,
     tabs: {
       async query(queryInfo) {
         tabQueries.push(queryInfo);
+        if (queryInfo.url) {
+          return matchingTabs ?? [{ id: tabId, url: tabUrl }];
+        }
         if (queryInfo.lastFocusedWindow) {
           return [{ id: lastFocusedTabId ?? tabId, url: lastFocusedTabUrl ?? tabUrl }];
         }
@@ -86,15 +101,17 @@ function createRuntime({
     permissions: {
       async contains({ origins }) {
         containedOrigins.push(origins);
-        return permissionGranted;
+        return hasPermission;
       },
       async request({ origins }) {
         requestedOrigins.push(origins);
+        if (requestResult) hasPermission = true;
         return requestResult;
       },
       async remove({ origins }) {
         operationOrder.push('permissions.remove');
         removedOrigins.push(origins);
+        if (removeResult) hasPermission = false;
         return removeResult;
       },
     },
@@ -112,7 +129,7 @@ function createRuntime({
     },
     scripting: {
       async executeScript(injection: { target: { tabId: number }; files?: string[]; func?: () => unknown }) {
-        expect(injection.target).toEqual({ tabId });
+        executedTabIds.push(injection.target.tabId);
         if (injection.files) {
           operationOrder.push('scripting.executeScript.files');
           executedFiles.push(...injection.files);
@@ -122,11 +139,19 @@ function createRuntime({
           executedFunctions.push(injection.func);
         }
       },
+      async getRegisteredContentScripts() {
+        return dynamicScriptRegistered ? [{ id: 'yuel-enabled-sites' }] : [];
+      },
       async unregisterContentScripts(filter) {
         unregisteredFilters.push(filter);
+        dynamicScriptRegistered = false;
       },
       async registerContentScripts(scripts) {
         registeredScripts.push(...scripts);
+        dynamicScriptRegistered = true;
+      },
+      async updateContentScripts(scripts) {
+        updatedScripts.push(...scripts);
       },
     },
   };
@@ -163,6 +188,21 @@ describe('getCurrentTabSiteAccess', () => {
       granted: true,
       enabled: true,
       starterSite: false,
+    });
+  });
+
+  it('does not report stale persisted enablement after host permission is gone', async () => {
+    const access = await getCurrentTabSiteAccess(
+      createRuntime({
+        permissionGranted: false,
+        enabledOrigins: ['https://example.com/*'],
+      }),
+    );
+
+    expect(access).toMatchObject({
+      supported: true,
+      granted: false,
+      enabled: false,
     });
   });
 
@@ -302,6 +342,67 @@ describe('enableCurrentTabSite', () => {
       injected: false,
     });
   });
+
+  it('does not persist enablement if permission is revoked before the locked mutation', async () => {
+    const runtime = createRuntime();
+    runtime.permissions.contains = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    const result = await enableCurrentTabSite(runtime);
+
+    expect(runtime.storedValues).toEqual([]);
+    expect(runtime.executedFiles).toEqual([]);
+    expect(result).toMatchObject({
+      supported: true,
+      granted: false,
+      enabled: false,
+      injected: false,
+    });
+  });
+
+  it('rolls back the enabled origin when dynamic content-script registration fails', async () => {
+    const runtime = createRuntime({ enabledOrigins: ['https://old.example/*'] });
+    runtime.scripting.registerContentScripts = async () => {
+      throw new Error('registration failed');
+    };
+
+    await expect(enableCurrentTabSite(runtime)).rejects.toThrow('registration failed');
+
+    expect(runtime.storedValues).toEqual([
+      { [ENABLED_SITE_ORIGINS_KEY]: ['https://old.example/*', 'https://example.com/*'] },
+      { [ENABLED_SITE_ORIGINS_KEY]: ['https://old.example/*'] },
+    ]);
+    expect(runtime.executedFiles).toEqual([]);
+  });
+
+  it('preserves concurrent enables from separate extension contexts', async () => {
+    const first = createRuntime({ tabUrl: 'https://alpha.example/article' });
+    const second = createRuntime({ tabUrl: 'https://beta.example/article' });
+    let sharedOrigins: string[] = [];
+    const sharedStorage = {
+      async get(key: string) {
+        expect(key).toBe(ENABLED_SITE_ORIGINS_KEY);
+        return { [ENABLED_SITE_ORIGINS_KEY]: [...sharedOrigins] };
+      },
+      async set(values: Record<string, unknown>) {
+        sharedOrigins = [...values[ENABLED_SITE_ORIGINS_KEY] as string[]];
+      },
+    };
+    first.storage.local = sharedStorage;
+    second.storage.local = sharedStorage;
+
+    await Promise.all([enableCurrentTabSite(first), enableCurrentTabSite(second)]);
+
+    expect(sharedOrigins).toEqual([
+      'https://alpha.example/*',
+      'https://beta.example/*',
+    ]);
+    expect(second.registeredScripts.at(-1)).toEqual(
+      expect.objectContaining({ matches: sharedOrigins }),
+    );
+  });
 });
 
 describe('disableEnabledSite', () => {
@@ -355,9 +456,25 @@ describe('disableEnabledSite', () => {
     }
   });
 
+  it('stops collectors in every open tab for the disabled origin', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://example.com/*'],
+      matchingTabs: [
+        { id: 11, url: 'https://example.com/one' },
+        { id: 12, url: 'https://example.com/two' },
+      ],
+    });
+
+    await disableEnabledSite('https://example.com/*', runtime);
+
+    expect(runtime.executedTabIds).toEqual([11, 12]);
+    expect(runtime.executedFunctions).toHaveLength(2);
+  });
+
   it('does not update local enablement when host permission removal is refused', async () => {
     const runtime = createRuntime({
       enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+      permissionGranted: true,
       removeResult: false,
     });
 
@@ -368,6 +485,31 @@ describe('disableEnabledSite', () => {
     expect(runtime.removedOrigins).toEqual([['https://example.com/*']]);
     expect(runtime.storedValues).toEqual([]);
     expect(runtime.registeredScripts).toEqual([]);
+  });
+
+  it('removes stale enablement when the host permission is already absent', async () => {
+    const runtime = createRuntime({
+      enabledOrigins: ['https://old.example/*', 'https://example.com/*'],
+      permissionGranted: false,
+      removeResult: false,
+    });
+
+    const result = await disableEnabledSite('https://example.com/*', runtime);
+
+    expect(runtime.removedOrigins).toEqual([['https://example.com/*']]);
+    expect(runtime.containedOrigins).toEqual([['https://example.com/*']]);
+    expect(runtime.storedValues).toEqual([
+      {
+        [ENABLED_SITE_ORIGINS_KEY]: ['https://old.example/*'],
+      },
+    ]);
+    expect(runtime.registeredScripts).toEqual([
+      expect.objectContaining({ matches: ['https://old.example/*'] }),
+    ]);
+    expect(result).toEqual({
+      removed: true,
+      remainingOrigins: ['https://old.example/*'],
+    });
   });
 
   it('does not update storage or permissions for an unknown origin', async () => {
@@ -383,6 +525,33 @@ describe('disableEnabledSite', () => {
       removed: false,
       remainingOrigins: ['https://old.example/*'],
     });
+  });
+
+  it('serializes an enable with a concurrent disable without losing either mutation', async () => {
+    const enabling = createRuntime({ tabUrl: 'https://new.example/article' });
+    const disabling = createRuntime({ tabUrl: 'https://old.example/article' });
+    let sharedOrigins = ['https://old.example/*'];
+    const sharedStorage = {
+      async get(key: string) {
+        expect(key).toBe(ENABLED_SITE_ORIGINS_KEY);
+        return { [ENABLED_SITE_ORIGINS_KEY]: [...sharedOrigins] };
+      },
+      async set(values: Record<string, unknown>) {
+        sharedOrigins = [...values[ENABLED_SITE_ORIGINS_KEY] as string[]];
+      },
+    };
+    enabling.storage.local = sharedStorage;
+    disabling.storage.local = sharedStorage;
+
+    await Promise.all([
+      enableCurrentTabSite(enabling),
+      disableEnabledSite('https://old.example/*', disabling),
+    ]);
+
+    expect(sharedOrigins).toEqual(['https://new.example/*']);
+    expect([...enabling.registeredScripts, ...disabling.registeredScripts]).toContainEqual(
+      expect.objectContaining({ matches: sharedOrigins }),
+    );
   });
 });
 

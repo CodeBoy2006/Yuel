@@ -31,18 +31,21 @@ const MIN_ADAPTIVE_VISIBLE_RATIO = 0.65;
 const MIN_ADAPTIVE_CONTENT_WEIGHT = 0.8;
 const MIN_ADAPTIVE_CHUNKS = 2;
 const MAX_ADAPTIVE_IDLE_MS = 45_000;
+const READING_DATA_CLEARED_AT_KEY = 'readingDataClearedAt';
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
 
-  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats, db.readingPaceProfiles], async () => {
-    const newEvents = await getNewReadingEvents(payload.events);
+  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats, db.readingPaceProfiles, db.metadata], async () => {
+    const dataClearedAt = (await db.metadata.get(READING_DATA_CLEARED_AT_KEY))?.numberValue ?? 0;
+    const eventsAfterClear = payload.events.flatMap((event) => normalizeEventAfterClear(event, dataClearedAt));
+    const newEvents = await getNewReadingEvents(eventsAfterClear);
     if (payload.events.length > 0 && newEvents.length === 0) {
       await pruneExpiredReadingEvents(now);
       return;
     }
 
-    const batchPayload = newEvents.length === payload.events.length ? payload : { ...payload, events: newEvents };
+    const batchPayload = { ...payload, events: newEvents };
     const existingChunks = new Map<string, TextChunkRecord | undefined>();
     const existingSessionChunks = new Map<string, ChunkSessionRecord | undefined>();
     const existingDayChunks = new Map<string, ChunkDayRecord | undefined>();
@@ -113,26 +116,44 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     const vocabUpdates = payload.chunks.flatMap((chunk) => {
       const update = chunkUpdatesById.get(chunk.chunkId);
       if (!chunk.text || !update || update.effectiveWords <= 0) return [];
-      return extractVocabExposureUpdates(chunk.text, now, update.effectiveWords / chunk.wordCount);
+      return extractVocabExposureUpdates(
+        chunk.text,
+        update.lastEffectiveReadAt ?? summary.lastEffectiveReadAt ?? now,
+        update.effectiveWords / chunk.wordCount,
+      );
     });
-    const lastReadAt = summary.dailyUpdates.length > 0 ? now : (existingPage?.lastReadAt ?? now);
-    const pageDomain = normalizeStoredDomain(payload.page.domain);
+    const lastReadAt = summary.lastEffectiveReadAt === undefined
+      ? existingPage?.lastReadAt ?? Math.max(payload.page.capturedAt, dataClearedAt)
+      : Math.max(existingPage?.lastReadAt ?? 0, summary.lastEffectiveReadAt);
+    const incomingPageDomain = normalizeStoredDomain(payload.page.domain);
+    const storedSnapshotCapturedAt = existingPage?.snapshotCapturedAt ?? existingPage?.lastReadAt;
+    const shouldUpdatePageSnapshot = storedSnapshotCapturedAt === undefined
+      || payload.page.capturedAt >= storedSnapshotCapturedAt;
+    const pageDomain = shouldUpdatePageSnapshot ? incomingPageDomain : existingPage?.domain ?? incomingPageDomain;
 
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,
       domain: pageDomain,
-      titleHash: payload.page.titleHash,
-      urlHash: payload.page.urlHash,
-      language: payload.page.language,
-      totalWords: payload.page.totalWords,
+      titleHash: shouldUpdatePageSnapshot ? payload.page.titleHash : existingPage?.titleHash ?? payload.page.titleHash,
+      urlHash: shouldUpdatePageSnapshot ? payload.page.urlHash : existingPage?.urlHash ?? payload.page.urlHash,
+      language: shouldUpdatePageSnapshot ? payload.page.language : existingPage?.language ?? payload.page.language,
+      totalWords: shouldUpdatePageSnapshot ? payload.page.totalWords : existingPage?.totalWords ?? payload.page.totalWords,
       effectiveWords: (existingPage?.effectiveWords ?? 0) + summary.pageEffectiveWords,
+      coveredWords: shouldUpdatePageSnapshot
+        ? Math.min(
+            payload.page.totalWords,
+            chunkRecords.reduce((total, chunk) => total + chunk.effectiveWords, 0),
+          )
+        : existingPage?.coveredWords,
       newWords: (existingPage?.newWords ?? 0) + summary.pageNewWords,
       reviewWords: (existingPage?.reviewWords ?? 0) + summary.pageReviewWords,
       rawExposureMs: (existingPage?.rawExposureMs ?? 0) + summary.totalRawExposureMs,
       effectiveReadingMs: (existingPage?.effectiveReadingMs ?? 0) + summary.totalEffectiveReadingMs,
+      confidence: mergePageConfidence(existingPage, summary.chunkUpdates),
       difficultyScore: existingPage?.difficultyScore ?? 0,
-      firstSeenAt: existingPage?.firstSeenAt ?? payload.page.capturedAt,
+      firstSeenAt: existingPage?.firstSeenAt ?? Math.max(payload.page.capturedAt, dataClearedAt),
       lastReadAt,
+      snapshotCapturedAt: shouldUpdatePageSnapshot ? payload.page.capturedAt : existingPage?.snapshotCapturedAt,
     };
 
     await db.pages.put(pageRecord);
@@ -158,7 +179,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
               ...existing,
               seenCount: existing.seenCount + update.seenCount,
               effectiveSeenCount: existing.effectiveSeenCount + update.effectiveSeenCount,
-              lastSeenAt: now,
+              lastSeenAt: Math.max(existing.lastSeenAt, update.lastSeenAt),
               packTags: mergeTags(existing.packTags, update.packTags),
             }
           : update,
@@ -190,11 +211,36 @@ async function getNewReadingEvents(events: ReadingEvent[]): Promise<ReadingEvent
   });
 }
 
+function normalizeEventAfterClear(event: ReadingEvent, dataClearedAt: number): ReadingEvent[] {
+  if (event.occurredAt <= dataClearedAt) {
+    return [];
+  }
+
+  if (dataClearedAt <= 0 || event.kind !== 'TextViewportExposureTick') {
+    return [event];
+  }
+
+  const value = readObject(event.value);
+  const tickMs = readPositiveNumber(value, 'tickMs');
+  const elapsedAfterClear = event.occurredAt - dataClearedAt;
+  if (tickMs <= elapsedAfterClear) {
+    return [event];
+  }
+
+  return [{
+    ...event,
+    value: {
+      ...value,
+      tickMs: elapsedAfterClear,
+    },
+  }];
+}
+
 export async function pruneExpiredReadingEvents(now = Date.now()): Promise<void> {
   await db.readingEvents.where('occurredAt').below(now - READING_EVENT_RETENTION_MS).delete();
 }
 
-export async function clearLocalReadingData(): Promise<void> {
+export async function clearLocalReadingData(clearedAt = Date.now()): Promise<void> {
   await db.transaction(
     'rw',
     [
@@ -207,8 +253,11 @@ export async function clearLocalReadingData(): Promise<void> {
       db.savedItems,
       db.dailyStats,
       db.readingPaceProfiles,
+      db.metadata,
     ],
     async () => {
+      const existingClearedAt = (await db.metadata.get(READING_DATA_CLEARED_AT_KEY))?.numberValue ?? 0;
+      const nextClearedAt = Math.max(existingClearedAt, clearedAt);
       await Promise.all([
         db.pages.clear(),
         db.textChunks.clear(),
@@ -220,6 +269,10 @@ export async function clearLocalReadingData(): Promise<void> {
         db.dailyStats.clear(),
         db.readingPaceProfiles.clear(),
       ]);
+      await db.metadata.put({
+        key: READING_DATA_CLEARED_AT_KEY,
+        numberValue: nextClearedAt,
+      });
     },
   );
 }
@@ -249,20 +302,91 @@ async function recordDailyStatIncrements(
 ): Promise<void> {
   for (const update of updates) {
     const existing = await db.dailyStats.get(update.date);
+    const effectiveWords = (existing?.effectiveWords ?? 0) + update.effectiveWords;
+    const effectiveReadingMs = (existing?.effectiveReadingMs ?? 0) + update.effectiveReadingMs;
+    const hasReading = effectiveWords > 0 || effectiveReadingMs > 0;
+    const streak = hasReading
+      ? existing && hasMeasuredDailyReading(existing) && existing.streak > 0
+        ? existing.streak
+        : (await getStoredReadingStreakEndingOn(previousLocalDate(update.date))) + 1
+      : 0;
     await db.dailyStats.put({
       date: update.date,
-      effectiveWords: (existing?.effectiveWords ?? 0) + update.effectiveWords,
+      effectiveWords,
       newWords: (existing?.newWords ?? 0) + update.newWords,
       reviewWords: (existing?.reviewWords ?? 0) + update.reviewWords,
       minutes: (existing?.minutes ?? 0) + update.minutes,
       rawExposureMs: (existing?.rawExposureMs ?? 0) + update.rawExposureMs,
-      effectiveReadingMs: (existing?.effectiveReadingMs ?? 0) + update.effectiveReadingMs,
+      effectiveReadingMs,
       advancedWords: existing?.advancedWords ?? 0,
       expressions: existing?.expressions ?? 0,
-      streak: existing?.streak ?? 0,
+      streak,
       topDomains: mergeTopDomains(existing?.topDomains ?? [], domain),
     });
+    await repairFollowingReadingStreaks(update.date, streak);
   }
+}
+
+async function repairFollowingReadingStreaks(date: string, priorStreak: number): Promise<void> {
+  let cursor = nextLocalDate(date);
+  let streak = priorStreak;
+
+  while (true) {
+    const dailyStat = await db.dailyStats.get(cursor);
+    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
+      return;
+    }
+
+    streak += 1;
+    if (dailyStat.streak !== streak) {
+      await db.dailyStats.put({ ...dailyStat, streak });
+    }
+    cursor = nextLocalDate(cursor);
+  }
+}
+
+async function getStoredReadingStreakEndingOn(date: string): Promise<number> {
+  const endingDay = await db.dailyStats.get(date);
+  if (!endingDay || !hasMeasuredDailyReading(endingDay)) {
+    return 0;
+  }
+  if (endingDay.streak > 0) {
+    return endingDay.streak;
+  }
+
+  // Version 3 wrote zero for every streak. Only those legacy rows need a
+  // one-time backward scan; current rows reuse their persisted aggregate.
+  let streak = 1;
+  let cursor = previousLocalDate(date);
+
+  while (true) {
+    const dailyStat = await db.dailyStats.get(cursor);
+    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
+      return streak;
+    }
+
+    streak += 1;
+    cursor = previousLocalDate(cursor);
+  }
+}
+
+function hasMeasuredDailyReading(dailyStat: { effectiveWords: number; effectiveReadingMs?: number; minutes: number }): boolean {
+  return dailyStat.effectiveWords > 0 || (dailyStat.effectiveReadingMs ?? 0) > 0 || dailyStat.minutes > 0;
+}
+
+function previousLocalDate(date: string): string {
+  return shiftLocalDate(date, -1);
+}
+
+function nextLocalDate(date: string): string {
+  return shiftLocalDate(date, 1);
+}
+
+function shiftLocalDate(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(year, month - 1, day);
+  shifted.setDate(shifted.getDate() + days);
+  return formatLocalDate(shifted.getTime());
 }
 
 async function recordChunkCapIncrements(
@@ -449,6 +573,27 @@ function weightedAverageConfidence(
   }
 
   return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
+}
+
+function mergePageConfidence(
+  existingPage: PageRecord | undefined,
+  updates: ReturnType<typeof summarizeReadingEventBatch>['chunkUpdates'],
+): number | undefined {
+  let weightedConfidence = 0;
+  let confidenceWeight = 0;
+
+  if (existingPage?.confidence !== undefined && existingPage.effectiveWords > 0) {
+    weightedConfidence += existingPage.confidence * existingPage.effectiveWords;
+    confidenceWeight += existingPage.effectiveWords;
+  }
+
+  for (const update of updates) {
+    if (update.effectiveWords <= 0) continue;
+    weightedConfidence += update.confidence * update.effectiveWords;
+    confidenceWeight += update.effectiveWords;
+  }
+
+  return confidenceWeight > 0 ? weightedConfidence / confidenceWeight : existingPage?.confidence;
 }
 
 function formatLocalDate(timestamp: number): string {

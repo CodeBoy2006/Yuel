@@ -838,14 +838,21 @@ async function flushEvents(
   );
 
   try {
-    await browser.runtime.sendMessage({
+    const response = await browser.runtime.sendMessage({
       type: MESSAGE_TYPES.readingEventsBatch,
       payload: { page, chunks, events },
     });
+    if (!isSuccessfulReadingMessageResponse(response)) {
+      throw new Error('Yuel background rejected the reading event batch');
+    }
     return true;
   } catch (error) {
     pendingEvents.unshift(...events);
     console.warn('Failed to deliver Yuel reading events; will retry on the next flush', error);
     return false;
   }
+}
+
+function isSuccessfulReadingMessageResponse(value: unknown): value is { ok: true } {
+  return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === true;
 }

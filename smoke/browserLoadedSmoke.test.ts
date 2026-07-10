@@ -22,7 +22,7 @@ describe('browser-loaded extension smoke', () => {
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
     expect(result.dashboardText).toContain('runtime-loop.example');
     expect(result.dashboardText).toContain('今日有效阅读');
-    expect(result.dashboardText).not.toContain('No reading data yet');
+    expect(result.dashboardText).not.toContain('从下一篇外语文章开始');
   }, 30_000);
 
   it('records reading data from a starter-site content script', async () => {
@@ -31,6 +31,6 @@ describe('browser-loaded extension smoke', () => {
     expect(result.extensionId).toMatch(/^[a-p]{32}$/);
     expect(result.pageText).toContain('Starter content script reading loop');
     expect(result.dashboardText).toContain('developer.mozilla.org');
-    expect(result.dashboardText).not.toContain('No reading data yet');
+    expect(result.dashboardText).not.toContain('从下一篇外语文章开始');
   }, 45_000);
 });

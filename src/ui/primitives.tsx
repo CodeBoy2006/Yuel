@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
-type StatusTone = 'neutral' | 'positive' | 'warning' | 'danger';
+export type StatusTone = 'neutral' | 'positive' | 'warning' | 'danger';
 type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 
 export function BrandLockup({ compact = false }: { compact?: boolean }) {
@@ -94,19 +94,25 @@ export function ProgressBar({
       aria-valuenow={safeValue}
       aria-valuetext={valueText ?? `${percentage}%`}
     >
-      <span className="yuel-progress__bar" style={{ width: `${percentage}%` }} />
+      <span className="yuel-progress__bar" style={{ transform: `scaleX(${percentage / 100})` }} />
     </div>
   );
 }
 
 export function InlineNotice({ children, tone = 'neutral' }: { children: ReactNode; tone?: StatusTone }) {
+  const isDanger = tone === 'danger';
+
   return (
-    <p className={`yuel-notice yuel-notice--${tone}`} role={tone === 'danger' ? 'alert' : 'status'} aria-live="polite">
+    <p
+      className={`yuel-notice yuel-notice--${tone}`}
+      role={isDanger ? 'alert' : 'status'}
+      aria-live={isDanger ? undefined : 'polite'}
+    >
       {children}
     </p>
   );
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="yuel-empty" role="status">{children}</div>;
+  return <div className="yuel-empty">{children}</div>;
 }

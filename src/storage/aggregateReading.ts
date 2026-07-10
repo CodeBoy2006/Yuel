@@ -25,6 +25,7 @@ export interface ChunkReadingUpdate {
   newWords: number;
   reviewWords: number;
   confidence: number;
+  lastEffectiveReadAt?: number;
 }
 
 export interface DailyReadingUpdate {
@@ -54,6 +55,7 @@ export interface ReadingBatchSummary {
   pageReviewWords: number;
   totalRawExposureMs: number;
   totalEffectiveReadingMs: number;
+  lastEffectiveReadAt?: number;
   dailyUpdates: DailyReadingUpdate[];
   chunkDayUpdates: ChunkDayReadingUpdate[];
 }
@@ -81,6 +83,7 @@ export function summarizeReadingEventBatch(
   let pageReviewWords = 0;
   let totalRawExposureMs = 0;
   let totalEffectiveReadingMs = 0;
+  let lastEffectiveReadAt: number | undefined;
 
   for (const event of payload.events) {
     if (event.kind !== 'TextViewportExposureTick') {
@@ -163,6 +166,9 @@ export function summarizeReadingEventBatch(
           chunkEstimate.confidence,
           chunkEstimate.effectiveWords,
         ),
+        lastEffectiveReadAt: chunkEstimate.effectiveWords > 0
+          ? event.occurredAt
+          : existingUpdate?.lastEffectiveReadAt,
       });
       pageNewWords += chunkEstimate.newWords;
       pageReviewWords += chunkEstimate.reviewWords;
@@ -184,6 +190,7 @@ export function summarizeReadingEventBatch(
     if (estimate.allocatedWords <= 0) {
       continue;
     }
+    lastEffectiveReadAt = Math.max(lastEffectiveReadAt ?? 0, event.occurredAt);
 
     const existingDailyUpdate = dailyUpdates.get(date);
     dailyUpdates.set(date, {
@@ -204,6 +211,7 @@ export function summarizeReadingEventBatch(
     pageReviewWords,
     totalRawExposureMs,
     totalEffectiveReadingMs,
+    lastEffectiveReadAt,
     dailyUpdates: Array.from(dailyUpdates.values()),
     chunkDayUpdates: Array.from(chunkDayUpdates.values()),
   };
@@ -227,6 +235,7 @@ function recordVisibleChunkRawExposure(
       newWords: existingUpdate?.newWords ?? 0,
       reviewWords: existingUpdate?.reviewWords ?? 0,
       confidence: existingUpdate?.confidence ?? confidence,
+      lastEffectiveReadAt: existingUpdate?.lastEffectiveReadAt,
     });
 
     const chunkDayUpdateKey = `${date}:${chunk.chunkId}`;

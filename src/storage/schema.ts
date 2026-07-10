@@ -11,6 +11,7 @@ export interface PageRecord {
   language: string;
   totalWords: number;
   effectiveWords: number;
+  coveredWords?: number;
   newWords?: number;
   reviewWords?: number;
   rawExposureMs?: number;
@@ -19,6 +20,7 @@ export interface PageRecord {
   difficultyScore: number;
   firstSeenAt: number;
   lastReadAt: number;
+  snapshotCapturedAt?: number;
 }
 
 export interface TextChunkRecord {
@@ -113,6 +115,11 @@ export interface ReadingPaceProfileRecord {
   updatedAt: number;
 }
 
+export interface MetadataRecord {
+  key: string;
+  numberValue: number;
+}
+
 export class YuelDatabase extends Dexie {
   pages!: Table<PageRecord, string>;
   textChunks!: Table<TextChunkRecord, string>;
@@ -123,6 +130,7 @@ export class YuelDatabase extends Dexie {
   savedItems!: Table<SavedItemRecord, string>;
   dailyStats!: Table<DailyStatRecord, string>;
   readingPaceProfiles!: Table<ReadingPaceProfileRecord, string>;
+  metadata!: Table<MetadataRecord, string>;
 
   constructor() {
     super('yuel-local');
@@ -157,6 +165,19 @@ export class YuelDatabase extends Dexie {
       savedItems: 'id, type, sourceDomain, createdAt',
       dailyStats: 'date',
       readingPaceProfiles: 'id, language, contentType, source, updatedAt',
+    });
+
+    this.version(4).stores({
+      pages: 'pageId, domain, language, lastReadAt',
+      textChunks: 'chunkId, pageId, textHash',
+      chunkSessions: 'id, sessionId, chunkId',
+      chunkDays: 'id, date, chunkId',
+      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
+      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
+      savedItems: 'id, type, sourceDomain, createdAt',
+      dailyStats: 'date',
+      readingPaceProfiles: 'id, language, contentType, source, updatedAt',
+      metadata: 'key',
     });
   }
 }

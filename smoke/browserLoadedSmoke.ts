@@ -76,7 +76,7 @@ export async function validateBrowserRuntimeReadingLoop(
 
     const dashboardText = await waitFor(async () => {
       const text = await client.readPageText(dashboardUrl, timeoutMs);
-      if (text.includes(RUNTIME_LOOP_DOMAIN) && !text.includes('No reading data yet')) {
+      if (text.includes(RUNTIME_LOOP_DOMAIN) && text.includes('今日有效阅读')) {
         return text;
       }
 
@@ -111,7 +111,7 @@ export async function validateBrowserStarterSiteContentScriptLoop(
           const pageText = await client.readAttachedPageText(sessionId, timeoutMs);
           const dashboardText = await waitFor(async () => {
             const text = await client.readPageText(dashboardUrl, timeoutMs);
-            if (text.includes(STARTER_SITE_HOST) && !text.includes('No reading data yet')) {
+            if (text.includes(STARTER_SITE_HOST) && text.includes('今日有效阅读')) {
               return text;
             }
 
@@ -145,7 +145,7 @@ async function withLoadedExtension<T>(
 
   try {
     const browserWsUrl = await waitForBrowserWebSocketUrl(userDataDir, timeoutMs);
-    const client = await CdpClient.connect(browserWsUrl);
+    const client = await CdpClient.connect(browserWsUrl, timeoutMs);
 
     try {
       const extensionId = await client.loadUnpackedExtension(extensionDir, timeoutMs);
@@ -493,19 +493,35 @@ async function waitFor<T>(operation: () => Promise<T>, timeoutMs: number, interv
   throw lastError instanceof Error ? lastError : new Error('Timed out waiting for browser smoke condition');
 }
 
-class CdpClient {
-  private nextMessageId = 1;
-  private readonly pendingMessages = new Map<number, { reject: (error: Error) => void; resolve: (value: unknown) => void }>();
+interface PendingCdpMessage {
+  reject: (error: Error) => void;
+  resolve: (value: unknown) => void;
+  timeout: ReturnType<typeof setTimeout>;
+}
 
-  private constructor(private readonly socket: WebSocket) {
+export class CdpClient {
+  private nextMessageId = 1;
+  private readonly pendingMessages = new Map<number, PendingCdpMessage>();
+
+  private constructor(
+    private readonly socket: WebSocket,
+    private readonly commandTimeoutMs: number,
+  ) {
     socket.addEventListener('message', (event) => {
-      const message = JSON.parse(String(event.data)) as {
+      let message: {
         id?: number;
         error?: { message?: string };
         result?: unknown;
       };
 
-      if (!message.id) {
+      try {
+        message = JSON.parse(String(event.data)) as typeof message;
+      } catch {
+        this.rejectPendingMessages(new Error('Chrome DevTools Protocol returned an invalid message'));
+        return;
+      }
+
+      if (message.id === undefined) {
         return;
       }
 
@@ -515,37 +531,84 @@ class CdpClient {
       }
 
       this.pendingMessages.delete(message.id);
+      clearTimeout(pending.timeout);
       if (message.error) {
         pending.reject(new Error(message.error.message ?? 'Chrome DevTools Protocol error'));
       } else {
         pending.resolve(message.result);
       }
     });
+
+    socket.addEventListener('close', () => {
+      this.rejectPendingMessages(new Error('Chrome DevTools Protocol connection closed'));
+    });
+    socket.addEventListener('error', () => {
+      this.rejectPendingMessages(new Error('Chrome DevTools Protocol connection failed'));
+    });
   }
 
-  static async connect(webSocketUrl: string): Promise<CdpClient> {
+  static async connect(webSocketUrl: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<CdpClient> {
     const socket = new WebSocket(webSocketUrl);
     await new Promise<void>((resolve, reject) => {
-      socket.addEventListener('open', () => resolve(), { once: true });
-      socket.addEventListener('error', () => reject(new Error('Failed to connect to Chrome DevTools Protocol')), { once: true });
+      const cleanup = () => {
+        clearTimeout(timeout);
+        socket.removeEventListener('open', handleOpen);
+        socket.removeEventListener('error', handleError);
+      };
+      const handleOpen = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error('Failed to connect to Chrome DevTools Protocol'));
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        socket.close();
+        reject(new Error(`Timed out connecting to Chrome DevTools Protocol after ${timeoutMs}ms`));
+      }, Math.max(1, timeoutMs));
+
+      socket.addEventListener('open', handleOpen, { once: true });
+      socket.addEventListener('error', handleError, { once: true });
     });
 
-    return new CdpClient(socket);
+    return new CdpClient(socket, timeoutMs);
   }
 
-  async send<T>(method: string, params?: Record<string, unknown>, sessionId?: string): Promise<T> {
+  async send<T>(
+    method: string,
+    params?: Record<string, unknown>,
+    sessionId?: string,
+    timeoutMs = this.commandTimeoutMs,
+  ): Promise<T> {
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error(`Cannot send Chrome DevTools Protocol command while disconnected: ${method}`);
+    }
+
     const id = this.nextMessageId;
     this.nextMessageId += 1;
 
-    const response = new Promise<T>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (!this.pendingMessages.delete(id)) return;
+        reject(new Error(`Chrome DevTools Protocol command timed out after ${timeoutMs}ms: ${method}`));
+      }, Math.max(1, timeoutMs));
+
       this.pendingMessages.set(id, {
         reject,
         resolve: (value) => resolve(value as T),
+        timeout,
       });
-    });
 
-    this.socket.send(JSON.stringify({ id, method, params, sessionId }));
-    return response;
+      try {
+        this.socket.send(JSON.stringify({ id, method, params, sessionId }));
+      } catch (error) {
+        this.pendingMessages.delete(id);
+        clearTimeout(timeout);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
   }
 
   async readPageText(url: string, timeoutMs: number): Promise<string> {
@@ -569,10 +632,15 @@ class CdpClient {
     await this.withPage(url, timeoutMs, async (sessionId) => {
       await this.evaluate(
         `(() => new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage(${JSON.stringify(message)}, () => {
+          chrome.runtime.sendMessage(${JSON.stringify(message)}, (response) => {
             const lastError = chrome.runtime.lastError;
             if (lastError?.message && !lastError.message.includes('The message port closed before a response was received')) {
               reject(new Error(lastError.message));
+              return;
+            }
+
+            if (response?.ok !== true) {
+              reject(new Error('Yuel background rejected the runtime smoke batch'));
               return;
             }
 
@@ -602,7 +670,16 @@ class CdpClient {
   }
 
   close(): void {
+    this.rejectPendingMessages(new Error('Chrome DevTools Protocol client closed'));
     this.socket.close();
+  }
+
+  private rejectPendingMessages(error: Error): void {
+    for (const pending of this.pendingMessages.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(error);
+    }
+    this.pendingMessages.clear();
   }
 
   async withOpenPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {

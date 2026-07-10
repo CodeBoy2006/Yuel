@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
 
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
@@ -34,6 +34,12 @@ import {
   type RecentVocabularySummary,
 } from '../../src/storage/readingStats';
 import {
+  formatCount,
+  formatDateTime,
+  formatMinutes,
+  formatVocabularyStatus,
+} from '../../src/ui/formatters';
+import {
   ActionButton,
   BrandLockup,
   EmptyState,
@@ -44,6 +50,7 @@ import {
   StatusPill,
 } from '../../src/ui/primitives';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
+import { createShareCardContent, type ShareCardContent } from '../../src/ui/shareCardContent';
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -74,99 +81,162 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [paceSummary, setPaceSummary] = useState<ReadingPaceSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [paceLoadFailed, setPaceLoadFailed] = useState(false);
-  const [loadRequest, setLoadRequest] = useState(0);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearFailed, setClearFailed] = useState(false);
   const [clearRefreshFailed, setClearRefreshFailed] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloaded' | 'failed'>('idle');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded' | 'failed'>('idle');
   const [shareCardOpen, setShareCardOpen] = useState(() => window.location.hash === '#share-card');
   const [calibrationStep, setCalibrationStep] = useState<CalibrationStep>('idle');
   const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
   const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const dashboardRootRef = useRef<HTMLElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const calibrationSessionRef = useRef(0);
+  const pendingCalibrationFocusRef = useRef<{ id: string; scrollContainerId?: string } | undefined>(undefined);
+  const mountedRef = useRef(false);
+  const detailsRefreshSequenceRef = useRef(0);
+  const paceRefreshSequenceRef = useRef(0);
+  const shareActionSequenceRef = useRef(0);
+  const shareActionBusyRef = useRef(false);
+  const resumeRefreshScheduledRef = useRef(false);
+  const clearBusyRef = useRef(false);
   const loadPaceSummary = dependencies.getReadingPaceSummary ?? getFallbackReadingPaceSummary;
   const savePaceCalibration = dependencies.saveOnboardingReadingPaceCalibration ?? saveOnboardingReadingPaceCalibration;
 
+  const refreshDashboard = useCallback(async (): Promise<{ detailsLoaded: boolean; paceLoaded: boolean }> => {
+    const detailsRequestId = ++detailsRefreshSequenceRef.current;
+    const paceRequestId = ++paceRefreshSequenceRef.current;
+    const isCurrentDetailsRequest = () => mountedRef.current && detailsRequestId === detailsRefreshSequenceRef.current;
+    const isCurrentPaceRequest = () => mountedRef.current && paceRequestId === paceRefreshSequenceRef.current;
+    let detailsLoaded = false;
+    let paceLoaded = false;
+
+    await Promise.all([
+      dependencies.getReadingDashboardDetails()
+        .then((nextDetails) => {
+          detailsLoaded = true;
+          if (!isCurrentDetailsRequest()) return;
+          setDetails(nextDetails);
+          setLoadFailed(false);
+        })
+        .catch((error) => {
+          console.error('Failed to load Yuel dashboard details', error);
+          if (!isCurrentDetailsRequest()) return;
+          setLoadFailed(true);
+        }),
+      loadPaceSummary()
+        .then((nextPaceSummary) => {
+          paceLoaded = true;
+          if (!isCurrentPaceRequest()) return;
+          setPaceSummary(nextPaceSummary);
+          setPaceLoadFailed(false);
+        })
+        .catch((error) => {
+          console.error('Failed to load Yuel reading pace summary', error);
+          if (!isCurrentPaceRequest()) return;
+          setPaceLoadFailed(true);
+        }),
+    ]);
+
+    return { detailsLoaded, paceLoaded };
+  }, [dependencies, loadPaceSummary]);
+
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+    void refreshDashboard();
 
-    void dependencies.getReadingDashboardDetails()
-      .then((nextDetails) => {
-        if (!mounted) return;
-        setDetails(nextDetails);
-        setLoadFailed(false);
-      })
-      .catch((error) => {
-        console.error('Failed to load Yuel dashboard details', error);
-        if (!mounted) return;
-        setLoadFailed(true);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible' || clearBusyRef.current || resumeRefreshScheduledRef.current) return;
+      resumeRefreshScheduledRef.current = true;
+      queueMicrotask(() => {
+        resumeRefreshScheduledRef.current = false;
+        if (mountedRef.current && document.visibilityState === 'visible' && !clearBusyRef.current) {
+          void refreshDashboard();
+        }
       });
+    };
 
-    void loadPaceSummary()
-      .then((nextPaceSummary) => {
-        if (!mounted) return;
-        setPaceSummary(nextPaceSummary);
-        setPaceLoadFailed(false);
-      })
-      .catch((error) => {
-        console.error('Failed to load Yuel reading pace summary', error);
-        if (!mounted) return;
-        setPaceLoadFailed(true);
-      });
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
+      detailsRefreshSequenceRef.current += 1;
+      paceRefreshSequenceRef.current += 1;
+      shareActionSequenceRef.current += 1;
+      shareActionBusyRef.current = false;
+      calibrationSessionRef.current += 1;
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [dependencies, loadPaceSummary, loadRequest]);
-
-  useEffect(() => {
-    if (window.location.hash !== '#share-card') return;
-    setShareCardOpen(true);
-  }, []);
+  }, [refreshDashboard]);
 
   useEffect(() => {
     if (!shareCardOpen || !details?.hasData || window.location.hash !== '#share-card') return;
     window.requestAnimationFrame?.(() => {
-      document.getElementById('share-card')?.scrollIntoView({ block: 'start' });
-      document.getElementById('share-card-title')?.focus({ preventScroll: true });
+      dashboardRootRef.current?.querySelector<HTMLElement>('#share-card')?.scrollIntoView({ block: 'start' });
+      dashboardRootRef.current?.querySelector<HTMLElement>('#share-card-title')?.focus({ preventScroll: true });
     });
   }, [details?.hasData, shareCardOpen]);
 
+  useEffect(() => {
+    const pendingFocus = pendingCalibrationFocusRef.current;
+    if (!pendingFocus) return;
+    pendingCalibrationFocusRef.current = undefined;
+
+    if (pendingFocus.scrollContainerId) {
+      dashboardRootRef.current
+        ?.querySelector<HTMLElement>(`#${pendingFocus.scrollContainerId}`)
+        ?.scrollIntoView({ block: 'start' });
+    }
+    dashboardRootRef.current?.querySelector<HTMLElement>(`#${pendingFocus.id}`)?.focus({ preventScroll: true });
+  }, [calibrationSaveStatus, calibrationStep]);
+
   const summary = details?.summary;
-  const viewState: DashboardViewState = loadFailed ? 'error' : !details ? 'loading' : details.hasData ? 'ready' : 'empty';
-  const statusText = viewState === 'error'
+  const hasStaleDetails = loadFailed && Boolean(details);
+  const viewState: DashboardViewState = loadFailed && !details ? 'error' : !details ? 'loading' : details.hasData ? 'ready' : 'empty';
+  const statusText = hasStaleDetails
+    ? '显示上次读取结果'
+    : viewState === 'error'
     ? '本地数据不可用'
     : viewState === 'loading'
       ? '正在读取本地数据'
       : viewState === 'empty'
         ? '等待第一条记录'
         : '本地数据已读取';
-  const statusTone = viewState === 'error' ? 'danger' : viewState === 'ready' ? 'positive' : 'neutral';
+  const statusTone = hasStaleDetails ? 'warning' : viewState === 'error' ? 'danger' : viewState === 'ready' ? 'positive' : 'neutral';
   const effectiveWordsValue = summary ? formatCount(summary.effectiveWords) : '—';
   const readingTimeValue = summary ? formatMinutes(summary.minutes) : '—';
   const pagesTodayValue = summary ? String(summary.readPages) : '—';
   const learningWordsValue = summary ? String(summary.learningWords) : '—';
-  const shareCardText = details?.summaryCardText ?? '正在读取本地数据';
-  const readingPaceValue = paceLoadFailed ? '不可用' : paceSummary ? `${Math.round(paceSummary.baseWordsPerMinute)} WPM` : '—';
-  const readingPaceLabel = paceLoadFailed ? '阅读速度不可用' : paceSummary ? formatPaceSource(paceSummary) : '正在读取阅读速度';
+  const readingPaceValue = paceSummary ? `${Math.round(paceSummary.baseWordsPerMinute)} WPM` : paceLoadFailed ? '不可用' : '—';
+  const readingPaceLabel = paceSummary
+    ? `${formatPaceSource(paceSummary)}${paceLoadFailed ? ' · 刷新失败，保留上次结果。' : ''}`
+    : paceLoadFailed
+      ? '阅读速度不可用'
+      : '正在读取阅读速度';
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
   const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
-  const topDomain = summary?.topDomains[0] ?? '暂无常读网站';
+  const shareCardContent = summary ? createShareCardContent(summary) : undefined;
+  const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
+  const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
 
   const retryLoading = () => {
     setDetails(undefined);
     setLoadFailed(false);
-    setLoadRequest((request) => request + 1);
+    void refreshDashboard();
   };
 
   const clearData = async () => {
     if (!dependencies.confirmClearLocalReadingData()) return;
 
+    clearBusyRef.current = true;
+    detailsRefreshSequenceRef.current += 1;
+    paceRefreshSequenceRef.current += 1;
     setClearBusy(true);
     setClearFailed(false);
     setClearRefreshFailed(false);
@@ -174,85 +244,110 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setPaceLoadFailed(false);
     setCopyStatus('idle');
     setDownloadStatus('idle');
+    shareActionSequenceRef.current += 1;
+    shareActionBusyRef.current = false;
     resetCalibration();
 
     try {
       await dependencies.clearLocalReadingData();
+      if (!mountedRef.current) return;
+
+      setDetails(undefined);
+      setPaceSummary(undefined);
+      const refreshResult = await refreshDashboard();
+      if (!mountedRef.current) return;
+
+      setClearRefreshFailed(!refreshResult.detailsLoaded);
+      if (!refreshResult.paceLoaded) {
+        setPaceLoadFailed(true);
+      }
     } catch (error) {
       console.error('Failed to clear Yuel local data', error);
+      if (!mountedRef.current) return;
       setClearFailed(true);
-      setClearBusy(false);
-      return;
-    }
-
-    setDetails(undefined);
-    setPaceSummary(undefined);
-
-    try {
-      setDetails(await dependencies.getReadingDashboardDetails());
-    } catch (error) {
-      console.error('Failed to refresh Yuel dashboard details after clearing local data', error);
-      setLoadFailed(true);
-      setClearRefreshFailed(true);
+      if (!details) {
+        void refreshDashboard();
+      }
     } finally {
-      setClearBusy(false);
-    }
-
-    try {
-      setPaceSummary(await loadPaceSummary());
-    } catch (error) {
-      console.error('Failed to refresh Yuel reading pace after clearing local data', error);
-      setPaceLoadFailed(true);
+      clearBusyRef.current = false;
+      if (mountedRef.current) {
+        setClearBusy(false);
+      }
     }
   };
 
   const copyShareCard = async () => {
-    if (viewState !== 'ready' || !details) return;
-    setCopyStatus('idle');
+    if (viewState !== 'ready' || !shareCardContent || shareActionBusyRef.current) return;
+    const actionId = ++shareActionSequenceRef.current;
+    shareActionBusyRef.current = true;
+    setCopyStatus('copying');
 
     try {
-      await copyCardText(details.summaryCardText);
+      await copyCardText(shareCardContent.copyText);
+      if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setCopyStatus('copied');
     } catch (error) {
       console.error('Failed to copy Yuel share card text', error);
+      if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setCopyStatus('failed');
+    } finally {
+      if (actionId === shareActionSequenceRef.current) {
+        shareActionBusyRef.current = false;
+      }
     }
   };
 
   const downloadShareCard = async () => {
-    if (viewState !== 'ready' || !details || !shareCardRef.current) return;
-    setDownloadStatus('idle');
+    if (viewState !== 'ready' || !details || !shareCardRef.current || shareActionBusyRef.current) return;
+    const actionId = ++shareActionSequenceRef.current;
+    shareActionBusyRef.current = true;
+    setDownloadStatus('downloading');
 
     try {
       await exportCardPng(shareCardRef.current, `yuel-reading-${details.summary.date}.png`);
+      if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setDownloadStatus('downloaded');
     } catch (error) {
       console.error('Failed to export Yuel share card PNG', error);
+      if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setDownloadStatus('failed');
+    } finally {
+      if (actionId === shareActionSequenceRef.current) {
+        shareActionBusyRef.current = false;
+      }
     }
   };
 
   const startPaceCalibration = () => {
     calibrationSessionRef.current += 1;
+    pendingCalibrationFocusRef.current = {
+      id: 'pace-calibration-reading-title',
+      scrollContainerId: 'pace-calibration',
+    };
     setCalibrationStartedAt(Date.now());
     setCalibrationReadingFinishedAt(undefined);
     setCalibrationAnswers({});
     setCalibrationStep('reading');
     setCalibrationSaveStatus('idle');
-    window.requestAnimationFrame?.(() => document.getElementById('pace-calibration')?.scrollIntoView({ block: 'start' }));
   };
 
-  function resetCalibration() {
+  function resetCalibration(restoreFocus = false) {
     calibrationSessionRef.current += 1;
     setCalibrationStep('idle');
     setCalibrationStartedAt(undefined);
     setCalibrationReadingFinishedAt(undefined);
     setCalibrationAnswers({});
     setCalibrationSaveStatus('idle');
+    if (restoreFocus) {
+      pendingCalibrationFocusRef.current = { id: 'pace-calibration-trigger' };
+    }
   }
+
+  const cancelPaceCalibration = () => resetCalibration(true);
 
   const finishPaceReading = () => {
     if (calibrationStartedAt === undefined) return;
+    pendingCalibrationFocusRef.current = { id: 'pace-calibration-questions-title' };
     setCalibrationReadingFinishedAt(Date.now());
     setCalibrationStep('questions');
   };
@@ -266,6 +361,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
     const correctAnswers = paceCalibrationQuestions.filter((question) => calibrationAnswers[question.id] === question.correctOptionId).length;
     const sessionId = calibrationSessionRef.current;
+    paceRefreshSequenceRef.current += 1;
     setCalibrationSaveStatus('saving');
 
     try {
@@ -278,30 +374,32 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         correctAnswers,
         questionCount: paceCalibrationQuestions.length,
       });
-      if (sessionId !== calibrationSessionRef.current) return;
+      if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
+      paceRefreshSequenceRef.current += 1;
       setPaceSummary(nextPaceSummary);
+      pendingCalibrationFocusRef.current = { id: 'pace-calibration-trigger' };
       setCalibrationStep('idle');
       setCalibrationStartedAt(undefined);
       setCalibrationReadingFinishedAt(undefined);
       setCalibrationSaveStatus('saved');
     } catch (error) {
       console.error('Failed to save Yuel reading pace calibration', error);
-      if (sessionId !== calibrationSessionRef.current) return;
+      if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
       setCalibrationSaveStatus('failed');
     }
   };
 
   return (
-    <main className="yuel-app dashboard-app">
+    <main ref={dashboardRootRef} className="yuel-app dashboard-app" aria-busy={viewState === 'loading'}>
       <header className="dashboard-header">
         <div className="dashboard-header__inner">
           <BrandLockup />
           <nav className="dashboard-header__nav" aria-label="页面区段">
-            <button type="button" onClick={() => scrollToSection('reading-profile')}>
+            <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>
               <Gauge aria-hidden="true" />
               阅读档案
             </button>
-            <button type="button" onClick={() => scrollToSection('local-data')}>
+            <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'local-data')}>
               <SlidersHorizontal aria-hidden="true" />
               数据管理
             </button>
@@ -321,6 +419,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
         {clearFailed ? <InlineNotice tone="danger">清空失败，本地数据未改变。</InlineNotice> : null}
         {clearRefreshFailed ? <InlineNotice tone="danger">本地数据已清空，但仪表盘刷新失败。</InlineNotice> : null}
+        {hasStaleDetails ? <InlineNotice tone="warning">刷新失败，当前显示上次成功读取的本地数据。</InlineNotice> : null}
 
         {viewState === 'loading' ? <DashboardLoading /> : null}
 
@@ -342,37 +441,35 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               <h2 id="dashboard-empty-title">从下一篇外语文章开始</h2>
               <p>启用一个网站，阅读记录会自动汇入这里。</p>
             </div>
-            <ActionButton icon={Gauge} onClick={() => scrollToSection('reading-profile')}>先校准阅读速度</ActionButton>
+            <ActionButton icon={Gauge} onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>先校准阅读速度</ActionButton>
           </section>
         ) : null}
 
         {viewState === 'ready' && details ? (
           <>
             <section className="today-ledger" aria-labelledby="today-reading-title">
-              <div className="today-ledger__primary">
-                <div>
+              <div className="today-ledger__header">
+                <div className="today-ledger__identity">
                   <p className="dashboard-kicker">{summary?.date}</p>
                   <h2 id="today-reading-title">今日有效阅读</h2>
+                  <p className="today-ledger__domain" title={todayDomain}>{todayDomain}</p>
                 </div>
-                <p className="today-ledger__value"><strong>{effectiveWordsValue}</strong><span>词</span></p>
-              </div>
-              <div className="today-ledger__metrics">
-                <Metric icon={Activity} label="阅读时间" value={readingTimeValue} />
-                <Metric icon={Database} label="今日页面" value={pagesTodayValue} />
-                <Metric icon={Languages} label="学习中词汇" value={learningWordsValue} />
-                <Metric icon={BookOpen} label="连续记录" value={`${summary?.streak ?? 0} 天`} />
-              </div>
-              <div className="today-ledger__footer">
-                <span className="today-ledger__domain" title={topDomain}>{topDomain}</span>
                 <ActionButton
                   variant="quiet"
                   icon={Share2}
                   aria-expanded={shareCardOpen}
-                  aria-controls="share-card"
+                  aria-controls={shareCardOpen ? 'share-card' : undefined}
                   onClick={() => setShareCardOpen((open) => !open)}
                 >
                   {shareCardOpen ? '收起今日卡片' : '查看今日卡片'}
                 </ActionButton>
+              </div>
+              <div className="today-ledger__metrics">
+                <Metric icon={BookOpen} label="有效阅读" value={`${effectiveWordsValue} 词`} />
+                <Metric icon={Activity} label="阅读时间" value={readingTimeValue} />
+                <Metric icon={Database} label="今日页面" value={pagesTodayValue} />
+                <Metric icon={Languages} label="学习中词汇" value={learningWordsValue} />
+                <Metric icon={BookOpen} label="连续记录" value={`${summary?.streak ?? 0} 天`} />
               </div>
             </section>
 
@@ -382,24 +479,27 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   <span id="share-card-title" tabIndex={-1}>今日卡片预览</span>
                 </SectionHeader>
                 <div className="share-section__layout">
-                  <ShareCardPreview
-                    ref={shareCardRef}
-                    date={summary?.date ?? '—'}
-                    effectiveWords={effectiveWordsValue}
-                    readingTime={readingTimeValue}
-                    pages={pagesTodayValue}
-                    learningWords={learningWordsValue}
-                    topDomain={topDomain}
-                    fallbackText={shareCardText}
-                  />
-                  <div className="share-section__actions" aria-live="polite">
+                  {shareCardContent ? <ShareCardPreview ref={shareCardRef} content={shareCardContent} /> : null}
+                  <div className="share-section__actions">
                     <p>今日阅读摘要</p>
-                    <ActionButton icon={Clipboard} onClick={() => void copyShareCard()}>
-                      {copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制文案'}
+                    <ActionButton
+                      icon={Clipboard}
+                      disabled={shareActionBusy}
+                      aria-busy={copyStatus === 'copying'}
+                      onClick={() => void copyShareCard()}
+                    >
+                      {copyStatus === 'copying' ? '复制中...' : copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制文案'}
                     </ActionButton>
-                    <ActionButton icon={Download} onClick={() => void downloadShareCard()}>
-                      {downloadStatus === 'downloaded' ? '已下载' : downloadStatus === 'failed' ? '导出失败' : '下载 PNG'}
+                    <ActionButton
+                      icon={Download}
+                      disabled={shareActionBusy}
+                      aria-busy={downloadStatus === 'downloading'}
+                      onClick={() => void downloadShareCard()}
+                    >
+                      {downloadStatus === 'downloading' ? '导出中...' : downloadStatus === 'downloaded' ? '已下载' : downloadStatus === 'failed' ? '导出失败' : '下载 PNG'}
                     </ActionButton>
+                    {copyStatus === 'copied' ? <InlineNotice tone="positive">文案已复制。</InlineNotice> : null}
+                    {downloadStatus === 'downloaded' ? <InlineNotice tone="positive">PNG 已下载。</InlineNotice> : null}
                     {copyStatus === 'failed' || downloadStatus === 'failed'
                       ? <InlineNotice tone="danger">卡片操作失败，请重试。</InlineNotice>
                       : null}
@@ -412,13 +512,13 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
         <section id="reading-profile" className="dashboard-panel reading-profile" aria-labelledby="reading-profile-title">
           <SectionHeader icon={Gauge} meta={readingPaceValue}>
-            <span id="reading-profile-title">阅读档案</span>
+            <span id="reading-profile-title" tabIndex={-1}>阅读档案</span>
           </SectionHeader>
 
           {calibrationStep === 'idle' ? (
             <div className="reading-profile__summary">
               <p>{readingPaceLabel}</p>
-              <ActionButton icon={Play} onClick={startPaceCalibration}>
+              <ActionButton id="pace-calibration-trigger" icon={Play} onClick={startPaceCalibration}>
                 {paceSummary?.hasProfile ? '重新校准' : '开始校准'}
               </ActionButton>
             </div>
@@ -428,15 +528,15 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <div id="pace-calibration" className="calibration-flow">
               <div className="calibration-flow__heading">
                 <div>
-                  <p className="dashboard-kicker">速度校准 · {PACE_CALIBRATION_WORD_COUNT} words</p>
-                  <h3>按平常速度阅读</h3>
+                  <p className="dashboard-kicker">速度校准 · {PACE_CALIBRATION_WORD_COUNT} 词</p>
+                  <h3 id="pace-calibration-reading-title" tabIndex={-1}>按平常速度阅读</h3>
                 </div>
                 <button
                   type="button"
                   className="icon-button"
                   aria-label="取消校准"
                   disabled={calibrationSaveStatus === 'saving'}
-                  onClick={resetCalibration}
+                  onClick={cancelPaceCalibration}
                 >
                   <X aria-hidden="true" />
                 </button>
@@ -447,23 +547,23 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           ) : null}
 
           {calibrationStep === 'questions' ? (
-            <div id="pace-calibration" className="calibration-flow" lang="en">
+            <div id="pace-calibration" className="calibration-flow">
               <div className="calibration-flow__heading">
-                <div>
+                <div lang="en">
                   <p className="dashboard-kicker">Comprehension check</p>
-                  <h3>Answer three questions</h3>
+                  <h3 id="pace-calibration-questions-title" tabIndex={-1}>Answer three questions</h3>
                 </div>
                 <button
                   type="button"
                   className="icon-button"
                   aria-label="取消校准"
                   disabled={calibrationSaveStatus === 'saving'}
-                  onClick={resetCalibration}
+                  onClick={cancelPaceCalibration}
                 >
                   <X aria-hidden="true" />
                 </button>
               </div>
-              <div className="calibration-questions">
+              <div className="calibration-questions" lang="en">
                 {paceCalibrationQuestions.map((question, index) => (
                   <fieldset key={question.id} disabled={calibrationSaveStatus === 'saving'}>
                     <legend><span>{index + 1}</span>{question.prompt}</legend>
@@ -491,7 +591,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 <ActionButton
                   variant="quiet"
                   disabled={calibrationSaveStatus === 'saving'}
-                  onClick={resetCalibration}
+                  onClick={cancelPaceCalibration}
                 >
                   取消
                 </ActionButton>
@@ -546,7 +646,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div>
             <div className="local-data__title">
               <LockKeyhole aria-hidden="true" />
-              <h2 id="local-data-title">本地数据</h2>
+              <h2 id="local-data-title" tabIndex={-1}>本地数据</h2>
             </div>
             <p>清除阅读、词汇、摘录和速度档案；网站权限不变。</p>
           </div>
@@ -566,7 +666,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
 function DashboardLoading() {
   return (
-    <section className="dashboard-loading" role="status" aria-label="正在读取本地数据" aria-busy="true">
+    <section className="dashboard-loading" aria-hidden="true">
       <div className="dashboard-loading__line" />
       <div className="dashboard-loading__metric" />
       <div className="dashboard-loading__grid">
@@ -599,60 +699,47 @@ function Panel({
 
 const ShareCardPreview = ({
   ref,
-  date,
-  effectiveWords,
-  readingTime,
-  pages,
-  learningWords,
-  topDomain,
-  fallbackText,
+  content,
 }: {
   ref: Ref<HTMLDivElement>;
-  date: string;
-  effectiveWords: string;
-  readingTime: string;
-  pages: string;
-  learningWords: string;
-  topDomain: string;
-  fallbackText: string;
+  content: ShareCardContent;
 }) => (
   <div ref={ref} className="share-card-preview">
     <div className="share-card-preview__header">
       <span>今日英文阅读</span>
-      <span>{date}</span>
+      <span>{content.date}</span>
     </div>
     <div className="share-card-preview__main">
-      <p>今天计入 <strong>{effectiveWords}</strong> 个英文词</p>
+      <p>今天计入 <strong>{content.effectiveWords}</strong> 个英文词</p>
     </div>
     <dl>
-      <div><dt>阅读时间</dt><dd>{readingTime}</dd></div>
-      <div><dt>页面</dt><dd>{pages} 页</dd></div>
-      <div><dt>学习中词汇</dt><dd>{learningWords}</dd></div>
+      <div><dt>阅读时间</dt><dd>{content.readingTime}</dd></div>
+      <div><dt>页面</dt><dd>{content.pages} 页</dd></div>
+      <div><dt>学习中词汇</dt><dd>{content.learningWords}</dd></div>
     </dl>
     <div className="share-card-preview__footer">
-      <span title={topDomain}>{topDomain}</span>
+      <span title={content.domain}>{content.domain}</span>
       <strong>Yuel 阅量</strong>
     </div>
-    <pre className="sr-only">{fallbackText}</pre>
   </div>
 );
 
 function RecentPageCard({ page }: { page: RecentPageSummary }) {
-  const progress = page.totalWords > 0 ? Math.min(100, Math.round((page.effectiveWords / page.totalWords) * 100)) : 0;
-
   return (
     <article className="record-row">
       <div className="record-row__heading">
         <h3 title={page.domain}>{page.domain}</h3>
         <time dateTime={new Date(page.lastReadAt).toISOString()}>{formatDateTime(page.lastReadAt)}</time>
       </div>
-      <p>{formatCount(page.effectiveWords)} / {formatCount(page.totalWords)} 词</p>
+      <p>
+        累计有效 {formatCount(page.effectiveWords)} 词 · 内容覆盖 {formatCount(page.coveredWords)} / {formatCount(page.totalWords)} 词
+      </p>
       {page.totalWords > 0 ? (
         <ProgressBar
-          label={`${page.domain} 阅读进度`}
-          value={page.effectiveWords}
+          label={`${page.domain} 内容覆盖`}
+          value={page.coveredWords}
           max={page.totalWords}
-          valueText={`${formatCount(page.effectiveWords)} / ${formatCount(page.totalWords)} 词`}
+          valueText={`${formatCount(page.coveredWords)} / ${formatCount(page.totalWords)} 词`}
         />
       ) : null}
     </article>
@@ -661,7 +748,7 @@ function RecentPageCard({ page }: { page: RecentPageSummary }) {
 
 function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
   return (
-    <article className="record-row vocabulary-row">
+    <article className="record-row">
       <div className="record-row__heading">
         <h3 title={vocab.lemma}>{vocab.lemma}</h3>
         <span className={`vocabulary-status vocabulary-status--${vocab.userStatus}`}>{formatVocabularyStatus(vocab.userStatus)}</span>
@@ -730,13 +817,15 @@ const paceCalibrationQuestions = [
   },
 ];
 
-function scrollToSection(id: string) {
-  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  document.getElementById(id)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-}
+function scrollToSection(root: HTMLElement | null, id: string) {
+  const target = root?.querySelector<HTMLElement>(`#${id}`);
+  if (!target) return;
 
-function formatCount(value: number): string {
-  return Math.round(value).toLocaleString();
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  const focusTarget = target.querySelector<HTMLElement>('[tabindex="-1"]')
+    ?? target.querySelector<HTMLElement>('h1, h2, h3');
+  focusTarget?.focus({ preventScroll: true });
 }
 
 function countWords(text: string): number {
@@ -760,27 +849,6 @@ function formatPaceSource(summary: ReadingPaceSummary): string {
     return summary.updatedAt ? `${formatDateTime(summary.updatedAt)} 完成校准` : '已完成初始校准';
   }
   return `${summary.sampleCount} 个可靠样本正在缓慢调整速度`;
-}
-
-function formatMinutes(value: number): string {
-  if (value < 1 && value > 0) return '不足 1 分钟';
-  return `${Math.round(value)} 分钟`;
-}
-
-function formatDateTime(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
-}
-
-function formatVocabularyStatus(status: RecentVocabularySummary['userStatus']): string {
-  if (status === 'new') return '新词';
-  if (status === 'learning') return '学习中';
-  if (status === 'known') return '已掌握';
-  return '已忽略';
 }
 
 function formatSavedItemType(type: RecentSavedItemSummary['type']): string {

@@ -8,17 +8,27 @@ import {
   type ContentScriptRegistrationRuntime,
 } from './contentScriptRegistration';
 import { isStarterSiteUrl } from './starterSites';
+import { withCrossContextLock } from './crossContextLock';
 
 export { CONTENT_SCRIPT_FILE, ENABLED_SITE_ORIGINS_KEY } from './contentScriptRegistration';
+
+const ENABLED_SITE_MUTATION_LOCK = 'yuel-enabled-site-mutation';
 
 export interface SiteAccessTab {
   id?: number;
   url?: string;
 }
 
+export interface SiteAccessTabQuery {
+  active?: boolean;
+  currentWindow?: boolean;
+  lastFocusedWindow?: boolean;
+  url?: string[];
+}
+
 export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
   tabs: {
-    query: (queryInfo: { active: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }) => Promise<SiteAccessTab[]>;
+    query: (queryInfo: SiteAccessTabQuery) => Promise<SiteAccessTab[]>;
   };
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
@@ -35,8 +45,10 @@ export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
     executeScript: (
       injection: { target: { tabId: number }; files: string[] } | { target: { tabId: number }; func: () => unknown },
     ) => Promise<unknown>;
+    getRegisteredContentScripts: ContentScriptRegistrationRuntime['scripting']['getRegisteredContentScripts'];
     unregisterContentScripts: (filter: { ids: string[] }) => Promise<void>;
     registerContentScripts: ContentScriptRegistrationRuntime['scripting']['registerContentScripts'];
+    updateContentScripts: ContentScriptRegistrationRuntime['scripting']['updateContentScripts'];
   };
 }
 
@@ -130,7 +142,7 @@ export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = brows
     origin,
     host: new URL(url).hostname,
     granted,
-    enabled: starterSite || enabledOrigins.includes(origin),
+    enabled: starterSite || (granted && enabledOrigins.includes(origin)),
     starterSite,
   };
 }
@@ -164,8 +176,35 @@ export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser 
     };
   }
 
-  await persistEnabledOrigin(runtime, access.origin);
-  await registerEnabledSiteContentScripts(runtime);
+  let permissionStillGranted = false;
+  await withCrossContextLock(ENABLED_SITE_MUTATION_LOCK, async () => {
+    permissionStillGranted = await runtime.permissions.contains({ origins: [access.origin] });
+    if (!permissionStillGranted) return;
+    const enabledOrigins = await getEnabledOrigins(runtime);
+    const originAlreadyEnabled = enabledOrigins.includes(access.origin);
+    if (!originAlreadyEnabled) {
+      await runtime.storage.local.set({
+        [ENABLED_SITE_ORIGINS_KEY]: [...enabledOrigins, access.origin],
+      });
+    }
+    try {
+      await registerEnabledSiteContentScripts(runtime);
+    } catch (error) {
+      if (!originAlreadyEnabled) {
+        await runtime.storage.local.set({ [ENABLED_SITE_ORIGINS_KEY]: enabledOrigins });
+      }
+      throw error;
+    }
+  });
+
+  if (!permissionStillGranted) {
+    return {
+      ...access,
+      granted: false,
+      enabled: false,
+      injected: false,
+    };
+  }
 
   return {
     ...access,
@@ -179,60 +218,66 @@ export async function disableEnabledSite(
   origin: string,
   runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
 ): Promise<DisableEnabledSiteResult> {
-  const enabledOrigins = await getEnabledOrigins(runtime);
-  if (!enabledOrigins.includes(origin)) {
+  return withCrossContextLock(ENABLED_SITE_MUTATION_LOCK, async () => {
+    const enabledOrigins = await getEnabledOrigins(runtime);
+    if (!enabledOrigins.includes(origin)) {
+      return {
+        removed: false,
+        remainingOrigins: enabledOrigins,
+      };
+    }
+
+    const remainingOrigins = enabledOrigins.filter((enabledOrigin) => enabledOrigin !== origin);
+    await stopCollectorsForOrigin(runtime, origin);
+    const removedHostPermission = await runtime.permissions.remove({ origins: [origin] });
+    const permissionStillGranted = !removedHostPermission
+      && await runtime.permissions.contains({ origins: [origin] });
+    if (permissionStillGranted) {
+      throw new Error(`Failed to remove host permission for ${origin}`);
+    }
+
+    await runtime.storage.local.set({
+      [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
+    });
+    await registerEnabledSiteContentScripts(runtime);
+
     return {
-      removed: false,
-      remainingOrigins: enabledOrigins,
+      removed: true,
+      remainingOrigins,
     };
-  }
-
-  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => enabledOrigin !== origin);
-  await stopCurrentTabCollectorForOrigin(runtime, origin);
-  const removedHostPermission = await runtime.permissions.remove({ origins: [origin] });
-  if (!removedHostPermission) {
-    throw new Error(`Failed to remove host permission for ${origin}`);
-  }
-
-  await runtime.storage.local.set({
-    [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
   });
-  await registerEnabledSiteContentScripts(runtime);
-
-  return {
-    removed: true,
-    remainingOrigins,
-  };
 }
 
 export async function removeEnabledSitesForOrigins(
   origins: string[],
   runtime: SiteAccessRuntime = browser as SiteAccessRuntime,
 ): Promise<RemovedEnabledSitesResult> {
-  const enabledOrigins = await getEnabledOrigins(runtime);
-  const remainingOrigins = enabledOrigins.filter((enabledOrigin) => !isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
-  const removedOrigins = enabledOrigins.filter((enabledOrigin) => isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
+  return withCrossContextLock(ENABLED_SITE_MUTATION_LOCK, async () => {
+    const enabledOrigins = await getEnabledOrigins(runtime);
+    const remainingOrigins = enabledOrigins.filter((enabledOrigin) => !isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
+    const removedOrigins = enabledOrigins.filter((enabledOrigin) => isEnabledOriginCoveredByRemovedPermissions(enabledOrigin, origins));
 
-  if (removedOrigins.length === 0) {
+    if (removedOrigins.length === 0) {
+      return {
+        removedOrigins,
+        remainingOrigins,
+      };
+    }
+
+    for (const removedOrigin of removedOrigins) {
+      await stopCollectorsForOrigin(runtime, removedOrigin);
+    }
+
+    await runtime.storage.local.set({
+      [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
+    });
+    await registerEnabledSiteContentScripts(runtime);
+
     return {
       removedOrigins,
       remainingOrigins,
     };
-  }
-
-  for (const removedOrigin of removedOrigins) {
-    await stopCurrentTabCollectorForOrigin(runtime, removedOrigin);
-  }
-
-  await runtime.storage.local.set({
-    [ENABLED_SITE_ORIGINS_KEY]: remainingOrigins,
   });
-  await registerEnabledSiteContentScripts(runtime);
-
-  return {
-    removedOrigins,
-    remainingOrigins,
-  };
 }
 
 export async function handleHostPermissionsRemoved(
@@ -300,35 +345,30 @@ async function getEnabledOrigins(runtime: SiteAccessRuntime): Promise<string[]> 
   return getEnabledSiteOrigins(runtime);
 }
 
-async function persistEnabledOrigin(runtime: SiteAccessRuntime, origin: string): Promise<void> {
-  const enabledOrigins = await getEnabledOrigins(runtime);
-  if (enabledOrigins.includes(origin)) {
-    return;
-  }
-
-  await runtime.storage.local.set({
-    [ENABLED_SITE_ORIGINS_KEY]: [...enabledOrigins, origin],
-  });
-}
-
 function originToHost(origin: string): string {
   return new URL(origin.slice(0, -2)).hostname;
 }
 
-async function stopCurrentTabCollectorForOrigin(runtime: SiteAccessRuntime, origin: string): Promise<void> {
-  const tab = await getActiveTab(runtime);
-  if (typeof tab?.id !== 'number' || !tab.url || toOptionalHostOrigin(tab.url) !== origin) {
+async function stopCollectorsForOrigin(runtime: SiteAccessRuntime, origin: string): Promise<void> {
+  let tabs: SiteAccessTab[];
+  try {
+    tabs = await runtime.tabs.query({ url: [origin] });
+  } catch (error) {
+    console.error('Failed to find Yuel tabs for a disabled site', error);
     return;
   }
 
-  try {
-    await runtime.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: stopReadingCollectorInPage,
-    });
-  } catch (error) {
-    console.error('Failed to stop Yuel collector on disabled site', error);
-  }
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab.id !== 'number') return;
+    try {
+      await runtime.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: stopReadingCollectorInPage,
+      });
+    } catch (error) {
+      console.error('Failed to stop Yuel collector on disabled site', error);
+    }
+  }));
 }
 
 export function stopReadingCollectorInPage(): boolean {

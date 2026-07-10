@@ -6,7 +6,7 @@ Yuel Reading is a local-first MV3 browser extension for English reading analytic
 
 - WXT 0.20 with Chrome MV3 output
 - React 19 for popup, side panel, and dashboard pages
-- Tailwind CSS 4 through the WXT React module
+- Shared CSS design tokens with entrypoint-specific styles
 - Dexie over IndexedDB for local reading data
 - Vitest for domain, storage, permission, content, and UI smoke tests
 
@@ -50,7 +50,7 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
-- Dashboard: the reading progress instrument panel, with a prominent today hero, share-card preview and export actions, trend bars, recent measured pages, vocabulary assets, saved highlights, reading pace calibration, and a demoted local-data danger zone.
+- Dashboard: a reading ledger with a compact today summary, disclosure-based share-card preview and export actions, recent measured pages, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.

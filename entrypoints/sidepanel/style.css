@@ -1,4 +1,3 @@
-@import "tailwindcss";
 @import "../../src/ui/foundation.css";
 
 html,
@@ -210,7 +209,7 @@ body {
 }
 
 .sidepanel-vocabulary__term i[data-status="new"] {
-  background: var(--y-signal);
+  background: var(--y-info);
 }
 
 .sidepanel-vocabulary__term i[data-status="learning"] {
@@ -223,8 +222,6 @@ body {
 
 .sidepanel-excerpt {
   margin: 0;
-  border-left: 2px solid var(--y-accent);
-  padding-left: 14px;
 }
 
 .sidepanel-excerpt blockquote {
@@ -300,5 +297,71 @@ body {
     padding-right: 20px;
     padding-left: 20px;
   }
+}
 
+@media (max-width: 240px) {
+  .sidepanel-app,
+  .sidepanel-app--action-error {
+    padding-bottom: 0;
+  }
+
+  .sidepanel-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+
+  .sidepanel-page,
+  .sidepanel-section {
+    padding: 16px 10px;
+  }
+
+  .sidepanel-context {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidepanel-context > span {
+    white-space: normal;
+  }
+
+  .sidepanel-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidepanel-metrics .yuel-metric,
+  .sidepanel-metrics .yuel-metric:nth-child(odd),
+  .sidepanel-metrics .yuel-metric:nth-child(n + 3) {
+    min-height: 0;
+    border-bottom: 1px solid var(--y-line);
+    border-left: 0;
+    padding: 12px 0;
+  }
+
+  .sidepanel-metrics .yuel-metric:last-child {
+    border-bottom: 0;
+  }
+
+  .sidepanel-vocabulary li,
+  .sidepanel-excerpt figcaption {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .sidepanel-excerpt figcaption span {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .sidepanel-actions {
+    position: static;
+    padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
+    backdrop-filter: none;
+  }
+
+  .sidepanel-actions__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

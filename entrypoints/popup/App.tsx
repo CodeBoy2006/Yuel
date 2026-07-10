@@ -7,7 +7,7 @@ import {
   PauseCircle,
   ShieldCheck,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 
 import {
@@ -18,7 +18,9 @@ import {
   type EnabledSiteRecord,
   type SiteAccessState,
 } from '../../src/permissions/siteAccess';
+import { STARTER_SITE_LABELS } from '../../src/permissions/starterSites';
 import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
+import { formatMinutes, formatWords } from '../../src/ui/formatters';
 import {
   ActionButton,
   BrandLockup,
@@ -28,8 +30,6 @@ import {
   SectionHeader,
   StatusPill,
 } from '../../src/ui/primitives';
-
-const trackedHosts = ['MDN', 'GitHub', 'Medium', 'Wikipedia', 'arXiv'];
 
 export interface PopupAppDependencies {
   getTodayReadingSummary: typeof getTodayReadingSummary;
@@ -71,6 +71,41 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [dashboardFailed, setDashboardFailed] = useState(false);
   const [removingOrigin, setRemovingOrigin] = useState<string>();
   const [removeFailed, setRemoveFailed] = useState(false);
+  const mountedRef = useRef(true);
+  const enabledSitesRequestGenerationRef = useRef(0);
+  const siteAccessRequestGenerationRef = useRef(0);
+  const enabledSitesToggleRef = useRef<HTMLButtonElement>(null);
+  const pendingRemovalFocusRef = useRef<{ preferredOrigin?: string } | undefined>(undefined);
+
+  const refreshEnabledSites = useCallback(async (failureMessage: string): Promise<EnabledSiteRecord[] | undefined> => {
+    const requestGeneration = ++enabledSitesRequestGenerationRef.current;
+
+    try {
+      const listedSites = await dependencies.listEnabledSites();
+      if (!mountedRef.current || requestGeneration !== enabledSitesRequestGenerationRef.current) return undefined;
+
+      setEnabledSites(listedSites);
+      setEnabledSitesLoaded(true);
+      setEnabledSitesFailed(false);
+      return listedSites;
+    } catch (error) {
+      if (!mountedRef.current || requestGeneration !== enabledSitesRequestGenerationRef.current) return undefined;
+
+      console.error(failureMessage, error);
+      setEnabledSitesFailed(true);
+      return undefined;
+    }
+  }, [dependencies]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      enabledSitesRequestGenerationRef.current += 1;
+      siteAccessRequestGenerationRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -92,54 +127,48 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   }, [dependencies]);
 
   useEffect(() => {
-    let mounted = true;
+    const requestGeneration = ++siteAccessRequestGenerationRef.current;
 
     void dependencies.getCurrentTabSiteAccess()
       .then((nextAccess) => {
-        if (!mounted) return;
+        if (!mountedRef.current || requestGeneration !== siteAccessRequestGenerationRef.current) return;
         setSiteAccess(nextAccess);
+        setSiteAccessFailed(false);
       })
       .catch((error) => {
         console.error('Failed to load Yuel site access state', error);
-        if (!mounted) return;
+        if (!mountedRef.current || requestGeneration !== siteAccessRequestGenerationRef.current) return;
         setSiteAccessFailed(true);
       });
 
     return () => {
-      mounted = false;
+      if (requestGeneration === siteAccessRequestGenerationRef.current) {
+        siteAccessRequestGenerationRef.current += 1;
+      }
     };
   }, [dependencies]);
 
   useEffect(() => {
-    let mounted = true;
+    void refreshEnabledSites('Failed to load Yuel enabled sites');
+  }, [refreshEnabledSites]);
 
-    void refreshEnabledSites().catch((error) => {
-      console.error('Failed to load Yuel enabled sites', error);
-      if (!mounted) return;
-      setEnabledSitesFailed(true);
-    });
+  useEffect(() => {
+    const pendingFocus = pendingRemovalFocusRef.current;
+    if (!pendingFocus || removingOrigin) return;
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const refreshEnabledSites = async () => {
-    setEnabledSites(await dependencies.listEnabledSites());
-    setEnabledSitesLoaded(true);
-    setEnabledSitesFailed(false);
-  };
-
-  const refreshEnabledSitesAfterAction = async () => {
-    try {
-      await refreshEnabledSites();
-    } catch (error) {
-      console.error('Failed to refresh Yuel enabled sites', error);
-      setEnabledSitesFailed(true);
-    }
-  };
+    pendingRemovalFocusRef.current = undefined;
+    const preferredButton = pendingFocus.preferredOrigin
+      ? Array.from(
+          enabledSitesToggleRef.current
+            ?.closest('.popup-app')
+            ?.querySelectorAll<HTMLButtonElement>('[data-enabled-site-origin]') ?? [],
+        ).find((button) => button.dataset.enabledSiteOrigin === pendingFocus.preferredOrigin)
+      : undefined;
+    (preferredButton ?? enabledSitesToggleRef.current)?.focus();
+  }, [enabledSites, removingOrigin]);
 
   const enableSite = async () => {
+    const accessGeneration = ++siteAccessRequestGenerationRef.current;
     setSiteAccessBusy(true);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
@@ -149,6 +178,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
     try {
       const result = await dependencies.enableCurrentTabSite();
+      if (!mountedRef.current || accessGeneration !== siteAccessRequestGenerationRef.current) return;
+
       setSiteAccessDenied(result.supported && !result.granted && !result.enabled && !result.starterSite);
       setSiteAccess(
         result.supported
@@ -165,17 +196,20 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           : result,
       );
       setCurrentTabInjectionMissed(result.supported && result.enabled && !result.starterSite && !result.injected);
-      await refreshEnabledSitesAfterAction();
+      await refreshEnabledSites('Failed to refresh Yuel enabled sites');
     } catch (error) {
       console.error('Failed to enable Yuel on current site', error);
+      if (!mountedRef.current || accessGeneration !== siteAccessRequestGenerationRef.current) return;
+
       setSiteAccessDenied(false);
       setSiteAccessFailed(true);
     } finally {
-      setSiteAccessBusy(false);
+      if (mountedRef.current) setSiteAccessBusy(false);
     }
   };
 
-  const removeEnabledSite = async (origin: string) => {
+  const removeEnabledSite = async (origin: string, focusSource: 'current-site' | 'enabled-sites') => {
+    const accessGeneration = ++siteAccessRequestGenerationRef.current;
     setRemovingOrigin(origin);
     setSiteAccessDenied(false);
     setSiteAccessFailed(false);
@@ -185,17 +219,42 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
     try {
       await dependencies.disableEnabledSite(origin);
-      await refreshEnabledSitesAfterAction();
-      setSiteAccess((currentAccess) =>
-        currentAccess?.supported && currentAccess.origin === origin
-          ? { ...currentAccess, granted: false, enabled: currentAccess.starterSite }
-          : currentAccess,
-      );
+      if (!mountedRef.current || accessGeneration !== siteAccessRequestGenerationRef.current) return;
+
+      const previousIndex = enabledSites.findIndex((site) => site.origin === origin);
+      const optimisticSites = enabledSites.filter((site) => site.origin !== origin);
+      setEnabledSites(optimisticSites);
+      setEnabledSitesLoaded(true);
+      const [refreshedSites, refreshedAccess] = await Promise.all([
+        refreshEnabledSites('Failed to refresh Yuel enabled sites'),
+        dependencies.getCurrentTabSiteAccess()
+          .then((access) => ({ access }))
+          .catch((error: unknown) => ({ error })),
+      ]);
+      if (!mountedRef.current || accessGeneration !== siteAccessRequestGenerationRef.current) return;
+
+      const remainingSites = refreshedSites ?? optimisticSites;
+      const preferredSite = focusSource === 'enabled-sites' && remainingSites.length > 0
+        ? remainingSites[Math.min(Math.max(previousIndex, 0), remainingSites.length - 1)]
+        : undefined;
+      pendingRemovalFocusRef.current = { preferredOrigin: preferredSite?.origin };
+      if ('access' in refreshedAccess) {
+        setSiteAccess(refreshedAccess.access);
+        setSiteAccessFailed(false);
+      } else {
+        console.error('Failed to refresh Yuel site access after removal', refreshedAccess.error);
+        setSiteAccessFailed(true);
+        setSiteAccess((currentAccess) =>
+          currentAccess?.supported && currentAccess.origin === origin
+            ? { ...currentAccess, granted: false, enabled: currentAccess.starterSite }
+            : currentAccess,
+        );
+      }
     } catch (error) {
       console.error('Failed to remove Yuel enabled site', error);
-      setRemoveFailed(true);
+      if (mountedRef.current && accessGeneration === siteAccessRequestGenerationRef.current) setRemoveFailed(true);
     } finally {
-      setRemovingOrigin(undefined);
+      if (mountedRef.current) setRemovingOrigin(undefined);
     }
   };
 
@@ -207,9 +266,9 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       await dependencies.openSidePanel();
     } catch (error) {
       console.error('Failed to open Yuel side panel', error);
-      setSidePanelFailed(true);
+      if (mountedRef.current) setSidePanelFailed(true);
     } finally {
-      setSidePanelBusy(false);
+      if (mountedRef.current) setSidePanelBusy(false);
     }
   };
 
@@ -221,9 +280,9 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       await dependencies.openDashboard();
     } catch (error) {
       console.error('Failed to open Yuel dashboard from popup', error);
-      setDashboardFailed(true);
+      if (mountedRef.current) setDashboardFailed(true);
     } finally {
-      setDashboardBusy(false);
+      if (mountedRef.current) setDashboardBusy(false);
     }
   };
 
@@ -270,10 +329,10 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             </div>
             <StatusPill tone={formatSiteAccessTone(siteAccess, siteAccessFailed, siteAccessDenied)}>{siteStatus}</StatusPill>
           </div>
-          <p className="popup-current-site__detail" aria-live="polite">
+          <p className="popup-current-site__detail">
             {currentTabInjectionMissed
               ? '已为后续页面启用；刷新当前标签后开始记录。'
-              : formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied)}
+              : formatSiteAccessDetail(siteAccess, siteAccessBusy, siteAccessDenied, siteAccessFailed)}
           </p>
           {siteAccess?.supported && siteAccess.enabled && !siteAccess.starterSite ? (
             <ActionButton
@@ -283,7 +342,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
               icon={PauseCircle}
               disabled={!canPauseCurrentSite}
               aria-busy={isPausingCurrentSite}
-              onClick={() => void removeEnabledSite(siteAccess.origin)}
+              onClick={() => void removeEnabledSite(siteAccess.origin, 'current-site')}
             >
               {isPausingCurrentSite ? '暂停中...' : '暂停记录'}
             </ActionButton>
@@ -296,7 +355,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           <SectionHeader icon={BookOpen} meta={summary?.date ?? '本地'}>
             今日有效阅读
           </SectionHeader>
-          <div className="popup-metrics" aria-live="polite">
+          <div className="popup-metrics">
             <Metric label="有效阅读" value={loadFailed ? '不可用' : summary ? formatWords(summary.effectiveWords) : '读取中'} />
             <Metric label="阅读时间" value={loadFailed ? '不可用' : summary?.hasData ? formatMinutes(summary.minutes) : hasLoaded ? '0 分钟' : '读取中'} />
             <Metric label="页面" value={loadFailed ? '不可用' : summary ? `${summary.readPages} 页` : '读取中'} />
@@ -307,7 +366,6 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
         <nav className="popup-destinations" aria-label="阅量页面">
           <ActionButton
-            className="popup-primary-action"
             type="button"
             variant="primary"
             icon={shouldEnableCurrentSite ? Globe2 : PanelRightOpen}
@@ -328,7 +386,6 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
                 : '打开侧栏'}
           </ActionButton>
           <ActionButton
-            className="popup-dashboard-action"
             type="button"
             variant="secondary"
             icon={ExternalLink}
@@ -345,16 +402,17 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         {showStarterSites ? (
           <section className="popup-starter-sites" aria-label="默认支持的网站">
             <span>默认支持</span>
-            <p>{trackedHosts.join(' · ')}</p>
+            <p>{STARTER_SITE_LABELS.join(' · ')}</p>
           </section>
         ) : null}
 
         <section className="popup-sites">
           <button
+            ref={enabledSitesToggleRef}
             className="popup-sites__toggle"
             type="button"
             aria-expanded={enabledSitesExpanded}
-            aria-controls="popup-enabled-sites"
+            aria-controls={enabledSitesExpanded ? 'popup-enabled-sites' : undefined}
             onClick={() => setEnabledSitesExpanded((expanded) => !expanded)}
           >
             <span>
@@ -381,7 +439,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
                         disabled={Boolean(removingOrigin)}
                         aria-busy={removingOrigin === site.origin}
                         aria-label={`${removingOrigin === site.origin ? '正在移除' : '移除'} ${site.host}`}
-                        onClick={() => void removeEnabledSite(site.origin)}
+                        data-enabled-site-origin={site.origin}
+                        onClick={() => void removeEnabledSite(site.origin, 'enabled-sites')}
                       >
                         {removingOrigin === site.origin ? '移除中' : '移除'}
                       </ActionButton>
@@ -398,18 +457,6 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       </section>
     </main>
   );
-}
-
-function formatWords(words: number): string {
-  return `${Math.round(words).toLocaleString()} 词`;
-}
-
-function formatMinutes(minutes: number): string {
-  if (minutes < 1 && minutes > 0) {
-    return '不足 1 分钟';
-  }
-
-  return `${Math.round(minutes)} 分钟`;
 }
 
 function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: boolean): string {
@@ -439,8 +486,14 @@ function formatSiteAccessTone(
   return 'warning';
 }
 
-function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, busy: boolean, denied = false): string {
+function formatSiteAccessDetail(
+  siteAccess: SiteAccessState | undefined,
+  busy: boolean,
+  denied = false,
+  failed = false,
+): string {
   if (busy) return '正在请求当前网站权限。';
+  if (failed) return '暂时无法读取当前页面权限状态。';
   if (denied) return '权限未授予，此网站尚未启用。';
   if (!siteAccess) return '正在读取当前标签。';
   if (!siteAccess.supported) return '浏览器内部页面无法记录。';

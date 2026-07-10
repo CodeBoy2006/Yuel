@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import { clearLocalReadingData, pruneExpiredReadingEvents, recordReadingEventBatch } from './repositories';
+import type { DailyStatRecord } from './schema';
 
 const mocks = vi.hoisted(() => {
   const pages = {
@@ -48,6 +49,10 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(),
     put: vi.fn(),
   };
+  const metadata = {
+    get: vi.fn(),
+    put: vi.fn(),
+  };
   const db = {
     pages,
     textChunks,
@@ -58,6 +63,7 @@ const mocks = vi.hoisted(() => {
     savedItems,
     dailyStats,
     readingPaceProfiles,
+    metadata,
     transaction: vi.fn(async (...args: unknown[]) => {
       const callback = args.at(-1);
       if (typeof callback === 'function') {
@@ -66,7 +72,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { chunkDays, chunkSessions, db, dailyStats, pages, readingEvents, readingPaceProfiles, savedItems, textChunks, vocabExposures };
+  return { chunkDays, chunkSessions, db, dailyStats, metadata, pages, readingEvents, readingPaceProfiles, savedItems, textChunks, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -138,6 +144,7 @@ describe('recordReadingEventBatch', () => {
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
     mocks.readingPaceProfiles.get.mockResolvedValue(undefined);
+    mocks.metadata.get.mockResolvedValue(undefined);
     mocks.readingEvents.bulkGet.mockResolvedValue([]);
     mocks.readingEvents.where.mockReturnValue({
       below: vi.fn(() => ({
@@ -166,6 +173,135 @@ describe('recordReadingEventBatch', () => {
           packTags: ['performance'],
         }),
       ]),
+    );
+  });
+
+  it('uses event time rather than delayed processing time for page and vocabulary recency', async () => {
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({ lastReadAt: capturedAt, snapshotCapturedAt: capturedAt }),
+    );
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith(
+      expect.objectContaining({ lastSeenAt: capturedAt }),
+    );
+  });
+
+  it('does not move page or vocabulary recency backward when an older batch finishes late', async () => {
+    const newerReadAt = capturedAt + 30_000;
+    mocks.pages.get.mockResolvedValueOnce({
+      pageId: 'page-1',
+      domain: 'docs.example.com',
+      titleHash: 'title',
+      urlHash: 'url',
+      language: 'en',
+      totalWords: 8,
+      effectiveWords: 4,
+      difficultyScore: 0,
+      firstSeenAt: capturedAt - 1_000,
+      lastReadAt: newerReadAt,
+    });
+    mocks.vocabExposures.get.mockImplementation(async (lemma: string) =>
+      lemma === 'mitigate'
+        ? {
+            lemma,
+            language: 'en',
+            seenCount: 1,
+            effectiveSeenCount: 1,
+            lookupCount: 0,
+            savedCount: 0,
+            lastSeenAt: newerReadAt,
+            packTags: [],
+            userStatus: 'new',
+          }
+        : undefined,
+    );
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({ lastReadAt: newerReadAt }),
+    );
+    expect(mocks.vocabExposures.put).toHaveBeenCalledWith(
+      expect.objectContaining({ lemma: 'mitigate', lastSeenAt: newerReadAt }),
+    );
+  });
+
+  it('keeps a newer page snapshot while still accumulating events from an older snapshot', async () => {
+    const newerSnapshotCapturedAt = capturedAt + 60_000;
+    mocks.pages.get.mockResolvedValueOnce({
+      pageId: 'page-1',
+      domain: 'newer.example.com',
+      titleHash: 'newer-title',
+      urlHash: 'newer-url',
+      language: 'fr',
+      totalWords: 24,
+      effectiveWords: 4,
+      coveredWords: 4,
+      rawExposureMs: 5_000,
+      effectiveReadingMs: 1_000,
+      difficultyScore: 0,
+      firstSeenAt: capturedAt - 1_000,
+      lastReadAt: newerSnapshotCapturedAt,
+      snapshotCapturedAt: newerSnapshotCapturedAt,
+    });
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      domain: 'older.example.com',
+      titleHash: 'older-title',
+      urlHash: 'older-url',
+      language: 'en',
+      totalWords: 8,
+    };
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'newer.example.com',
+        titleHash: 'newer-title',
+        urlHash: 'newer-url',
+        language: 'fr',
+        totalWords: 24,
+        coveredWords: 4,
+        snapshotCapturedAt: newerSnapshotCapturedAt,
+        effectiveWords: 12,
+        rawExposureMs: 35_000,
+      }),
+    );
+    expect(mocks.readingEvents.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'TextViewportExposureTick_event-1' }),
+    ]);
+  });
+
+  it('uses legacy lastReadAt as the snapshot freshness fallback', async () => {
+    const legacyLastReadAt = capturedAt + 30_000;
+    mocks.pages.get.mockResolvedValueOnce({
+      pageId: 'page-1',
+      domain: 'legacy-newer.example.com',
+      titleHash: 'legacy-newer-title',
+      urlHash: 'legacy-newer-url',
+      language: 'en',
+      totalWords: 16,
+      effectiveWords: 4,
+      coveredWords: 4,
+      difficultyScore: 0,
+      firstSeenAt: capturedAt - 1_000,
+      lastReadAt: legacyLastReadAt,
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'legacy-newer.example.com',
+        titleHash: 'legacy-newer-title',
+        totalWords: 16,
+        coveredWords: 4,
+        snapshotCapturedAt: undefined,
+        effectiveWords: 12,
+      }),
     );
   });
 
@@ -370,6 +506,9 @@ describe('recordReadingEventBatch', () => {
     await recordReadingEventBatch(createPayload());
 
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({ coveredWords: 8 }),
+    );
   });
 
   it('records proportional vocabulary exposure when a partially credited chunk gains effective coverage', async () => {
@@ -429,6 +568,127 @@ describe('recordReadingEventBatch', () => {
         newWords: 8,
         reviewWords: 0,
       }),
+    );
+  });
+
+  it('persists aggregate page confidence from effective chunk measurements', async () => {
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: 'page-1',
+        confidence: expect.closeTo(0.1, 6),
+      }),
+    );
+  });
+
+  it('calculates a real reading streak from consecutive measured days', async () => {
+    mocks.dailyStats.get.mockImplementation(async (date: string) => {
+      if (date === '2026-06-26' || date === '2026-06-25') {
+        return {
+          date,
+          effectiveWords: 100,
+          minutes: 1,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: [],
+        };
+      }
+      return undefined;
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-06-27',
+        streak: 3,
+      }),
+    );
+  });
+
+  it('reuses a persisted previous-day streak without rescanning older history', async () => {
+    mocks.dailyStats.get.mockImplementation(async (date: string) => {
+      if (date === '2026-06-26') {
+        return {
+          date,
+          effectiveWords: 100,
+          minutes: 1,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 41,
+          topDomains: [],
+        };
+      }
+      return undefined;
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.get).not.toHaveBeenCalledWith('2026-06-25');
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-06-27', streak: 42 }),
+    );
+  });
+
+  it('reuses the current persisted streak on subsequent batches that day', async () => {
+    mocks.dailyStats.get.mockImplementation(async (date: string) => {
+      if (date === '2026-06-27') {
+        return {
+          date,
+          effectiveWords: 200,
+          minutes: 2,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 42,
+          topDomains: [],
+        };
+      }
+      return undefined;
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.get).not.toHaveBeenCalledWith('2026-06-26');
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-06-27', streak: 42 }),
+    );
+  });
+
+  it('repairs later streak values when a delayed batch fills an earlier reading day', async () => {
+    const dailyStats = new Map<string, DailyStatRecord>([
+      ['2026-06-26', {
+        date: '2026-06-26',
+        effectiveWords: 100,
+        minutes: 1,
+        advancedWords: 0,
+        expressions: 0,
+        streak: 1,
+        topDomains: [],
+      }],
+      ['2026-06-28', {
+        date: '2026-06-28',
+        effectiveWords: 100,
+        minutes: 1,
+        advancedWords: 0,
+        expressions: 0,
+        streak: 1,
+        topDomains: [],
+      }],
+    ]);
+    mocks.dailyStats.get.mockImplementation(async (date: string) => dailyStats.get(date));
+    mocks.dailyStats.put.mockImplementation(async (record: DailyStatRecord) => {
+      dailyStats.set(record.date, record);
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-06-27', streak: 2 }),
+    );
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-06-28', streak: 3 }),
     );
   });
 
@@ -525,6 +785,71 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
   });
 
+  it('discards buffered events captured before local data was cleared', async () => {
+    mocks.metadata.get.mockResolvedValueOnce({
+      key: 'readingDataClearedAt',
+      numberValue: capturedAt + 1,
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.pages.put).not.toHaveBeenCalled();
+    expect(mocks.textChunks.bulkPut).not.toHaveBeenCalled();
+    expect(mocks.readingEvents.bulkPut).not.toHaveBeenCalled();
+    expect(mocks.dailyStats.put).not.toHaveBeenCalled();
+    expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+  });
+
+  it('aggregates only events captured after the latest local data clear', async () => {
+    const payload = createPayload();
+    payload.events = [
+      payload.events[0],
+      {
+        ...payload.events[0],
+        id: 'TextViewportExposureTick_event-2',
+        occurredAt: capturedAt + 2_000,
+      },
+    ];
+    mocks.metadata.get.mockResolvedValueOnce({
+      key: 'readingDataClearedAt',
+      numberValue: capturedAt + 1_000,
+    });
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingEvents.bulkGet).toHaveBeenCalledWith(['TextViewportExposureTick_event-2']);
+    expect(mocks.readingEvents.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'TextViewportExposureTick_event-2' }),
+    ]);
+    expect(mocks.dailyStats.put).toHaveBeenCalledOnce();
+  });
+
+  it('clips a viewport interval that began before local data was cleared', async () => {
+    const payload = createPayload();
+    payload.events = [{
+      ...payload.events[0],
+      occurredAt: capturedAt + 30_000,
+    }];
+    mocks.metadata.get.mockResolvedValueOnce({
+      key: 'readingDataClearedAt',
+      numberValue: capturedAt + 20_000,
+    });
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingEvents.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        value: expect.objectContaining({ tickMs: 10_000 }),
+      }),
+    ]);
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawExposureMs: 10_000,
+        firstSeenAt: capturedAt + 20_000,
+      }),
+    );
+  });
+
   it('prunes raw reading events older than the local retention window after recording a batch', async () => {
     const deleteOldEvents = vi.fn();
     const belowRetentionCutoff = vi.fn(() => ({
@@ -557,8 +882,8 @@ describe('recordReadingEventBatch', () => {
     expect(deleteOldEvents).toHaveBeenCalledOnce();
   });
 
-  it('clears local reading data tables without touching extension settings', async () => {
-    await clearLocalReadingData();
+  it('clears local reading data tables and records the event cutoff without touching extension settings', async () => {
+    await clearLocalReadingData(capturedAt);
 
     expect(mocks.pages.clear).toHaveBeenCalledOnce();
     expect(mocks.textChunks.clear).toHaveBeenCalledOnce();
@@ -569,5 +894,25 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
     expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();
     expect(mocks.readingPaceProfiles.clear).toHaveBeenCalledOnce();
+    expect(mocks.metadata.put).toHaveBeenCalledWith({
+      key: 'readingDataClearedAt',
+      numberValue: capturedAt,
+    });
+  });
+
+  it('keeps the local data clear cutoff monotonic when the clock moves backward', async () => {
+    const existingClearedAt = capturedAt + 60_000;
+    mocks.metadata.get.mockResolvedValueOnce({
+      key: 'readingDataClearedAt',
+      numberValue: existingClearedAt,
+    });
+
+    await clearLocalReadingData(capturedAt);
+
+    expect(mocks.metadata.get).toHaveBeenCalledWith('readingDataClearedAt');
+    expect(mocks.metadata.put).toHaveBeenCalledWith({
+      key: 'readingDataClearedAt',
+      numberValue: existingClearedAt,
+    });
   });
 });

@@ -1,5 +1,3 @@
-import { toPng } from 'html-to-image';
-
 interface ShareCardImageOptions {
   downloadDataUrl?: (dataUrl: string, filename: string) => void;
   filename?: string;
@@ -17,7 +15,7 @@ export async function exportSummaryCardPng(
   {
     downloadDataUrl = downloadBrowserDataUrl,
     filename = 'yuel-reading-summary.png',
-    renderToPng = toPng,
+    renderToPng = renderToPngLazily,
   }: ShareCardImageOptions = {},
 ): Promise<string> {
   const dataUrl = await renderToPng(element, {
@@ -28,6 +26,11 @@ export async function exportSummaryCardPng(
 
   downloadDataUrl(dataUrl, filename);
   return dataUrl;
+}
+
+async function renderToPngLazily(element: HTMLElement, options: ShareCardRenderOptions): Promise<string> {
+  const { toPng } = await import('html-to-image');
+  return toPng(element, options);
 }
 
 function downloadBrowserDataUrl(dataUrl: string, filename: string): void {

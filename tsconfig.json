@@ -17,6 +17,7 @@
     "vitest.smoke.config.ts",
     "vitest.browser-smoke.config.ts",
     "vitest.browser-dom.config.ts",
-    "vitest.large-text-stress.config.ts"
+    "vitest.large-text-stress.config.ts",
+    "vitest.real-pages.config.ts"
   ]
 }
