@@ -5,7 +5,6 @@ interface ShareCardImageOptions {
 }
 
 interface ShareCardRenderOptions {
-  backgroundColor: string;
   cacheBust: boolean;
   pixelRatio: number;
 }
@@ -19,7 +18,6 @@ export async function exportSummaryCardPng(
   }: ShareCardImageOptions = {},
 ): Promise<string> {
   const dataUrl = await renderToPng(element, {
-    backgroundColor: '#ffffff',
     cacheBust: true,
     pixelRatio: 2,
   });

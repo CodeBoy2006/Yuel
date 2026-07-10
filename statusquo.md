@@ -1102,6 +1102,12 @@
 - **Next Steps:** None.
 - **Context:** All four themes were visually verified at desktop and 390px widths; the 240px card retained 12px bottom clearance without vertical clipping. The interface detector reported no findings, all 344 unit/UI tests and TypeScript checks passed, and the production extension build succeeded.
 
+## [2026-07-10 22:59] Transparent Check-in Card Export
+- **Changes:** Changed the downloaded check-in card PNG canvas from white to transparent and updated the focused export regression test.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Transparent canvas corners now preserve the card's rounded silhouette. The focused image-export test and TypeScript check pass.
+
 ## [2026-07-11 00:10] Reading Progress Brand Mark
 - **Changes:** Rebuilt the shared BrandLockup as a semantic daily-goal indicator, wired popup/side-panel/dashboard reading totals into it, added bottom-up gray-to-green filling, a one-shot champagne-gold completion bloom with a static finished state, forced-color and reduced-motion handling, product/design documentation, and focused regression coverage.
 - **Status:** Completed
