@@ -1215,3 +1215,9 @@
 - **Status:** Completed
 - **Next Steps:** Rerun the verification matrix affected by the final test-only change, then complete a no-edit stop audit.
 - **Context:** The metrics test removes 35 net lines while preserving every boundary value and visible-chunk scenario. All 10 metrics tests, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-11 04:08] Message Contract Test Fixture Consolidation
+- **Changes:** Replaced 62 repeated batch-message/payload spread wrappers with one typed payload-override fixture while leaving every malformed nested value explicit in its test.
+- **Status:** Completed
+- **Next Steps:** Rerun the full affected verification and perform the final no-edit duplication audit.
+- **Context:** The contract test removes 112 net lines without changing validators or assertions. All 48 message-contract tests, TypeScript checks, and whitespace validation pass.

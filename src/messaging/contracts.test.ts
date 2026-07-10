@@ -67,6 +67,20 @@ const validMessage: ReadingEventBatchMessage = {
   },
 };
 
+type ReadingEventBatchPayloadOverrides = Partial<
+  Record<keyof ReadingEventBatchMessage['payload'], unknown>
+>;
+
+function createMessageWithPayload(overrides: ReadingEventBatchPayloadOverrides): unknown {
+  return {
+    ...validMessage,
+    payload: {
+      ...validMessage.payload,
+      ...overrides,
+    },
+  };
+}
+
 describe('reading collector status messages', () => {
   it('accepts only the dedicated status request and a complete response', () => {
     expect(isReadingCollectorStatusRequest({
@@ -110,137 +124,115 @@ describe('isReadingEventBatchMessage', () => {
 
   it('rejects reading event batches without events', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects batches containing malformed page, chunk, or event records', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             totalWords: '120',
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], wordCount: Number.NaN }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [{ ...validMessage.payload.events[0], kind: 'UnknownEvent' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects batches containing negative page, chunk, or event numeric fields', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             totalWords: -1,
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: -1 }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [{ ...validMessage.payload.events[0], occurredAt: -1 }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects page total words that differ from the chunk word count total', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             totalWords: validMessage.payload.chunks[0].wordCount + 1,
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects page domains that do not match the page id prefix', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             domain: 'other.example.com',
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects non-English page snapshots before local English analysis', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             language: 'fr',
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunks below the collector word threshold', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             totalWords: 7,
@@ -259,93 +251,79 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunks without positive sentence counts', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 0 }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk text that is blank or not trimmed', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], text: '   ' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], text: ' Mitigate memory overhead. ' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunks without raw text needed for local vocabulary analysis', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], text: undefined }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk text whose hash does not match its text snapshot', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [
             {
               ...validMessage.payload.chunks[0],
               text: 'Architecture performance guides keep local extension telemetry private.',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk text whose chunk id does not match its text snapshot', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], chunkId: 'stale-chunk-id' }],
           events: [{ ...validMessage.payload.events[0], chunkId: 'stale-chunk-id' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk word counts that do not match the text snapshot analysis', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             totalWords: 9,
@@ -364,29 +342,25 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk sentence counts that do not match the text snapshot analysis', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], sentenceCount: 2 }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects viewport exposure ticks without positive tick duration', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -396,15 +370,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -414,17 +386,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects viewport exposure ticks without collector-shaped reading metadata', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -435,15 +405,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -453,15 +421,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -471,17 +437,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects viewport exposure ticks below the collector visibility threshold', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -491,17 +455,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects visibility events without bounded visible ratios', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -511,15 +473,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -530,15 +490,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -548,17 +506,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects visibility events without positive word counts', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -568,15 +524,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -587,17 +541,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects visible block events below the collector visibility threshold', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -608,17 +560,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects hidden block events at or above the collector visibility threshold', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -629,17 +579,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects viewport visible chunk entries whose word counts differ from the linked chunk', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -649,17 +597,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects selection telemetry without positive hashed metadata', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -670,15 +616,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -690,17 +634,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects raw text in selection telemetry', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -713,17 +655,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects scroll velocity events without valid movement metadata', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -735,15 +675,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -756,15 +694,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -777,17 +713,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects activity events without nonnegative idle duration metadata', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -796,15 +730,13 @@ describe('isReadingEventBatchMessage', () => {
               value: {},
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -815,17 +747,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects page lifecycle events with unexpected payloads', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -836,15 +766,13 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -855,28 +783,24 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it.each(['LookupTriggered', 'ChunkSaved', 'PageExcluded'])(
     'rejects unsupported raw event kind %s until a collector and contract exist',
     (kind) => {
-      const rawMessage: unknown = {
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
-          events: [
-            {
-              ...validMessage.payload.events[0],
-              chunkId: undefined,
-              kind,
-              value: undefined,
-            },
-          ],
-        },
-      };
+      const rawMessage: unknown = createMessageWithPayload({
+        events: [
+          {
+            ...validMessage.payload.events[0],
+            chunkId: undefined,
+            kind,
+            value: undefined,
+          },
+        ],
+      });
 
       expect(isReadingEventBatchMessage(rawMessage)).toBe(false);
     },
@@ -884,10 +808,8 @@ describe('isReadingEventBatchMessage', () => {
 
   it('rejects page-level events linked to chunks', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -895,52 +817,44 @@ describe('isReadingEventBatchMessage', () => {
               value: undefined,
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects blank required page, chunk, and event strings', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             domain: '   ',
           },
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], selector: '' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [{ ...validMessage.payload.events[0], id: '   ' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects required strings with surrounding whitespace before they become local keys', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           page: {
             ...validMessage.payload.page,
             pageId: ' page-1 ',
@@ -959,29 +873,25 @@ describe('isReadingEventBatchMessage', () => {
               chunkId: ' chunk-1 ',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunks linked to a different page', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [{ ...validMessage.payload.chunks[0], pageId: 'page-2' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects duplicate chunk IDs in a batch', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           chunks: [
             validMessage.payload.chunks[0],
             {
@@ -990,17 +900,15 @@ describe('isReadingEventBatchMessage', () => {
               text: 'A duplicate chunk identity would make local aggregate writes ambiguous.',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects duplicate event IDs in a batch', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
             {
@@ -1010,83 +918,73 @@ describe('isReadingEventBatchMessage', () => {
               value: undefined,
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects event IDs whose kind prefix does not match the event kind', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
               id: 'PageVisible_event-1',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects event IDs without a unique suffix after the kind prefix', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
               id: 'TextViewportExposureTick_',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects session IDs that do not match the collector session shape', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
               sessionId: 'manual-session-1',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
 
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
               sessionId: 'session_',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects batches whose events move backward in time', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
             {
@@ -1095,34 +993,30 @@ describe('isReadingEventBatchMessage', () => {
               occurredAt: validMessage.payload.events[0].occurredAt - 1,
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects events that occurred before the page snapshot was captured', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
               occurredAt: validMessage.payload.page.capturedAt - 1,
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects batches that mix reading session IDs', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             validMessage.payload.events[0],
             {
@@ -1131,29 +1025,25 @@ describe('isReadingEventBatchMessage', () => {
               sessionId: 'session_2',
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects events linked to a different page', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [{ ...validMessage.payload.events[0], pageId: 'page-2' }],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects chunk-scoped reading events without chunk links', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -1166,17 +1056,15 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 
   it('rejects events linked to an unknown chunk', () => {
     expect(
-      isReadingEventBatchMessage({
-        ...validMessage,
-        payload: {
-          ...validMessage.payload,
+      isReadingEventBatchMessage(
+        createMessageWithPayload({
           events: [
             {
               ...validMessage.payload.events[0],
@@ -1186,8 +1074,8 @@ describe('isReadingEventBatchMessage', () => {
               },
             },
           ],
-        },
-      }),
+        }),
+      ),
     ).toBe(false);
   });
 });
