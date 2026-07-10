@@ -11,6 +11,7 @@ import {
   updateAdaptiveReadingPaceProfile,
   type AdaptiveReadingPaceSample,
 } from '../domain/readingPace';
+import { decodeViewportExposureTick } from '../domain/viewportExposure';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import techEnglishPack from '../packs/tech-english.pack.json';
 import { getDailyCheckInThresholdWords } from './checkInSettings';
@@ -665,23 +666,21 @@ function advanceAdaptiveReadingPaceEpisode(
       continue;
     }
 
-    const value = readObject(event.value);
-    const tickMs = readPositiveNumber(value, 'tickMs');
-    const tickDirection = readScrollDirection(value);
+    const tick = decodeViewportExposureTick(event.value);
     if (
-      tickMs <= 0 ||
-      !readBoolean(value, 'activeTab', true) ||
-      !readBoolean(value, 'documentVisible', true) ||
-      readNumber(value, 'idleAgeMs', 0) > MAX_ADAPTIVE_IDLE_MS ||
-      Math.abs(readNumber(value, 'scrollSpeedWordsPerMinute', 0)) > baseWordsPerMinute * 1.6 ||
-      tickDirection < 0
+      tick.tickMs <= 0 ||
+      !tick.activeTab ||
+      !tick.documentVisible ||
+      tick.idleAgeMs > MAX_ADAPTIVE_IDLE_MS ||
+      Math.abs(tick.scrollSpeedWordsPerMinute) > baseWordsPerMinute * 1.6 ||
+      tick.scrollDirection < 0
     ) {
       ended = true;
       break;
     }
-    if (tickDirection > 0) episode.lastScrollDirection = tickDirection;
+    if (tick.scrollDirection > 0) episode.lastScrollDirection = tick.scrollDirection;
 
-    const reliableVisibleChunks = readAdaptiveVisibleChunks(value?.visibleChunks).filter((visibleChunk) => (
+    const reliableVisibleChunks = tick.visibleChunks.filter((visibleChunk) => (
       chunksById.has(visibleChunk.chunkId) &&
       visibleChunk.visibleRatio >= MIN_ADAPTIVE_VISIBLE_RATIO &&
       visibleChunk.contentMultiplier >= MIN_ADAPTIVE_CONTENT_MULTIPLIER &&
@@ -691,7 +690,7 @@ function advanceAdaptiveReadingPaceEpisode(
       continue;
     }
 
-    episode.activeMs += tickMs;
+    episode.activeMs += tick.tickMs;
     episode.lastObservedAt = Math.max(episode.lastObservedAt, event.occurredAt);
     const visibleChunkIds = new Set(reliableVisibleChunks.map((visibleChunk) => visibleChunk.chunkId));
 
@@ -722,7 +721,7 @@ function advanceAdaptiveReadingPaceEpisode(
         visibleChunk.viewportY >= ADAPTIVE_CENTER_BAND_TOP &&
         visibleChunk.viewportY <= ADAPTIVE_CENTER_BAND_BOTTOM
       ) {
-        state.centerDwellMs += tickMs;
+        state.centerDwellMs += tick.tickMs;
       }
       state.lastViewportY = visibleChunk.viewportY;
       state.lastSeenAt = event.occurredAt;
@@ -776,38 +775,6 @@ function createAdaptiveReadingPaceEpisodeSample(
     confidence: Math.min(1, 0.75 + episode.completedWords / Math.max(1, pageWordCount) * 0.25),
     observedAt: episode.lastObservedAt,
   };
-}
-
-function readAdaptiveVisibleChunks(value: unknown): Array<{
-  chunkId: string;
-  visibleRatio: number;
-  contentMultiplier: number;
-  viewportY: number;
-}> {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((candidate) => {
-    const visibleChunk = readObject(candidate);
-    const chunkId = visibleChunk?.chunkId;
-    if (typeof chunkId !== 'string' || chunkId.trim().length === 0) {
-      return [];
-    }
-
-    return [
-      {
-        chunkId,
-        visibleRatio: readNumber(visibleChunk, 'visibleRatio', 0),
-        contentMultiplier: readNumber(
-          visibleChunk,
-          'contentMultiplier',
-          readNumber(visibleChunk, 'contentWeight', 0),
-        ),
-        viewportY: readNumber(visibleChunk, 'viewportY', Number.NaN),
-      },
-    ];
-  });
 }
 
 function createReadingPaceEpisodeId(sessionId: string, pageId: string): string {
@@ -882,11 +849,6 @@ function readNumber(value: Record<string, unknown> | undefined, key: string, fal
 
 function readPositiveNumber(value: Record<string, unknown> | undefined, key: string): number {
   return Math.max(0, readNumber(value, key, 0));
-}
-
-function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {
-  const candidate = value?.[key];
-  return typeof candidate === 'boolean' ? candidate : fallback;
 }
 
 function extractVocabExposureUpdates(text: string, now: number, coverage: number): VocabExposureRecord[] {

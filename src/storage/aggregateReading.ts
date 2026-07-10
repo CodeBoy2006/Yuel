@@ -1,5 +1,6 @@
 import { allocateReadingBudget, DEFAULT_BASE_WORDS_PER_MINUTE, type VisibleChunkBudgetInput } from '../domain/metrics';
 import { formatLocalDate } from '../domain/localDate';
+import { decodeViewportExposureTick } from '../domain/viewportExposure';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 
 export interface ChunkReadingState {
@@ -61,17 +62,6 @@ export interface ReadingBatchSummary {
   chunkDayUpdates: ChunkDayReadingUpdate[];
 }
 
-interface VisibleChunkEventValue {
-  chunkId: string;
-  wordCount: number;
-  visibleRatio: number;
-  centerDistance: number;
-  contentWeight: number;
-  attentionMass?: number;
-  contentMultiplier?: number;
-  visibleWordCount?: number;
-}
-
 export function summarizeReadingEventBatch(
   payload: ReadingEventBatchPayload,
   state: ReadingAggregationState = {},
@@ -94,15 +84,13 @@ export function summarizeReadingEventBatch(
       continue;
     }
 
-    const value = readObject(event.value);
-    const tickMs = readPositiveNumber(value, 'tickMs');
-    const visibleChunkValues = readVisibleChunks(value?.visibleChunks);
+    const tick = decodeViewportExposureTick(event.value);
     const date = formatLocalDate(event.occurredAt);
-    if (tickMs <= 0 || visibleChunkValues.length === 0) {
+    if (tick.tickMs <= 0 || tick.visibleChunks.length === 0) {
       continue;
     }
 
-    const visibleChunks = visibleChunkValues.flatMap((visibleChunk): VisibleChunkBudgetInput[] => {
+    const visibleChunks = tick.visibleChunks.flatMap((visibleChunk): VisibleChunkBudgetInput[] => {
       const chunk = chunksById.get(visibleChunk.chunkId);
       if (!chunk) {
         return [];
@@ -131,14 +119,14 @@ export function summarizeReadingEventBatch(
     }
 
     const estimate = allocateReadingBudget({
-      tickMs,
+      tickMs: tick.tickMs,
       baseWordsPerMinute:
         readPositiveFiniteNumber(state.baseWordsPerMinute) ??
-        (readPositiveNumber(value, 'baseWordsPerMinute') || DEFAULT_BASE_WORDS_PER_MINUTE),
-      isActiveTab: readBoolean(value, 'activeTab', true),
-      isDocumentVisible: readBoolean(value, 'documentVisible', true),
-      scrollSpeedWordsPerMinute: readNumber(value, 'scrollSpeedWordsPerMinute', 0),
-      idleAgeMs: readNumber(value, 'idleAgeMs', 0),
+        (tick.baseWordsPerMinute || DEFAULT_BASE_WORDS_PER_MINUTE),
+      isActiveTab: tick.activeTab,
+      isDocumentVisible: tick.documentVisible,
+      scrollSpeedWordsPerMinute: tick.scrollSpeedWordsPerMinute,
+      idleAgeMs: tick.idleAgeMs,
       visibleChunks,
     });
 
@@ -297,37 +285,6 @@ function incrementRunningChunkDayState(
   states.set(date, dayStates);
 }
 
-function readVisibleChunks(value: unknown): VisibleChunkEventValue[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((candidate): VisibleChunkEventValue[] => {
-    const visibleChunk = readObject(candidate);
-    if (!visibleChunk) {
-      return [];
-    }
-
-    const chunkId = visibleChunk.chunkId;
-    if (typeof chunkId !== 'string' || chunkId.trim().length === 0) {
-      return [];
-    }
-
-    return [
-      {
-        chunkId,
-        wordCount: readPositiveNumber(visibleChunk, 'wordCount'),
-        visibleRatio: readNumber(visibleChunk, 'visibleRatio', 0),
-        centerDistance: readNumber(visibleChunk, 'centerDistance', 0),
-        contentWeight: readNumber(visibleChunk, 'contentWeight', 0),
-        attentionMass: readOptionalNumber(visibleChunk, 'attentionMass'),
-        contentMultiplier: readOptionalNumber(visibleChunk, 'contentMultiplier'),
-        visibleWordCount: readOptionalNumber(visibleChunk, 'visibleWordCount'),
-      },
-    ];
-  });
-}
-
 function sumChunkField(chunks: Array<{ newWords: number; reviewWords: number }>, key: 'newWords' | 'reviewWords'): number {
   return chunks.reduce((sum, chunk) => sum + chunk[key], 0);
 }
@@ -346,31 +303,6 @@ function weightedAverageConfidence(
   return (existingConfidence * existingWords + nextConfidence * nextWords) / totalWords;
 }
 
-function readObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function readNumber(value: Record<string, unknown> | undefined, key: string, fallback: number): number {
-  const candidate = value?.[key];
-  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : fallback;
-}
-
-function readPositiveNumber(value: Record<string, unknown> | undefined, key: string): number {
-  return Math.max(0, readNumber(value, key, 0));
-}
-
 function readPositiveFiniteNumber(value: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function readOptionalNumber(value: Record<string, unknown> | undefined, key: string): number | undefined {
-  const candidate = value?.[key];
-  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined;
-}
-
-function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {
-  const candidate = value?.[key];
-  return typeof candidate === 'boolean' ? candidate : fallback;
 }

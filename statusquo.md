@@ -1143,3 +1143,9 @@
 - **Status:** Completed
 - **Next Steps:** Simplify the observer transition branch now that its event ordering is explicitly protected.
 - **Context:** Twelve repeated event envelopes collapse to one construction point while preserving ID/time evaluation order. The new test fixes the `Visible → Exposure → Hidden` sequence and hidden payload; all 35 collector tests and TypeScript checks pass.
+
+## [2026-07-11 02:51] Viewport Exposure Decoder Consolidation
+- **Changes:** Replaced separate aggregation and adaptive visible-chunk decoders with one typed viewport-tick decoder, centralizing malformed-value defaults and the legacy content-weight fallback.
+- **Status:** Completed
+- **Next Steps:** Continue with read-model contract tightening and remaining proven dead fields.
+- **Context:** Aggregate now owns budget projection and adaptive logic owns reliability filtering, while production implementation drops 16 net lines across the three modules. Two direct decoder tests plus all 41 aggregation/repository tests and TypeScript checks pass.
