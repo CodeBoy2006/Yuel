@@ -45,6 +45,13 @@ interface ScrollVelocityMeasurement extends ScrollVelocitySample {
   scrollSpeedWordsPerMinute: number;
 }
 
+type EmitReadingEvent = (
+  id: ReadingEvent['id'],
+  kind: ReadingEvent['kind'],
+  occurredAt: ReadingEvent['occurredAt'],
+  details: Omit<ReadingEvent, 'id' | 'sessionId' | 'pageId' | 'kind' | 'occurredAt'>,
+) => void;
+
 const VIEWPORT_ATTENTION_MEAN = 0.492;
 const VIEWPORT_ATTENTION_STANDARD_DEVIATION = 0.201;
 
@@ -170,18 +177,20 @@ function startReadingCollectorRun(
     scrollY: getCurrentScrollY(),
     sampledAt: Date.now(),
   };
-  const pendingEvents: ReadingEvent[] = pageHidden
-    ? []
-    : [
-        {
-          id: createEventId('PageVisible'),
-          sessionId,
-          pageId: page.pageId,
-          kind: 'PageVisible',
-          occurredAt: Date.now(),
-          confidence: 'medium',
-        },
-      ];
+  const pendingEvents: ReadingEvent[] = [];
+  const emitEvent: EmitReadingEvent = (id, kind, occurredAt, details) => {
+    pendingEvents.push({
+      id,
+      sessionId,
+      pageId: page.pageId,
+      kind,
+      occurredAt,
+      ...details,
+    });
+  };
+  if (!pageHidden) {
+    emitEvent(createEventId('PageVisible'), 'PageVisible', Date.now(), { confidence: 'medium' });
+  }
 
   const observer = new IntersectionObserver((entries) => {
     if (pageHidden) {
@@ -213,13 +222,8 @@ function startReadingCollectorRun(
 
         for (const { block, visibleRatio } of newlyVisibleBlocks) {
           visibleBlocks.set(block.chunkId, { block });
-          pendingEvents.push({
-            id: createEventId('TextBlockVisible'),
-            sessionId,
-            pageId: page.pageId,
+          emitEvent(createEventId('TextBlockVisible'), 'TextBlockVisible', now, {
             chunkId: block.chunkId,
-            kind: 'TextBlockVisible',
-            occurredAt: now,
             confidence: visibleRatio > 0.65 ? 'high' : 'medium',
             value: {
               visibleRatio,
@@ -230,13 +234,8 @@ function startReadingCollectorRun(
 
         for (const block of newlyHiddenBlocks) {
           visibleBlocks.delete(block.chunkId);
-          pendingEvents.push({
-            id: createEventId('TextBlockHidden'),
-            sessionId,
-            pageId: page.pageId,
+          emitEvent(createEventId('TextBlockHidden'), 'TextBlockHidden', now, {
             chunkId: block.chunkId,
-            kind: 'TextBlockHidden',
-            occurredAt: now,
             confidence: 'medium',
             value: {
               visibleRatio: 0,
@@ -249,13 +248,8 @@ function startReadingCollectorRun(
 
         for (const block of visibleEntryBlocks) {
           visibleBlocks.delete(block.chunkId);
-          pendingEvents.push({
-            id: createEventId('TextBlockHidden'),
-            sessionId,
-            pageId: page.pageId,
+          emitEvent(createEventId('TextBlockHidden'), 'TextBlockHidden', now, {
             chunkId: block.chunkId,
-            kind: 'TextBlockHidden',
-            occurredAt: now,
             confidence: entry.intersectionRatio > 0.65 ? 'high' : 'medium',
             value: {
               visibleRatio: entry.intersectionRatio,
@@ -282,9 +276,7 @@ function startReadingCollectorRun(
     documentVisible = document.visibilityState === 'visible',
   ) => {
     appendViewportExposureTick(
-      pendingEvents,
-      sessionId,
-      page.pageId,
+      emitEvent,
       visibleBlocks,
       lastViewportTickAt,
       now,
@@ -323,12 +315,7 @@ function startReadingCollectorRun(
     closeCurrentViewportInterval(now);
     userIdle = true;
     idleStartedAt = now;
-    pendingEvents.push({
-      id: createEventId('UserIdle', now),
-      sessionId,
-      pageId: page.pageId,
-      kind: 'UserIdle',
-      occurredAt: now,
+    emitEvent(createEventId('UserIdle', now), 'UserIdle', now, {
       confidence: 'medium',
       value: {
         idleMs: now - lastInteractionAt,
@@ -342,12 +329,7 @@ function startReadingCollectorRun(
     }
 
     if (userIdle) {
-      pendingEvents.push({
-        id: createEventId('UserActive', now),
-        sessionId,
-        pageId: page.pageId,
-        kind: 'UserActive',
-        occurredAt: now,
+      emitEvent(createEventId('UserActive', now), 'UserActive', now, {
         confidence: 'medium',
         value: {
           idleMs: idleStartedAt ? now - idleStartedAt : 0,
@@ -367,14 +349,7 @@ function startReadingCollectorRun(
     }
 
     const now = Date.now();
-    pendingEvents.push({
-      id: createEventId('PageHidden', now),
-      sessionId,
-      pageId: page.pageId,
-      kind: 'PageHidden',
-      occurredAt: now,
-      confidence: 'medium',
-    });
+    emitEvent(createEventId('PageHidden', now), 'PageHidden', now, { confidence: 'medium' });
     pageHidden = true;
   };
 
@@ -405,15 +380,8 @@ function startReadingCollectorRun(
       lastInteractionAt = now;
       lastViewportTickAt = now;
       resetIdleTimer();
-      pendingEvents.push({
-        id: createEventId('PageVisible', now),
-        sessionId,
-        pageId: page.pageId,
-        kind: 'PageVisible',
-        occurredAt: now,
-        confidence: 'medium',
-      });
-      restoreVisibleBlocksFromLayout(pendingEvents, sessionId, page.pageId, blocks, visibleBlocks);
+      emitEvent(createEventId('PageVisible', now), 'PageVisible', now, { confidence: 'medium' });
+      restoreVisibleBlocksFromLayout(emitEvent, blocks, visibleBlocks);
     }
   };
 
@@ -455,12 +423,7 @@ function startReadingCollectorRun(
     latestScrollSpeedWordsPerMinute = measurement.scrollSpeedWordsPerMinute;
     latestScrollDirection = measurement.scrollDirection;
     scheduleScrollSpeedExpiry();
-    pendingEvents.push({
-      id: createEventId('ScrollVelocityChanged', measurement.sampledAt),
-      sessionId,
-      pageId: page.pageId,
-      kind: 'ScrollVelocityChanged',
-      occurredAt: measurement.sampledAt,
+    emitEvent(createEventId('ScrollVelocityChanged', measurement.sampledAt), 'ScrollVelocityChanged', measurement.sampledAt, {
       confidence: confidenceFromScrollSpeed(measurement.scrollSpeedWordsPerMinute),
       value: {
         scrollDeltaPx: measurement.scrollDeltaPx,
@@ -482,12 +445,7 @@ function startReadingCollectorRun(
     const now = Date.now();
     closeCurrentViewportInterval(now);
     markUserActive(now);
-    pendingEvents.push({
-      id: createEventId('TextSelected', now),
-      sessionId,
-      pageId: page.pageId,
-      kind: 'TextSelected',
-      occurredAt: now,
+    emitEvent(createEventId('TextSelected', now), 'TextSelected', now, {
       confidence: 'high',
       value: {
         textHash: hashText(text),
@@ -648,9 +606,7 @@ function groupBlocksByElement(blocks: TextBlockCandidate[]): Map<Element, TextBl
 }
 
 function restoreVisibleBlocksFromLayout(
-  pendingEvents: ReadingEvent[],
-  sessionId: string,
-  pageId: string,
+  emitEvent: EmitReadingEvent,
   blocks: TextBlockCandidate[],
   visibleBlocks: Map<string, VisibleBlockState>,
 ): void {
@@ -666,13 +622,8 @@ function restoreVisibleBlocksFromLayout(
     }
 
     visibleBlocks.set(block.chunkId, { block });
-    pendingEvents.push({
-      id: createEventId('TextBlockVisible', now),
-      sessionId,
-      pageId,
+    emitEvent(createEventId('TextBlockVisible', now), 'TextBlockVisible', now, {
       chunkId: block.chunkId,
-      kind: 'TextBlockVisible',
-      occurredAt: now,
       confidence: visibleRatio > 0.65 ? 'high' : 'medium',
       value: {
         visibleRatio,
@@ -683,9 +634,7 @@ function restoreVisibleBlocksFromLayout(
 }
 
 function appendViewportExposureTick(
-  pendingEvents: ReadingEvent[],
-  sessionId: string,
-  pageId: string,
+  emitEvent: EmitReadingEvent,
   visibleBlocks: Map<string, VisibleBlockState>,
   startedAt: number,
   now: number,
@@ -730,12 +679,7 @@ function appendViewportExposureTick(
     return;
   }
 
-  pendingEvents.push({
-    id: createEventId('TextViewportExposureTick', now),
-    sessionId,
-    pageId,
-    kind: 'TextViewportExposureTick',
-    occurredAt: now,
+  emitEvent(createEventId('TextViewportExposureTick', now), 'TextViewportExposureTick', now, {
     confidence: visibleChunks.some((chunk) => chunk.visibleRatio > 0.65) ? 'high' : 'medium',
     value: {
       tickMs,

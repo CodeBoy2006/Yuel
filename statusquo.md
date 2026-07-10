@@ -1137,3 +1137,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue removing other independently proven dead fields in separate commits.
 - **Context:** The change removes 13 lines with no replacement abstraction. All 72 repository, reading-stats, and saved-item tests plus TypeScript checks pass; existing transparent-export work remains unstaged.
+
+## [2026-07-11 02:43] Collector Event Envelope Consolidation
+- **Changes:** Routed all collector events through one run-local emitter that owns session/page/queue state, reduced helper parameter threading, and added direct visible-to-hidden lifecycle coverage.
+- **Status:** Completed
+- **Next Steps:** Simplify the observer transition branch now that its event ordering is explicitly protected.
+- **Context:** Twelve repeated event envelopes collapse to one construction point while preserving ID/time evaluation order. The new test fixes the `Visible → Exposure → Hidden` sequence and hidden payload; all 35 collector tests and TypeScript checks pass.

@@ -594,6 +594,58 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it('emits exposure before a visible block hidden event when the block leaves the viewport', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    document.body.innerHTML = `
+      <article><p id="guide">Visible documentation blocks should emit a hidden lifecycle event after leaving the viewport.</p></article>
+    `;
+    const controller = startReadingCollector({ flushIntervalMs: 10_000, sampleIntervalMs: 10_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      const observer = TestIntersectionObserver.instances[0];
+      observer.emit([{ target: blockElement as Element, isIntersecting: true, intersectionRatio: 1 }]);
+
+      await vi.advanceTimersByTimeAsync(500);
+      const hiddenAt = Date.now();
+      observer.emit([{ target: blockElement as Element, isIntersecting: false, intersectionRatio: 0 }]);
+      await vi.advanceTimersByTimeAsync(9_500);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const events = mocks.sendMessage.mock.calls[0][0].payload.events;
+      expect(events.map((event: { kind: string }) => event.kind)).toEqual(
+        ['TextBlockVisible', 'TextViewportExposureTick', 'TextBlockHidden'],
+      );
+      const [visibleEvent, exposureEvent, hiddenEvent] = events;
+      expect(exposureEvent).toEqual(expect.objectContaining({
+        kind: 'TextViewportExposureTick',
+        occurredAt: hiddenAt,
+        value: expect.objectContaining({ tickMs: 500 }),
+      }));
+      expect(hiddenEvent).toEqual({
+        id: expect.stringMatching(/^TextBlockHidden_/),
+        sessionId: visibleEvent.sessionId,
+        pageId: createPageId(window.location.href),
+        chunkId: visibleEvent.chunkId,
+        kind: 'TextBlockHidden',
+        occurredAt: hiddenAt,
+        confidence: 'medium',
+        value: {
+          visibleRatio: 0,
+          wordCount: visibleEvent.value.wordCount,
+        },
+      });
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('does not duplicate visible block events while a block stays visible', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     document.body.innerHTML = `
