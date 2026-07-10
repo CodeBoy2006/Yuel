@@ -3,6 +3,7 @@ import {
   getDomain,
 } from '../domain/events';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
+import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
 import { getDailyCheckInThresholdWords } from './checkInSettings';
 import {
   db,
@@ -205,7 +206,7 @@ async function recoverReadingStreak(
   checkInThresholdWords: number,
 ): Promise<number> {
   let streak = 1;
-  let cursor = previousLocalDate(date);
+  let cursor = shiftLocalDate(date, -1);
 
   while (true) {
     const dailyStat = await store.dailyStats.get(cursor);
@@ -214,15 +215,8 @@ async function recoverReadingStreak(
     }
 
     streak += 1;
-    cursor = previousLocalDate(cursor);
+    cursor = shiftLocalDate(cursor, -1);
   }
-}
-
-function previousLocalDate(date: string): string {
-  const [year, month, day] = date.split('-').map(Number);
-  const previous = new Date(year, month - 1, day);
-  previous.setDate(previous.getDate() - 1);
-  return formatLocalDate(previous.getTime());
 }
 
 export async function getReadingDashboardDetails(
@@ -306,7 +300,7 @@ function createDashboardHistoryDates(now: number): string[] {
   const dates: string[] = [];
   const cursor = new Date(firstMonday);
   while (cursor <= today) {
-    dates.push(formatLocalDate(cursor.getTime()));
+    dates.push(formatLocalDate(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
 
@@ -439,14 +433,6 @@ function normalizeTags(tags: string[]): string[] {
 function normalizeDisplayDomain(domain: string): string {
   const normalized = domain.trim();
   return normalized || 'unknown';
-}
-
-function formatLocalDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function getLocalStartOfDay(timestamp: number): number {

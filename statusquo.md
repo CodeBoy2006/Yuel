@@ -1107,3 +1107,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Approved visual direction A preserves the compact horizontal lockup while increasing the mark to 32px/36px for perception. Visual QA covered 1280px and 320px viewports plus a 240px header, all 347 unit/UI tests and TypeScript checks pass, the design detector reported no findings, the production build succeeds, and all three packaged-extension E2E flows pass outside the Chromium-restricted process sandbox.
+
+## [2026-07-11 02:28] Local Date Consolidation
+- **Changes:** Added one pure local-calendar date module and replaced duplicate formatting, previous-day, and next-day helpers across storage and dashboard insights.
+- **Status:** Completed
+- **Next Steps:** Continue removing test-only fallback branches from production UI dependency contracts.
+- **Context:** Five date formatters and three groups of calendar-shift helpers now reduce to two functions. Month/year boundary tests, all 349 unit/UI tests, and TypeScript checks pass; existing share-card work remains unmodified and unstaged.

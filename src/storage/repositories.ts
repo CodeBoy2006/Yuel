@@ -1,6 +1,7 @@
 import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import type { ReadingEvent } from '../domain/events';
+import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import {
   DEFAULT_READING_CONTENT_TYPE,
@@ -470,7 +471,7 @@ async function recordDailyStatIncrements(
         && hasCompletedDailyCheckIn(existing, checkInThresholdWords)
         && existing.streak > 0
         ? existing.streak
-        : (await getStoredReadingStreakEndingOn(previousLocalDate(update.date), checkInThresholdWords)) + 1
+        : (await getStoredReadingStreakEndingOn(shiftLocalDate(update.date, -1), checkInThresholdWords)) + 1
       : 0;
     await db.dailyStats.put({
       date: update.date,
@@ -496,7 +497,7 @@ async function repairFollowingReadingStreaks(
   priorStreak: number,
   checkInThresholdWords: number,
 ): Promise<void> {
-  let cursor = nextLocalDate(date);
+  let cursor = shiftLocalDate(date, 1);
   let streak = priorStreak;
 
   while (true) {
@@ -522,7 +523,7 @@ async function repairFollowingReadingStreaks(
     }
 
     streak = nextStreak;
-    cursor = nextLocalDate(cursor);
+    cursor = shiftLocalDate(cursor, 1);
   }
 }
 
@@ -541,7 +542,7 @@ async function getStoredReadingStreakEndingOn(
   // Legacy rows predate configurable goals. Rebuild their streak against the
   // active goal instead of trusting a value produced by the old any-reading rule.
   let streak = 1;
-  let cursor = previousLocalDate(date);
+  let cursor = shiftLocalDate(date, -1);
 
   while (true) {
     const dailyStat = await db.dailyStats.get(cursor);
@@ -550,23 +551,8 @@ async function getStoredReadingStreakEndingOn(
     }
 
     streak += 1;
-    cursor = previousLocalDate(cursor);
+    cursor = shiftLocalDate(cursor, -1);
   }
-}
-
-function previousLocalDate(date: string): string {
-  return shiftLocalDate(date, -1);
-}
-
-function nextLocalDate(date: string): string {
-  return shiftLocalDate(date, 1);
-}
-
-function shiftLocalDate(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number);
-  const shifted = new Date(year, month - 1, day);
-  shifted.setDate(shifted.getDate() + days);
-  return formatLocalDate(shifted.getTime());
 }
 
 async function recordChunkCapIncrements(
@@ -895,14 +881,6 @@ function mergePageConfidence(
   }
 
   return confidenceWeight > 0 ? weightedConfidence / confidenceWeight : existingPage?.confidence;
-}
-
-function formatLocalDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function readObject(value: unknown): Record<string, unknown> | undefined {

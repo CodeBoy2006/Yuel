@@ -1,4 +1,5 @@
 import { allocateReadingBudget, DEFAULT_BASE_WORDS_PER_MINUTE, type VisibleChunkBudgetInput } from '../domain/metrics';
+import { formatLocalDate } from '../domain/localDate';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 
 export interface ChunkReadingState {
@@ -377,12 +378,4 @@ function readOptionalNumber(value: Record<string, unknown> | undefined, key: str
 function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {
   const candidate = value?.[key];
   return typeof candidate === 'boolean' ? candidate : fallback;
-}
-
-function formatLocalDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

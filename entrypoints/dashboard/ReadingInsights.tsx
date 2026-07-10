@@ -1,6 +1,7 @@
 import { Activity } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { formatLocalDate } from '../../src/domain/localDate';
 import type { ReadingHistoryDay } from '../../src/storage/readingStats';
 import { formatCount } from '../../src/ui/formatters';
 import { SectionHeader } from '../../src/ui/primitives';
@@ -471,11 +472,4 @@ function formatPeriodLabel(history: ReadingHistoryDay[]): string {
 function parseLocalDate(value: string): Date {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day, 12);
-}
-
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
