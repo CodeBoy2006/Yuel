@@ -100,8 +100,6 @@ export interface DailyStatRecord {
   rawExposureMs?: number;
   effectiveReadingMs?: number;
   confidence?: number;
-  advancedWords: number;
-  expressions: number;
   streak: number;
   topDomains: string[];
 }

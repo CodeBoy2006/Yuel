@@ -61,25 +61,49 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
   const hasData = effectiveWords > 0;
   const checkInThresholdWords = 500;
   const checkInCompleted = effectiveWords >= checkInThresholdWords;
+  const topDomains = hasData ? [domain] : [];
+  const summary = {
+    date: '2026-06-27',
+    effectiveWords,
+    minutes: effectiveWords / 100,
+    streak: checkInCompleted ? 2 : 0,
+    checkInThresholdWords,
+    checkInCompleted,
+    topDomains,
+    readPages: hasData ? 1 : 0,
+    learningWords: hasData ? 3 : 0,
+    hasData,
+  };
+
   return {
-    summary: {
-      date: '2026-06-27',
+    summary,
+    history: [{
+      date: summary.date,
       effectiveWords,
-      minutes: effectiveWords / 100,
-      advancedWords: 0,
-      expressions: 0,
-      streak: checkInCompleted ? 2 : 0,
-      checkInThresholdWords,
+      minutes: summary.minutes,
+      newWords: 0,
+      reviewWords: 0,
       checkInCompleted,
-      topDomains: hasData ? [domain] : [],
-      readPages: hasData ? 1 : 0,
-      learningWords: hasData ? 3 : 0,
-      hasData,
-    },
+      topDomains,
+    }],
     recentPages: [],
     recentVocabulary: [],
     recentSavedItems: [],
     hasData,
+  };
+}
+
+type TodaySummary = Awaited<ReturnType<PopupAppDependencies['getTodayReadingSummary']>>;
+
+function createTodayReadingSummary(overrides: Partial<TodaySummary> = {}): TodaySummary {
+  const effectiveWords = overrides.effectiveWords ?? 0;
+  const checkInThresholdWords = overrides.checkInThresholdWords ?? 500;
+
+  return {
+    ...createDashboardDetails(effectiveWords).summary,
+    ...overrides,
+    checkInThresholdWords,
+    checkInCompleted: overrides.checkInCompleted ?? effectiveWords >= checkInThresholdWords,
   };
 }
 
@@ -123,10 +147,9 @@ function createDashboardDependencies(
 }
 
 type SidePanelDetails = Awaited<ReturnType<SidePanelAppDependencies['getSidePanelReadingDetails']>>;
-type SidePanelSummary = SidePanelDetails['summary'];
 
 function createSidePanelDetails(
-  summaryOverrides: Partial<SidePanelSummary> = {},
+  summaryOverrides: Partial<TodaySummary> = {},
 ): SidePanelDetails {
   return {
     summary: {
@@ -282,12 +305,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -412,18 +433,17 @@ describe('extension UI entrypoint smoke rendering', () => {
       <DashboardApp
         dependencies={createDashboardDependencies({
           getReadingDashboardDetails: async () => ({
-            summary: {
+            summary: createTodayReadingSummary({
               date: '2026-06-27',
               effectiveWords: 960,
               minutes: 11,
-              advancedWords: 0,
-              expressions: 0,
               streak: 2,
               topDomains: ['developer.mozilla.org'],
               readPages: 2,
               learningWords: 5,
               hasData: true,
-            },
+            }),
+            history: [],
             recentPages: [],
             recentVocabulary: [],
             recentSavedItems: [],
@@ -448,12 +468,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -490,12 +508,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 0,
             minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 0,
@@ -584,12 +600,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -682,12 +696,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -730,12 +742,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -781,12 +791,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 0,
             minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 0,
@@ -873,12 +881,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -980,12 +986,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -1040,12 +1044,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -1094,12 +1096,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 0,
             minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 0,
@@ -1143,12 +1143,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 0,
             minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 0,
@@ -1210,12 +1208,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -1266,12 +1262,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderForSmoke(
       <PopupApp
         dependencies={{
-          getTodayReadingSummary: async () => ({
+          getTodayReadingSummary: async () => createTodayReadingSummary({
             date: '2026-06-27',
             effectiveWords: 1280,
             minutes: 14,
-            advancedWords: 0,
-            expressions: 0,
             streak: 0,
             topDomains: [],
             readPages: 3,
@@ -1311,18 +1305,17 @@ describe('extension UI entrypoint smoke rendering', () => {
       <DashboardApp
         dependencies={createDashboardDependencies({
           getReadingDashboardDetails: async () => ({
-            summary: {
+            summary: createTodayReadingSummary({
               date: '2026-06-27',
               effectiveWords: 960,
               minutes: 11,
-              advancedWords: 0,
-              expressions: 0,
               streak: 0,
               topDomains: ['developer.mozilla.org'],
               readPages: 2,
               learningWords: 5,
               hasData: true,
-            },
+            }),
+            history: [],
             recentPages: [
               {
                 pageId: 'page-1',
@@ -1640,24 +1633,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const getReadingDashboardDetails = vi
       .fn()
       .mockRejectedValueOnce(new Error('details unavailable'))
-      .mockResolvedValueOnce({
-        summary: {
-          date: '2026-06-27',
-          effectiveWords: 0,
-          minutes: 0,
-          advancedWords: 0,
-          expressions: 0,
-          streak: 0,
-          topDomains: [],
-          readPages: 0,
-          learningWords: 0,
-          hasData: false,
-        },
-        recentPages: [],
-        recentVocabulary: [],
-        recentSavedItems: [],
-        hasData: false,
-      });
+      .mockResolvedValueOnce(createDashboardDetails());
     const container = await renderForSmoke(
       <DashboardApp
         dependencies={createDashboardDependencies({
@@ -1713,18 +1689,17 @@ describe('extension UI entrypoint smoke rendering', () => {
         dependencies={createDashboardDependencies({
           copyTextToClipboard,
           getReadingDashboardDetails: async () => ({
-            summary: {
+            summary: createTodayReadingSummary({
               date: '2026-06-27',
               effectiveWords: 960,
               minutes: 11,
-              advancedWords: 0,
-              expressions: 0,
               streak: 4,
               topDomains: ['developer.mozilla.org'],
               readPages: 2,
               learningWords: 5,
               hasData: true,
-            },
+            }),
+            history: [],
             recentPages: [],
             recentVocabulary: [],
             recentSavedItems: [],
@@ -1759,18 +1734,17 @@ describe('extension UI entrypoint smoke rendering', () => {
         dependencies={createDashboardDependencies({
           copyTextToClipboard,
           getReadingDashboardDetails: async () => ({
-            summary: {
+            summary: createTodayReadingSummary({
               date: '2026-06-27',
               effectiveWords: 960,
               minutes: 11,
-              advancedWords: 0,
-              expressions: 0,
               streak: 12,
               topDomains: ['developer.mozilla.org', 'web.dev', 'react.dev'],
               readPages: 4,
               learningWords: 5,
               hasData: true,
-            },
+            }),
+            history: [],
             recentPages: [],
             recentVocabulary: [],
             recentSavedItems: [],

@@ -434,8 +434,6 @@ describe('recordReadingEventBatch', () => {
       date: '2026-06-27',
       effectiveWords: 10,
       minutes: 1,
-      advancedWords: 0,
-      expressions: 0,
       streak: 0,
       topDomains: ['  docs.example.com  ', '', 'github.com', 'docs.example.com', '   '],
     });
@@ -663,8 +661,6 @@ describe('recordReadingEventBatch', () => {
           effectiveWords: 100,
           checkInThresholdWords: 1,
           minutes: 1,
-          advancedWords: 0,
-          expressions: 0,
           streak: 0,
           topDomains: [],
         };
@@ -710,8 +706,6 @@ describe('recordReadingEventBatch', () => {
           effectiveWords: 5,
           checkInThresholdWords: 10,
           minutes: 1,
-          advancedWords: 0,
-          expressions: 0,
           streak: 0,
           topDomains: [],
         };
@@ -722,8 +716,6 @@ describe('recordReadingEventBatch', () => {
           effectiveWords: 20,
           checkInThresholdWords: 10,
           minutes: 1,
-          advancedWords: 0,
-          expressions: 0,
           streak: 4,
           topDomains: [],
         };
@@ -751,8 +743,6 @@ describe('recordReadingEventBatch', () => {
           effectiveWords: 100,
           checkInThresholdWords: 1,
           minutes: 1,
-          advancedWords: 0,
-          expressions: 0,
           streak: 41,
           topDomains: [],
         };
@@ -776,8 +766,6 @@ describe('recordReadingEventBatch', () => {
           effectiveWords: 200,
           checkInThresholdWords: 1,
           minutes: 2,
-          advancedWords: 0,
-          expressions: 0,
           streak: 42,
           topDomains: [],
         };
@@ -799,8 +787,6 @@ describe('recordReadingEventBatch', () => {
         date: '2026-06-26',
         effectiveWords: 100,
         minutes: 1,
-        advancedWords: 0,
-        expressions: 0,
         streak: 1,
         topDomains: [],
       }],
@@ -808,8 +794,6 @@ describe('recordReadingEventBatch', () => {
         date: '2026-06-28',
         effectiveWords: 100,
         minutes: 1,
-        advancedWords: 0,
-        expressions: 0,
         streak: 1,
         topDomains: [],
       }],

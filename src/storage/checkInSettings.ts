@@ -13,7 +13,7 @@ import {
 export const DAILY_CHECK_IN_THRESHOLD_WORDS_KEY = 'dailyCheckInThresholdWords';
 
 export interface DailyCheckInSettingsReadStore {
-  metadata?: {
+  metadata: {
     get: (key: string) => Promise<MetadataRecord | undefined>;
   };
 }
@@ -39,7 +39,7 @@ export interface DailyCheckInSettingsWriteStore extends DailyCheckInSettingsRead
 export async function getDailyCheckInThresholdWords(
   store: DailyCheckInSettingsReadStore = db,
 ): Promise<number> {
-  const stored = await store.metadata?.get(DAILY_CHECK_IN_THRESHOLD_WORDS_KEY);
+  const stored = await store.metadata.get(DAILY_CHECK_IN_THRESHOLD_WORDS_KEY);
   return normalizeDailyCheckInThresholdWords(stored?.numberValue);
 }
 

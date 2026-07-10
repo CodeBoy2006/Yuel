@@ -92,8 +92,6 @@ function createDailyStat(date: string, effectiveWords: number): DailyStatRecord 
     date,
     effectiveWords,
     minutes: effectiveWords / 200,
-    advancedWords: 0,
-    expressions: 0,
     streak: 99,
     topDomains: [],
   };

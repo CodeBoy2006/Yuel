@@ -472,8 +472,6 @@ async function recordDailyStatIncrements(
       minutes: (existing?.minutes ?? 0) + update.minutes,
       rawExposureMs: (existing?.rawExposureMs ?? 0) + update.rawExposureMs,
       effectiveReadingMs,
-      advancedWords: existing?.advancedWords ?? 0,
-      expressions: existing?.expressions ?? 0,
       streak,
       topDomains: mergeTopDomains(existing?.topDomains ?? [], domain),
     });

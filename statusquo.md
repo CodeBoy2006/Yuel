@@ -1167,3 +1167,9 @@
 - **Status:** Completed
 - **Next Steps:** Re-audit the collector after full browser-DOM and pressure verification before considering further changes.
 - **Context:** The observer drops from 68 to 41 lines and from 12 to 8 decision points without moving branches into the helper; `collector.ts` removes 10 net lines. All 35 collector tests and TypeScript checks pass, including non-intersecting ratio preservation.
+
+## [2026-07-11 03:09] Reading Summary Contract Simplification
+- **Changes:** Removed never-produced advanced-word and expression counters, made check-in/history and read-store capabilities reflect their production guarantees, and removed the corresponding UI/test fallback paths and fixture noise.
+- **Status:** Completed
+- **Next Steps:** Remove the remaining unused vocabulary lookup counter and consolidate the last exact confidence helper duplicate.
+- **Context:** The batch removes 83 net lines. All 57 UI/share-card tests, 70 reading/check-in/repository tests, TypeScript checks, and the production build pass; existing transparent-export work remains unstaged.

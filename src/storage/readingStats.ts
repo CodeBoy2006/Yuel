@@ -17,11 +17,9 @@ export interface TodayReadingSummary {
   date: string;
   effectiveWords: number;
   minutes: number;
-  advancedWords: number;
-  expressions: number;
   streak: number;
-  checkInThresholdWords?: number;
-  checkInCompleted?: boolean;
+  checkInThresholdWords: number;
+  checkInCompleted: boolean;
   topDomains: string[];
   readPages: number;
   learningWords: number;
@@ -81,7 +79,7 @@ export interface RecentSavedItemSummary {
 
 export interface ReadingDashboardDetails {
   summary: TodayReadingSummary;
-  history?: ReadingHistoryDay[];
+  history: ReadingHistoryDay[];
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
   recentSavedItems: RecentSavedItemSummary[];
@@ -95,12 +93,12 @@ export interface SidePanelReadingDetails {
 }
 
 export interface ReadingStatsStore {
-  metadata?: {
+  metadata: {
     get: (key: string) => Promise<{ key: string; numberValue: number } | undefined>;
   };
   dailyStats: {
     get: (date: string) => Promise<DailyStatRecord | undefined>;
-    bulkGet?: (dates: string[]) => Promise<Array<DailyStatRecord | undefined>>;
+    bulkGet: (dates: string[]) => Promise<Array<DailyStatRecord | undefined>>;
   };
   pages: {
     get: (pageId: string) => Promise<PageRecord | undefined>;
@@ -177,8 +175,6 @@ export async function getTodayReadingSummary(
     date,
     effectiveWords: dailyStat?.effectiveWords ?? 0,
     minutes: dailyStat?.minutes ?? 0,
-    advancedWords: dailyStat?.advancedWords ?? 0,
-    expressions: dailyStat?.expressions ?? 0,
     streak,
     checkInThresholdWords,
     checkInCompleted,
@@ -193,8 +189,6 @@ export async function getTodayReadingSummary(
     hasData:
       summary.effectiveWords > 0 ||
       summary.minutes > 0 ||
-      summary.advancedWords > 0 ||
-      summary.expressions > 0 ||
       summary.readPages > 0 ||
       summary.learningWords > 0,
   };
@@ -268,9 +262,7 @@ async function getDashboardReadingHistory(
 ): Promise<ReadingHistoryDay[]> {
   const dates = createDashboardHistoryDates(now);
   const [dailyStats, checkInThresholdWords] = await Promise.all([
-    store.dailyStats.bulkGet
-      ? store.dailyStats.bulkGet(dates)
-      : Promise.all(dates.map((date) => store.dailyStats.get(date))),
+    store.dailyStats.bulkGet(dates),
     getDailyCheckInThresholdWords(store),
   ]);
 

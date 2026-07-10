@@ -233,8 +233,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const pagesValue = summary ? `${summary.readPages} 页` : loadFailed ? '不可用' : '读取中';
   const learningValue = summary ? `${summary.learningWords} 个` : loadFailed ? '不可用' : '读取中';
   const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
-  const checkInCompleted = summary?.checkInCompleted
-    ?? Boolean(summary && summary.effectiveWords >= checkInThresholdWords);
+  const checkInCompleted = summary ? summary.checkInCompleted : false;
   const checkInRemainingWords = summary
     ? Math.max(0, Math.ceil(checkInThresholdWords - summary.effectiveWords))
     : checkInThresholdWords;

@@ -254,8 +254,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
   const summary = details?.summary;
   const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
-  const checkInCompleted = summary?.checkInCompleted
-    ?? Boolean(summary && summary.effectiveWords >= checkInThresholdWords);
+  const checkInCompleted = summary ? summary.checkInCompleted : false;
   const checkInEffectiveWords = Math.floor(Math.max(0, summary?.effectiveWords ?? 0));
   const checkInRemainingWords = summary
     ? Math.max(0, Math.ceil(checkInThresholdWords - summary.effectiveWords))
@@ -301,19 +300,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardTheme = shareCardSettings.theme;
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
-  const insightHistory = details?.history?.length
-    ? details.history
-    : summary
-      ? [{
-          date: summary.date,
-          effectiveWords: summary.effectiveWords,
-          minutes: summary.minutes,
-          newWords: 0,
-          reviewWords: 0,
-          checkInCompleted,
-          topDomains: summary.topDomains,
-        }]
-      : [];
+  const insightHistory = details?.history ?? [];
 
   const retryLoading = () => {
     setDetails(undefined);

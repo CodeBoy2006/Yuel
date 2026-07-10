@@ -29,8 +29,6 @@ function createStore({
   dailyStat?: {
     effectiveWords: number;
     minutes: number;
-    advancedWords: number;
-    expressions: number;
     streak: number;
     topDomains: string[];
     checkInThresholdWords?: number;
@@ -47,6 +45,13 @@ function createStore({
   historicalDailyStats?: Map<string, ReturnType<typeof createDailyStat>>;
   checkInThresholdWords?: number;
 }): ReadingStatsStore {
+  const getDailyStat = (date: string) => {
+    if (date === '2026-06-27') {
+      return dailyStat ? { date, ...dailyStat } : historicalDailyStats.get(date);
+    }
+    return historicalDailyStats.get(date);
+  };
+
   return {
     metadata: {
       async get(key: string) {
@@ -58,10 +63,10 @@ function createStore({
     },
     dailyStats: {
       async get(date: string) {
-        if (date === '2026-06-27') {
-          return dailyStat ? { date, ...dailyStat } : historicalDailyStats.get(date);
-        }
-        return historicalDailyStats.get(date);
+        return getDailyStat(date);
+      },
+      async bulkGet(dates: string[]) {
+        return dates.map(getDailyStat);
       },
     },
     pages: {
@@ -163,8 +168,6 @@ describe('getTodayReadingSummary', () => {
         dailyStat: {
           effectiveWords: 842,
           minutes: 12.5,
-          advancedWords: 18,
-          expressions: 6,
           streak: 3,
           checkInThresholdWords: 500,
           topDomains: ['developer.mozilla.org', 'github.com'],
@@ -184,8 +187,6 @@ describe('getTodayReadingSummary', () => {
       date: '2026-06-27',
       effectiveWords: 842,
       minutes: 12.5,
-      advancedWords: 18,
-      expressions: 6,
       streak: 3,
       checkInThresholdWords: 500,
       checkInCompleted: true,
@@ -215,8 +216,6 @@ describe('getTodayReadingSummary', () => {
       date: '2026-06-27',
       effectiveWords: 0,
       minutes: 0,
-      advancedWords: 0,
-      expressions: 0,
       streak: 0,
       checkInThresholdWords: 500,
       checkInCompleted: false,
@@ -233,8 +232,6 @@ describe('getTodayReadingSummary', () => {
         dailyStat: {
           effectiveWords: 842,
           minutes: 12.5,
-          advancedWords: 18,
-          expressions: 6,
           streak: 3,
           topDomains: ['  developer.mozilla.org  ', '', 'github.com', 'developer.mozilla.org', '   '],
         },
@@ -250,8 +247,6 @@ describe('getTodayReadingSummary', () => {
         dailyStat: {
           effectiveWords: 600,
           minutes: 1,
-          advancedWords: 0,
-          expressions: 0,
           streak: 0,
           topDomains: [],
         },
@@ -277,8 +272,6 @@ describe('getTodayReadingSummary', () => {
         dailyStat: {
           effectiveWords: 999,
           minutes: 4,
-          advancedWords: 0,
-          expressions: 0,
           streak: 18,
           checkInThresholdWords: 1_000,
           topDomains: ['docs.example.com'],
@@ -334,8 +327,6 @@ describe('getReadingDashboardDetails', () => {
         dailyStat: {
           effectiveWords: 620,
           minutes: 8.25,
-          advancedWords: 7,
-          expressions: 3,
           streak: 2,
           topDomains: ['github.com'],
         },
@@ -790,8 +781,6 @@ describe('getSidePanelReadingDetails', () => {
       dailyStat: {
         effectiveWords: 320,
         minutes: 4,
-        advancedWords: 0,
-        expressions: 0,
         streak: 2,
         topDomains: ['docs.example.com'],
       },
@@ -931,8 +920,6 @@ function createDailyStat(date: string, overrides: Partial<DailyStatRecord> = {})
     date,
     effectiveWords: 100,
     minutes: 1,
-    advancedWords: 0,
-    expressions: 0,
     streak: 0,
     topDomains: [],
     ...overrides,
