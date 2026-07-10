@@ -2,6 +2,8 @@ import {
   createPageId,
   getDomain,
 } from '../domain/events';
+import { hasCompletedDailyCheckIn } from '../domain/checkIn';
+import { getDailyCheckInThresholdWords } from './checkInSettings';
 import {
   db,
   type DailyStatRecord,
@@ -17,6 +19,8 @@ export interface TodayReadingSummary {
   advancedWords: number;
   expressions: number;
   streak: number;
+  checkInThresholdWords?: number;
+  checkInCompleted?: boolean;
   topDomains: string[];
   readPages: number;
   learningWords: number;
@@ -79,6 +83,9 @@ export interface SidePanelReadingDetails {
 }
 
 export interface ReadingStatsStore {
+  metadata?: {
+    get: (key: string) => Promise<{ key: string; numberValue: number } | undefined>;
+  };
   dailyStats: {
     get: (date: string) => Promise<DailyStatRecord | undefined>;
   };
@@ -131,7 +138,6 @@ const RECENT_SAVED_ITEM_LIMIT = 5;
 const RECENT_SAVED_ITEM_SCAN_LIMIT = 20;
 const SIDE_PANEL_VOCABULARY_LIMIT = 5;
 const SIDE_PANEL_SAVED_ITEM_LIMIT = 1;
-const legacyStreakCache = new WeakMap<ReadingStatsStore, Map<string, { signature: string; streak: number }>>();
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -139,16 +145,18 @@ export async function getTodayReadingSummary(
 ): Promise<TodayReadingSummary> {
   const date = formatLocalDate(now);
   const startOfDay = getLocalStartOfDay(now);
-  const [dailyStat, todayPages, learningWords] = await Promise.all([
+  const [dailyStat, todayPages, learningWords, checkInThresholdWords] = await Promise.all([
     store.dailyStats.get(date),
     store.pages.where('lastReadAt').aboveOrEqual(startOfDay).toArray(),
     store.vocabExposures.where('userStatus').equals('learning').count(),
+    getDailyCheckInThresholdWords(store),
   ]);
   const readPages = todayPages.filter(hasMeasuredReading).length;
-  const streak = dailyStat && hasMeasuredDailyReading(dailyStat)
-    ? dailyStat.streak > 0
+  const checkInCompleted = Boolean(dailyStat && hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords));
+  const streak = dailyStat && checkInCompleted
+    ? dailyStat.checkInThresholdWords === checkInThresholdWords && dailyStat.streak > 0
       ? dailyStat.streak
-      : await recoverLegacyReadingStreak(store, date, dailyStat)
+      : await recoverReadingStreak(store, date, checkInThresholdWords)
     : 0;
 
   const summary: TodayReadingSummary = {
@@ -158,6 +166,8 @@ export async function getTodayReadingSummary(
     advancedWords: dailyStat?.advancedWords ?? 0,
     expressions: dailyStat?.expressions ?? 0,
     streak,
+    checkInThresholdWords,
+    checkInCompleted,
     topDomains: normalizeTopDomains(dailyStat?.topDomains ?? []),
     readPages,
     learningWords,
@@ -176,36 +186,23 @@ export async function getTodayReadingSummary(
   };
 }
 
-async function recoverLegacyReadingStreak(
+async function recoverReadingStreak(
   store: ReadingStatsStore,
   date: string,
-  today: DailyStatRecord,
+  checkInThresholdWords: number,
 ): Promise<number> {
-  const signature = [today.effectiveWords, today.effectiveReadingMs ?? 0, today.minutes].join(':');
-  const storeCache = legacyStreakCache.get(store) ?? new Map();
-  const cached = storeCache.get(date);
-  if (cached?.signature === signature) {
-    return cached.streak;
-  }
-
   let streak = 1;
   let cursor = previousLocalDate(date);
 
   while (true) {
     const dailyStat = await store.dailyStats.get(cursor);
-    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
-      storeCache.set(date, { signature, streak });
-      legacyStreakCache.set(store, storeCache);
+    if (!dailyStat || !hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords)) {
       return streak;
     }
 
     streak += 1;
     cursor = previousLocalDate(cursor);
   }
-}
-
-function hasMeasuredDailyReading(dailyStat: DailyStatRecord): boolean {
-  return dailyStat.effectiveWords > 0 || (dailyStat.effectiveReadingMs ?? 0) > 0 || dailyStat.minutes > 0;
 }
 
 function previousLocalDate(date: string): string {

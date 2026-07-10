@@ -1,4 +1,5 @@
 import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
+import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import type { ReadingEvent } from '../domain/events';
 import { matchPackRules, type YuelPack } from '../domain/packs';
 import {
@@ -11,6 +12,7 @@ import {
 } from '../domain/readingPace';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import techEnglishPack from '../packs/tech-english.pack.json';
+import { getDailyCheckInThresholdWords } from './checkInSettings';
 import {
   db,
   type ChunkDayRecord,
@@ -455,19 +457,25 @@ async function recordDailyStatIncrements(
   domain: string,
   metricModelVersion: number,
 ): Promise<void> {
+  const checkInThresholdWords = await getDailyCheckInThresholdWords(db);
+
   for (const update of updates) {
     const existing = await db.dailyStats.get(update.date);
     const effectiveWords = (existing?.effectiveWords ?? 0) + update.effectiveWords;
     const effectiveReadingMs = (existing?.effectiveReadingMs ?? 0) + update.effectiveReadingMs;
-    const hasReading = effectiveWords > 0 || effectiveReadingMs > 0;
-    const streak = hasReading
-      ? existing && hasMeasuredDailyReading(existing) && existing.streak > 0
+    const checkInCompleted = hasCompletedDailyCheckIn({ effectiveWords }, checkInThresholdWords);
+    const streak = checkInCompleted
+      ? existing
+        && existing.checkInThresholdWords === checkInThresholdWords
+        && hasCompletedDailyCheckIn(existing, checkInThresholdWords)
+        && existing.streak > 0
         ? existing.streak
-        : (await getStoredReadingStreakEndingOn(previousLocalDate(update.date))) + 1
+        : (await getStoredReadingStreakEndingOn(previousLocalDate(update.date), checkInThresholdWords)) + 1
       : 0;
     await db.dailyStats.put({
       date: update.date,
       effectiveWords,
+      checkInThresholdWords,
       metricModelVersion: Math.max(existing?.metricModelVersion ?? 1, metricModelVersion),
       newWords: (existing?.newWords ?? 0) + update.newWords,
       reviewWords: (existing?.reviewWords ?? 0) + update.reviewWords,
@@ -479,55 +487,71 @@ async function recordDailyStatIncrements(
       streak,
       topDomains: mergeTopDomains(existing?.topDomains ?? [], domain),
     });
-    await repairFollowingReadingStreaks(update.date, streak);
+    await repairFollowingReadingStreaks(update.date, streak, checkInThresholdWords);
   }
 }
 
-async function repairFollowingReadingStreaks(date: string, priorStreak: number): Promise<void> {
+async function repairFollowingReadingStreaks(
+  date: string,
+  priorStreak: number,
+  checkInThresholdWords: number,
+): Promise<void> {
   let cursor = nextLocalDate(date);
   let streak = priorStreak;
 
   while (true) {
     const dailyStat = await db.dailyStats.get(cursor);
-    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
+    if (!dailyStat) {
       return;
     }
 
-    streak += 1;
-    if (dailyStat.streak !== streak) {
-      await db.dailyStats.put({ ...dailyStat, streak });
+    const checkInCompleted = hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords);
+    const nextStreak = checkInCompleted ? streak + 1 : 0;
+    if (
+      dailyStat.checkInThresholdWords !== checkInThresholdWords
+      || dailyStat.streak !== nextStreak
+    ) {
+      await db.dailyStats.put({
+        ...dailyStat,
+        checkInThresholdWords,
+        streak: nextStreak,
+      });
     }
+    if (!checkInCompleted) {
+      return;
+    }
+
+    streak = nextStreak;
     cursor = nextLocalDate(cursor);
   }
 }
 
-async function getStoredReadingStreakEndingOn(date: string): Promise<number> {
+async function getStoredReadingStreakEndingOn(
+  date: string,
+  checkInThresholdWords: number,
+): Promise<number> {
   const endingDay = await db.dailyStats.get(date);
-  if (!endingDay || !hasMeasuredDailyReading(endingDay)) {
+  if (!endingDay || !hasCompletedDailyCheckIn(endingDay, checkInThresholdWords)) {
     return 0;
   }
-  if (endingDay.streak > 0) {
+  if (endingDay.checkInThresholdWords === checkInThresholdWords && endingDay.streak > 0) {
     return endingDay.streak;
   }
 
-  // Version 3 wrote zero for every streak. Only those legacy rows need a
-  // one-time backward scan; current rows reuse their persisted aggregate.
+  // Legacy rows predate configurable goals. Rebuild their streak against the
+  // active goal instead of trusting a value produced by the old any-reading rule.
   let streak = 1;
   let cursor = previousLocalDate(date);
 
   while (true) {
     const dailyStat = await db.dailyStats.get(cursor);
-    if (!dailyStat || !hasMeasuredDailyReading(dailyStat)) {
+    if (!dailyStat || !hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords)) {
       return streak;
     }
 
     streak += 1;
     cursor = previousLocalDate(cursor);
   }
-}
-
-function hasMeasuredDailyReading(dailyStat: { effectiveWords: number; effectiveReadingMs?: number; minutes: number }): boolean {
-  return dailyStat.effectiveWords > 0 || (dailyStat.effectiveReadingMs ?? 0) > 0 || dailyStat.minutes > 0;
 }
 
 function previousLocalDate(date: string): string {

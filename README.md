@@ -1,6 +1,6 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
+Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, configurable daily check-in goals, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
 
 ## Stack
 
@@ -54,10 +54,14 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
-- Dashboard: a reading ledger with a compact today summary, disclosure-based share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
+- Dashboard: a reading ledger with a compact today summary, configurable effective-word check-in goal and progress, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
+
+## Daily Check-in Goal
+
+The daily check-in goal defaults to 500 effective words and can be changed in the dashboard reading profile to any whole-word value from 1 to 100,000. A day counts toward the streak only when its effective-word total reaches the active goal. Saving a new goal recalculates historical streaks against that goal, while the setting itself remains local and is preserved when reading data is cleared. The share card stays unavailable until the current day has reached the goal.
 
 ## Reading Pace Calibration
 

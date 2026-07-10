@@ -59,6 +59,8 @@ async function revealTodayCard(container: HTMLElement) {
 
 function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com') {
   const hasData = effectiveWords > 0;
+  const checkInThresholdWords = 500;
+  const checkInCompleted = effectiveWords >= checkInThresholdWords;
   return {
     summary: {
       date: '2026-06-27',
@@ -66,7 +68,9 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
       minutes: effectiveWords / 100,
       advancedWords: 0,
       expressions: 0,
-      streak: hasData ? 2 : 0,
+      streak: checkInCompleted ? 2 : 0,
+      checkInThresholdWords,
+      checkInCompleted,
       topDomains: hasData ? [domain] : [],
       readPages: hasData ? 1 : 0,
       learningWords: hasData ? 3 : 0,
@@ -1290,7 +1294,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).toContain('今日有效阅读');
 
-    const pageProgress = container.querySelector<HTMLElement>('[role="progressbar"]');
+    const pageProgress = container.querySelector<HTMLElement>('[aria-label="developer.mozilla.org 内容覆盖"]');
     expect(pageProgress?.getAttribute('aria-label')).toBe('developer.mozilla.org 内容覆盖');
     expect(pageProgress?.getAttribute('aria-valuemin')).toBe('0');
     expect(pageProgress?.getAttribute('aria-valuenow')).toBe('620');
@@ -1298,6 +1302,73 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(pageProgress?.getAttribute('aria-valuetext')).toBe('620 / 1,200 词');
 
     await revealTodayCard(container);
+  });
+
+  it('keeps sharing locked until the daily goal is reached and saves a user-defined goal', async () => {
+    const saveDailyCheckInThresholdWords = vi.fn(async (thresholdWords: number) => thresholdWords);
+    const getReadingDashboardDetails = vi
+      .fn()
+      .mockResolvedValueOnce(createDashboardDetails(320))
+      .mockResolvedValueOnce({
+        ...createDashboardDetails(320),
+        summary: {
+          ...createDashboardDetails(320).summary,
+          checkInThresholdWords: 900,
+          checkInCompleted: false,
+        },
+      });
+    const container = await renderForSmoke(
+      <DashboardApp
+        dependencies={{
+          clearLocalReadingData: vi.fn(),
+          confirmClearLocalReadingData: () => true,
+          getReadingDashboardDetails,
+          saveDailyCheckInThresholdWords,
+        }}
+      />,
+    );
+
+    const lockedShareButton = findButton(container, '达标后可打卡');
+    expect(lockedShareButton?.disabled).toBe(true);
+    expect(container.textContent).toContain('今日未达标');
+    expect(container.textContent).toContain('再读 180 个有效词');
+    expect(container.textContent).not.toContain('今日打卡卡片');
+
+    const checkInProgress = container.querySelector<HTMLElement>('[aria-label="今日打卡进度"]');
+    expect(checkInProgress?.getAttribute('aria-valuenow')).toBe('320');
+    expect(checkInProgress?.getAttribute('aria-valuemax')).toBe('500');
+    expect(checkInProgress?.getAttribute('aria-valuetext')).toBe('还差 180 词完成今日打卡');
+
+    await clickButton(findButton(container, '调整目标'));
+    const goalInput = container.querySelector<HTMLInputElement>('#daily-check-in-threshold');
+    expect(goalInput).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      if (!goalInput) return;
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      valueSetter?.call(goalInput, '900');
+      goalInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await clickButton(findButton(container, '保存目标'));
+
+    expect(saveDailyCheckInThresholdWords).toHaveBeenCalledWith(900);
+    expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('900 词 / 天');
+    expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
+  });
+
+  it('keeps the side-panel card action locked before the daily goal is reached', async () => {
+    const container = await renderForSmoke(
+      <SidePanelApp
+        dependencies={{
+          getTodayReadingSummary: async () => createDashboardDetails(320).summary,
+          openDashboard: vi.fn(),
+        }}
+      />,
+    );
+
+    const cardButton = findButton(container, '达标后可打卡');
+    expect(cardButton?.disabled).toBe(true);
+    expect(cardButton?.title).toBe('还差 180 词完成今日打卡');
   });
 
   it('saves dashboard onboarding reading pace calibration', async () => {

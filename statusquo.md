@@ -1083,3 +1083,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The preview and clipboard copy continue to use the same terminology.
+
+## [2026-07-10 22:15] Configurable Daily Check-in Goal
+- **Changes:** Added a locally persisted daily effective-word goal, threshold-aware completion and streak calculation, historical streak recalculation when the goal changes, dashboard progress and editing UI, goal-gated card actions, responsive validation states, documentation, and focused regression coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The default goal is 500 effective words, the supported user range is 1–100,000 whole words, and reaching the goal counts as success. Clearing reading data preserves the goal setting.

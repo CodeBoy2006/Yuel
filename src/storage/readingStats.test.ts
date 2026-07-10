@@ -24,6 +24,7 @@ function createStore({
   recentSavedItems = [],
   pagesById = new Map<string, PageRecord>(),
   historicalDailyStats = new Map<string, ReturnType<typeof createDailyStat>>(),
+  checkInThresholdWords,
 }: {
   dailyStat?: {
     effectiveWords: number;
@@ -32,6 +33,7 @@ function createStore({
     expressions: number;
     streak: number;
     topDomains: string[];
+    checkInThresholdWords?: number;
   };
   todayPages?: PageRecord[];
   learningWords?: number;
@@ -43,8 +45,17 @@ function createStore({
   recentSavedItems?: SavedItemRecord[];
   pagesById?: Map<string, PageRecord>;
   historicalDailyStats?: Map<string, ReturnType<typeof createDailyStat>>;
+  checkInThresholdWords?: number;
 }): ReadingStatsStore {
   return {
+    metadata: {
+      async get(key: string) {
+        expect(key).toBe('dailyCheckInThresholdWords');
+        return checkInThresholdWords === undefined
+          ? undefined
+          : { key, numberValue: checkInThresholdWords };
+      },
+    },
     dailyStats: {
       async get(date: string) {
         if (date === '2026-06-27') {
@@ -155,6 +166,7 @@ describe('getTodayReadingSummary', () => {
           advancedWords: 18,
           expressions: 6,
           streak: 3,
+          checkInThresholdWords: 500,
           topDomains: ['developer.mozilla.org', 'github.com'],
         },
         todayPages: [
@@ -175,6 +187,8 @@ describe('getTodayReadingSummary', () => {
       advancedWords: 18,
       expressions: 6,
       streak: 3,
+      checkInThresholdWords: 500,
+      checkInCompleted: true,
       topDomains: ['developer.mozilla.org', 'github.com'],
       readPages: 4,
       learningWords: 11,
@@ -204,6 +218,8 @@ describe('getTodayReadingSummary', () => {
       advancedWords: 0,
       expressions: 0,
       streak: 0,
+      checkInThresholdWords: 500,
+      checkInCompleted: false,
       topDomains: [],
       readPages: 0,
       learningWords: 0,
@@ -229,10 +245,10 @@ describe('getTodayReadingSummary', () => {
     expect(summary.topDomains).toEqual(['developer.mozilla.org', 'github.com']);
   });
 
-  it('recovers consecutive-day streaks written by older versions as zero', async () => {
+  it('recovers legacy consecutive-day streaks against the active threshold', async () => {
     const store = createStore({
         dailyStat: {
-          effectiveWords: 100,
+          effectiveWords: 600,
           minutes: 1,
           advancedWords: 0,
           expressions: 0,
@@ -240,8 +256,8 @@ describe('getTodayReadingSummary', () => {
           topDomains: [],
         },
         historicalDailyStats: new Map([
-          ['2026-06-26', createDailyStat('2026-06-26')],
-          ['2026-06-25', createDailyStat('2026-06-25')],
+          ['2026-06-26', createDailyStat('2026-06-26', { effectiveWords: 700 })],
+          ['2026-06-25', createDailyStat('2026-06-25', { effectiveWords: 800 })],
         ]),
       });
     const getDailyStat = vi.spyOn(store.dailyStats, 'get');
@@ -251,7 +267,29 @@ describe('getTodayReadingSummary', () => {
 
     expect(summary.streak).toBe(3);
     expect(repeatedSummary.streak).toBe(3);
-    expect(getDailyStat.mock.calls.filter(([date]) => date === '2026-06-26')).toHaveLength(1);
+    expect(getDailyStat.mock.calls.filter(([date]) => date === '2026-06-26')).toHaveLength(2);
+  });
+
+  it('does not complete a check-in until the user threshold is reached', async () => {
+    const summary = await getTodayReadingSummary(
+      createStore({
+        checkInThresholdWords: 1_000,
+        dailyStat: {
+          effectiveWords: 999,
+          minutes: 4,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 18,
+          checkInThresholdWords: 1_000,
+          topDomains: ['docs.example.com'],
+        },
+      }),
+      morningOnJune27,
+    );
+
+    expect(summary.checkInThresholdWords).toBe(1_000);
+    expect(summary.checkInCompleted).toBe(false);
+    expect(summary.streak).toBe(0);
   });
 });
 

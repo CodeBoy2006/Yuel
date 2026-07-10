@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 
+import { DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS } from '../../src/domain/checkIn';
 import {
   enableCurrentTabSite,
   getCurrentTabSiteAccess,
@@ -275,6 +276,12 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const timeValue = summary ? (summary.hasData ? formatMinutes(summary.minutes) : '0 分钟') : loadFailed ? '不可用' : '读取中';
   const pagesValue = summary ? `${summary.readPages} 页` : loadFailed ? '不可用' : '读取中';
   const learningValue = summary ? `${summary.learningWords} 个` : loadFailed ? '不可用' : '读取中';
+  const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
+  const checkInCompleted = summary?.checkInCompleted
+    ?? Boolean(summary && summary.effectiveWords >= checkInThresholdWords);
+  const checkInRemainingWords = summary
+    ? Math.max(0, Math.ceil(checkInThresholdWords - summary.effectiveWords))
+    : checkInThresholdWords;
   const dashboardActionBusy = dashboardBusy || shareCardBusy;
   const vocabulary = details?.recentVocabulary ?? [];
   const savedItem = details?.recentSavedItems[0];
@@ -511,11 +518,16 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             type="button"
             icon={Sparkles}
             variant="primary"
-            disabled={dashboardActionBusy}
+            disabled={dashboardActionBusy || !checkInCompleted}
+            title={checkInCompleted ? undefined : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
             aria-busy={shareCardBusy}
             onClick={() => void openDashboard('share-card')}
           >
-            {shareCardBusy ? '打开中...' : '查看今日卡片'}
+            {shareCardBusy
+              ? '打开中...'
+              : checkInCompleted
+                ? '查看今日卡片'
+                : summary ? '达标后可打卡' : loadFailed ? '打卡状态不可用' : '读取打卡进度'}
           </ActionButton>
           <ActionButton
             type="button"

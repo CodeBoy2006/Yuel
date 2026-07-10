@@ -95,6 +95,7 @@ export interface SavedItemRecord {
 export interface DailyStatRecord {
   date: string;
   effectiveWords: number;
+  checkInThresholdWords?: number;
   metricModelVersion?: number;
   newWords?: number;
   reviewWords?: number;

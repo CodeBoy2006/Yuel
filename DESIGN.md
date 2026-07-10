@@ -68,7 +68,7 @@ Current-page progress is the visual anchor. Daily totals, vocabulary, and the la
 
 ### Dashboard
 
-The page is organized as a reading ledger: today summary, recent reading, vocabulary, excerpts, and reading profile. The share card is a disclosure, calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
+The page is organized as a reading ledger: today summary, goal-based check-in progress, recent reading, vocabulary, excerpts, and reading profile. The reading profile owns the editable daily effective-word goal, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached, calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
 
 ## Accessibility baseline
 

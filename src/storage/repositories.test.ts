@@ -164,7 +164,9 @@ describe('recordReadingEventBatch', () => {
     mocks.dailyStats.get.mockResolvedValue(undefined);
     mocks.readingPaceProfiles.get.mockResolvedValue(undefined);
     mocks.readingPaceEpisodes.get.mockResolvedValue(undefined);
-    mocks.metadata.get.mockResolvedValue(undefined);
+    mocks.metadata.get.mockImplementation(async (key: string) => key === 'dailyCheckInThresholdWords'
+      ? { key, numberValue: 1 }
+      : undefined);
     mocks.readingEvents.bulkGet.mockResolvedValue([]);
     mocks.readingEvents.where.mockReturnValue({
       below: vi.fn(() => ({
@@ -666,6 +668,7 @@ describe('recordReadingEventBatch', () => {
         return {
           date,
           effectiveWords: 100,
+          checkInThresholdWords: 1,
           minutes: 1,
           advancedWords: 0,
           expressions: 0,
@@ -686,12 +689,74 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
+  it('keeps the daily streak at zero until effective words reach the configured goal', async () => {
+    mocks.metadata.get.mockImplementation(async (key: string) => key === 'dailyCheckInThresholdWords'
+      ? { key, numberValue: 10 }
+      : undefined);
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-06-27',
+        checkInThresholdWords: 10,
+        effectiveWords: 8,
+        streak: 0,
+      }),
+    );
+  });
+
+  it('starts a streak when a later batch carries the day across the configured goal', async () => {
+    mocks.metadata.get.mockImplementation(async (key: string) => key === 'dailyCheckInThresholdWords'
+      ? { key, numberValue: 10 }
+      : undefined);
+    mocks.dailyStats.get.mockImplementation(async (date: string) => {
+      if (date === '2026-06-27') {
+        return {
+          date,
+          effectiveWords: 5,
+          checkInThresholdWords: 10,
+          minutes: 1,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 0,
+          topDomains: [],
+        };
+      }
+      if (date === '2026-06-26') {
+        return {
+          date,
+          effectiveWords: 20,
+          checkInThresholdWords: 10,
+          minutes: 1,
+          advancedWords: 0,
+          expressions: 0,
+          streak: 4,
+          topDomains: [],
+        };
+      }
+      return undefined;
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.dailyStats.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-06-27',
+        checkInThresholdWords: 10,
+        effectiveWords: 13,
+        streak: 5,
+      }),
+    );
+  });
+
   it('reuses a persisted previous-day streak without rescanning older history', async () => {
     mocks.dailyStats.get.mockImplementation(async (date: string) => {
       if (date === '2026-06-26') {
         return {
           date,
           effectiveWords: 100,
+          checkInThresholdWords: 1,
           minutes: 1,
           advancedWords: 0,
           expressions: 0,
@@ -716,6 +781,7 @@ describe('recordReadingEventBatch', () => {
         return {
           date,
           effectiveWords: 200,
+          checkInThresholdWords: 1,
           minutes: 2,
           advancedWords: 0,
           expressions: 0,

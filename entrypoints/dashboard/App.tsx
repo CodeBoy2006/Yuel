@@ -17,10 +17,17 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 
 import { analyzeEnglishText } from '../../src/analysis/english';
+import {
+  DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS,
+  MAX_DAILY_CHECK_IN_THRESHOLD_WORDS,
+  MIN_DAILY_CHECK_IN_THRESHOLD_WORDS,
+  isValidDailyCheckInThresholdWords,
+} from '../../src/domain/checkIn';
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
+import { saveDailyCheckInThresholdWords } from '../../src/storage/checkInSettings';
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
   getReadingPaceSummary,
@@ -69,6 +76,7 @@ export interface DashboardAppDependencies {
   getWebsiteFaviconUrl?: (domain: string) => string | undefined;
   getReadingPaceSummary?: typeof getReadingPaceSummary;
   saveOnboardingReadingPaceCalibration?: typeof saveOnboardingReadingPaceCalibration;
+  saveDailyCheckInThresholdWords?: typeof saveDailyCheckInThresholdWords;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -80,6 +88,7 @@ const defaultDependencies: DashboardAppDependencies = {
   getWebsiteFaviconUrl,
   getReadingDashboardDetails,
   getReadingPaceSummary,
+  saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
 };
 
@@ -103,8 +112,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
   const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'rejected' | 'failed'>('idle');
+  const [checkInGoalEditing, setCheckInGoalEditing] = useState(false);
+  const [checkInGoalInput, setCheckInGoalInput] = useState(String(DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS));
+  const [checkInGoalSaveStatus, setCheckInGoalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'invalid' | 'failed'>('idle');
   const dashboardRootRef = useRef<HTMLElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
+  const checkInGoalInputRef = useRef<HTMLInputElement>(null);
   const calibrationSessionRef = useRef(0);
   const pendingCalibrationFocusRef = useRef<{ id: string; scrollContainerId?: string } | undefined>(undefined);
   const mountedRef = useRef(false);
@@ -116,6 +129,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const clearBusyRef = useRef(false);
   const loadPaceSummary = dependencies.getReadingPaceSummary ?? getFallbackReadingPaceSummary;
   const savePaceCalibration = dependencies.saveOnboardingReadingPaceCalibration ?? saveOnboardingReadingPaceCalibration;
+  const saveCheckInGoal = dependencies.saveDailyCheckInThresholdWords ?? saveDailyCheckInThresholdWords;
 
   const refreshDashboard = useCallback(async (): Promise<{ detailsLoaded: boolean; paceLoaded: boolean }> => {
     const detailsRequestId = ++detailsRefreshSequenceRef.current;
@@ -207,6 +221,26 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   }, [calibrationSaveStatus, calibrationStep]);
 
   const summary = details?.summary;
+  const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
+  const checkInCompleted = summary?.checkInCompleted
+    ?? Boolean(summary && summary.effectiveWords >= checkInThresholdWords);
+  const checkInEffectiveWords = Math.floor(Math.max(0, summary?.effectiveWords ?? 0));
+  const checkInRemainingWords = summary
+    ? Math.max(0, Math.ceil(checkInThresholdWords - summary.effectiveWords))
+    : checkInThresholdWords;
+
+  useEffect(() => {
+    if (!checkInGoalEditing && checkInGoalSaveStatus !== 'saving') {
+      setCheckInGoalInput(String(checkInThresholdWords));
+    }
+  }, [checkInGoalEditing, checkInGoalSaveStatus, checkInThresholdWords]);
+
+  useEffect(() => {
+    if (shareCardOpen && summary && !checkInCompleted) {
+      setShareCardOpen(false);
+    }
+  }, [checkInCompleted, shareCardOpen, summary]);
+
   const hasStaleDetails = loadFailed && Boolean(details);
   const viewState: DashboardViewState = loadFailed && !details ? 'error' : !details ? 'loading' : details.hasData ? 'ready' : 'empty';
   const statusText = hasStaleDetails
@@ -232,7 +266,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const copyCardText = dependencies.copyTextToClipboard ?? copyTextToClipboard;
   const exportCardPng = dependencies.exportSummaryCardPng ?? exportDashboardSummaryCardPng;
   const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
-  const shareCardContent = summary ? createShareCardContent(summary) : undefined;
+  const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
   const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
@@ -241,6 +275,61 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setDetails(undefined);
     setLoadFailed(false);
     void refreshDashboard();
+  };
+
+  const openCheckInGoalEditor = () => {
+    setCheckInGoalInput(String(checkInThresholdWords));
+    setCheckInGoalSaveStatus('idle');
+    setCheckInGoalEditing(true);
+    window.requestAnimationFrame?.(() => {
+      scrollToSection(dashboardRootRef.current, 'reading-profile');
+      checkInGoalInputRef.current?.focus({ preventScroll: true });
+      checkInGoalInputRef.current?.select();
+    });
+  };
+
+  const cancelCheckInGoalEditor = () => {
+    setCheckInGoalInput(String(checkInThresholdWords));
+    setCheckInGoalSaveStatus('idle');
+    setCheckInGoalEditing(false);
+    window.requestAnimationFrame?.(() => {
+      dashboardRootRef.current
+        ?.querySelector<HTMLButtonElement>('#check-in-goal-trigger')
+        ?.focus({ preventScroll: true });
+    });
+  };
+
+  const persistCheckInGoal = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (checkInGoalSaveStatus === 'saving') return;
+
+    const nextThresholdWords = Number(checkInGoalInput);
+    if (!isValidDailyCheckInThresholdWords(nextThresholdWords)) {
+      setCheckInGoalSaveStatus('invalid');
+      checkInGoalInputRef.current?.focus();
+      return;
+    }
+
+    setCheckInGoalSaveStatus('saving');
+    try {
+      await saveCheckInGoal(nextThresholdWords);
+      if (!mountedRef.current) return;
+
+      await refreshDashboard();
+      if (!mountedRef.current) return;
+
+      setCheckInGoalEditing(false);
+      setCheckInGoalSaveStatus('saved');
+      window.requestAnimationFrame?.(() => {
+        dashboardRootRef.current
+          ?.querySelector<HTMLButtonElement>('#check-in-goal-trigger')
+          ?.focus({ preventScroll: true });
+      });
+    } catch (error) {
+      console.error('Failed to save Yuel daily check-in goal', error);
+      if (!mountedRef.current) return;
+      setCheckInGoalSaveStatus('failed');
+    }
   };
 
   const clearData = async () => {
@@ -477,26 +566,62 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   <h2 id="today-reading-title">今日有效阅读</h2>
                   <p className="today-ledger__domain" title={todayDomain}>{todayDomain}</p>
                 </div>
-                <ActionButton
-                  variant="quiet"
-                  icon={Share2}
-                  aria-expanded={shareCardOpen}
-                  aria-controls={shareCardOpen ? 'share-card' : undefined}
-                  onClick={() => setShareCardOpen((open) => !open)}
-                >
-                  {shareCardOpen ? '收起今日卡片' : '查看今日卡片'}
-                </ActionButton>
+                <div className="today-ledger__actions">
+                  <ActionButton
+                    variant="quiet"
+                    icon={SlidersHorizontal}
+                    onClick={openCheckInGoalEditor}
+                  >
+                    设置目标
+                  </ActionButton>
+                  <ActionButton
+                    variant="quiet"
+                    icon={Share2}
+                    disabled={!checkInCompleted}
+                    title={checkInCompleted ? undefined : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
+                    aria-expanded={checkInCompleted ? shareCardOpen : false}
+                    aria-controls={checkInCompleted && shareCardOpen ? 'share-card' : undefined}
+                    onClick={() => setShareCardOpen((open) => !open)}
+                  >
+                    {checkInCompleted
+                      ? shareCardOpen ? '收起今日卡片' : '查看今日卡片'
+                      : '达标后可打卡'}
+                  </ActionButton>
+                </div>
+              </div>
+              <div className="today-ledger__goal">
+                <div className="today-ledger__goal-heading">
+                  <StatusPill tone={checkInCompleted ? 'positive' : 'warning'}>
+                    {checkInCompleted ? '今日已打卡' : '今日未达标'}
+                  </StatusPill>
+                  <span>
+                    {formatCount(checkInEffectiveWords)} / {formatCount(checkInThresholdWords)} 有效词
+                  </span>
+                </div>
+                <ProgressBar
+                  label="今日打卡进度"
+                  value={summary?.effectiveWords ?? 0}
+                  max={checkInThresholdWords}
+                  valueText={checkInCompleted
+                    ? `已完成今日打卡目标，共 ${formatCount(checkInEffectiveWords)} 词`
+                    : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
+                />
+                <p>
+                  {checkInCompleted
+                    ? `已达到每日 ${formatCount(checkInThresholdWords)} 词目标。`
+                    : `再读 ${formatCount(checkInRemainingWords)} 个有效词，才会计入连续打卡。`}
+                </p>
               </div>
               <div className="today-ledger__metrics">
                 <Metric icon={BookOpen} label="有效阅读" value={`${effectiveWordsValue} 词`} />
                 <Metric icon={Activity} label="阅读时间" value={readingTimeValue} />
                 <Metric icon={Database} label="今日页面" value={pagesTodayValue} />
                 <Metric icon={Languages} label="学习中词汇" value={learningWordsValue} />
-                <Metric icon={BookOpen} label="连续记录" value={`${summary?.streak ?? 0} 天`} />
+                <Metric icon={BookOpen} label="连续打卡" value={`${summary?.streak ?? 0} 天`} />
               </div>
             </section>
 
-            {shareCardOpen ? (
+            {shareCardOpen && checkInCompleted ? (
               <section id="share-card" className="dashboard-panel share-section" aria-labelledby="share-card-title">
                 <SectionHeader icon={Share2} meta="4 款 · 手动切换">
                   <span id="share-card-title" tabIndex={-1}>今日打卡卡片</span>
@@ -549,6 +674,83 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <SectionHeader icon={Gauge} meta={readingPaceValue}>
             <span id="reading-profile-title" tabIndex={-1}>阅读档案</span>
           </SectionHeader>
+
+          <div className="check-in-setting">
+            <div className="check-in-setting__copy">
+              <h3>每日打卡目标</h3>
+              <p>当天达到目标后才计入连续打卡；修改后会按新目标重算历史记录。</p>
+            </div>
+            {checkInGoalEditing ? (
+              <form className="check-in-setting__form" noValidate onSubmit={(event) => void persistCheckInGoal(event)}>
+                <label htmlFor="daily-check-in-threshold">有效阅读词数</label>
+                <div className="check-in-setting__input-row">
+                  <div className="check-in-setting__input">
+                    <input
+                      ref={checkInGoalInputRef}
+                      id="daily-check-in-threshold"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_DAILY_CHECK_IN_THRESHOLD_WORDS}
+                      max={MAX_DAILY_CHECK_IN_THRESHOLD_WORDS}
+                      step="1"
+                      value={checkInGoalInput}
+                      aria-describedby="daily-check-in-threshold-hint"
+                      aria-invalid={checkInGoalSaveStatus === 'invalid'}
+                      disabled={checkInGoalSaveStatus === 'saving'}
+                      onChange={(event) => {
+                        setCheckInGoalInput(event.target.value);
+                        if (checkInGoalSaveStatus !== 'idle') setCheckInGoalSaveStatus('idle');
+                      }}
+                    />
+                    <span>词 / 天</span>
+                  </div>
+                  <div className="check-in-setting__form-actions">
+                    <ActionButton
+                      type="button"
+                      variant="quiet"
+                      disabled={checkInGoalSaveStatus === 'saving'}
+                      onClick={cancelCheckInGoalEditor}
+                    >
+                      取消
+                    </ActionButton>
+                    <ActionButton
+                      type="submit"
+                      variant="primary"
+                      disabled={checkInGoalSaveStatus === 'saving'}
+                      aria-busy={checkInGoalSaveStatus === 'saving'}
+                    >
+                      {checkInGoalSaveStatus === 'saving' ? '保存中...' : '保存目标'}
+                    </ActionButton>
+                  </div>
+                </div>
+                <p id="daily-check-in-threshold-hint">
+                  可设置 {formatCount(MIN_DAILY_CHECK_IN_THRESHOLD_WORDS)}–{formatCount(MAX_DAILY_CHECK_IN_THRESHOLD_WORDS)} 个有效词。
+                </p>
+                {checkInGoalSaveStatus === 'invalid' ? (
+                  <InlineNotice tone="danger">请输入范围内的整数词数。</InlineNotice>
+                ) : null}
+                {checkInGoalSaveStatus === 'failed' ? (
+                  <InlineNotice tone="danger">目标保存失败，原设置未改变。</InlineNotice>
+                ) : null}
+              </form>
+            ) : (
+              <div className="check-in-setting__value">
+                <strong>{formatCount(checkInThresholdWords)} <span>词 / 天</span></strong>
+                <ActionButton
+                  id="check-in-goal-trigger"
+                  type="button"
+                  icon={SlidersHorizontal}
+                  disabled={clearBusy || calibrationSaveStatus === 'saving'}
+                  onClick={openCheckInGoalEditor}
+                >
+                  调整目标
+                </ActionButton>
+              </div>
+            )}
+          </div>
+          {checkInGoalSaveStatus === 'saved' ? (
+            <InlineNotice tone="positive">打卡目标已保存，连续记录已重新计算。</InlineNotice>
+          ) : null}
 
           {calibrationStep === 'idle' ? (
             <div className="reading-profile__summary">
@@ -696,7 +898,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           </div>
           <ActionButton
             variant="danger"
-            disabled={clearBusy || calibrationSaveStatus === 'saving'}
+            disabled={clearBusy || calibrationSaveStatus === 'saving' || checkInGoalSaveStatus === 'saving'}
             aria-busy={clearBusy}
             onClick={() => void clearData()}
           >
