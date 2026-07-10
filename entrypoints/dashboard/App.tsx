@@ -66,6 +66,7 @@ import {
   ShareCardCarousel,
   type ShareCardThemeId,
 } from './ShareCardCarousel';
+import { ReadingInsights } from './ReadingInsights';
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -270,6 +271,19 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
+  const insightHistory = details?.history?.length
+    ? details.history
+    : summary
+      ? [{
+          date: summary.date,
+          effectiveWords: summary.effectiveWords,
+          minutes: summary.minutes,
+          newWords: 0,
+          reviewWords: 0,
+          checkInCompleted,
+          topDomains: summary.topDomains,
+        }]
+      : [];
 
   const retryLoading = () => {
     setDetails(undefined);
@@ -507,6 +521,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         <div className="dashboard-header__inner">
           <BrandLockup />
           <nav className="dashboard-header__nav" aria-label="页面区段">
+            {viewState === 'ready' ? (
+              <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-insights')}>
+                <Activity aria-hidden="true" />
+                阅读节律
+              </button>
+            ) : null}
             <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>
               <Gauge aria-hidden="true" />
               阅读档案
@@ -667,6 +687,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 </div>
               </section>
             ) : null}
+
+            <ReadingInsights dailyGoal={checkInThresholdWords} history={insightHistory} />
           </>
         ) : null}
 

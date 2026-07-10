@@ -1293,6 +1293,17 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('查看今日卡片');
     expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).toContain('今日有效阅读');
+    expect(container.textContent).toContain('阅读活动热力图');
+    expect(container.textContent).toContain('有效阅读趋势');
+    expect(container.textContent).toContain('一周节律');
+    expect(container.textContent).toContain('输入构成');
+    expect(container.querySelectorAll('.reading-heatmap__week')).toHaveLength(13);
+
+    const thirtyDayRange = findButton(container, '30 天');
+    const fourteenDayRange = findButton(container, '14 天');
+    expect(thirtyDayRange?.getAttribute('aria-pressed')).toBe('true');
+    await clickButton(fourteenDayRange);
+    expect(fourteenDayRange?.getAttribute('aria-pressed')).toBe('true');
 
     const pageProgress = container.querySelector<HTMLElement>('[aria-label="developer.mozilla.org 内容覆盖"]');
     expect(pageProgress?.getAttribute('aria-label')).toBe('developer.mozilla.org 内容覆盖');

@@ -294,6 +294,40 @@ describe('getTodayReadingSummary', () => {
 });
 
 describe('getReadingDashboardDetails', () => {
+  it('loads a Monday-aligned thirteen-week history for dashboard visualizations', async () => {
+    const details = await getReadingDashboardDetails(
+      createStore({
+        historicalDailyStats: new Map([
+          [
+            '2026-06-25',
+            createDailyStat('2026-06-25', {
+              effectiveWords: 750,
+              minutes: 9.5,
+              newWords: 520,
+              reviewWords: 230,
+              topDomains: [' docs.example.com ', 'docs.example.com'],
+            }),
+          ],
+        ]),
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.history).toHaveLength(90);
+    expect(details.history?.[0]?.date).toBe('2026-03-30');
+    expect(details.history?.at(-1)?.date).toBe('2026-06-27');
+    expect(details.history?.find((day) => day.date === '2026-06-25')).toEqual({
+      date: '2026-06-25',
+      effectiveWords: 750,
+      minutes: 9.5,
+      newWords: 520,
+      reviewWords: 230,
+      checkInCompleted: true,
+      topDomains: ['docs.example.com'],
+    });
+    expect(details.hasData).toBe(true);
+  });
+
   it('loads today summary plus recent pages and vocabulary exposure details', async () => {
     const details = await getReadingDashboardDetails(
       createStore({

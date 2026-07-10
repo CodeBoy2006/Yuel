@@ -1,6 +1,6 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, configurable daily check-in goals, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
+Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
 
 ## Stack
 
@@ -54,7 +54,7 @@ Users can intentionally store raw selected text by highlighting text on a page a
 
 - Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
-- Dashboard: a reading ledger with a compact today summary, configurable effective-word check-in goal and progress, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
+- Dashboard: a reading ledger with a compact today summary, configurable effective-word check-in goal and progress, a 13-week activity heatmap, effective-word trend, weekday rhythm, input-composition charts, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.

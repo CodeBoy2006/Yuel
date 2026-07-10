@@ -1089,3 +1089,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The default goal is 500 effective words, the supported user range is 1–100,000 whole words, and reaching the goal counts as success. Clearing reading data preserves the goal setting.
+
+## [2026-07-10 22:35] Dashboard Reading Visualizations
+- **Changes:** Added a Monday-aligned 13-week dashboard history model, goal-relative activity heatmap, selectable effective-word trend line, weekday rhythm bars, input-composition ring chart, responsive and high-contrast styling, navigation, documentation, and regression coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** All data remains local. TypeScript, 344 unit/UI tests, the production build, the design detector, and diff checks pass; live screenshots were unavailable because the in-app browser blocks local development URLs and local files.

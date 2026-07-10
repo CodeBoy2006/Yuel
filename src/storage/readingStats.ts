@@ -27,6 +27,16 @@ export interface TodayReadingSummary {
   hasData: boolean;
 }
 
+export interface ReadingHistoryDay {
+  date: string;
+  effectiveWords: number;
+  minutes: number;
+  newWords: number;
+  reviewWords: number;
+  checkInCompleted: boolean;
+  topDomains: string[];
+}
+
 export interface RecentPageSummary {
   pageId: string;
   domain: string;
@@ -70,6 +80,7 @@ export interface RecentSavedItemSummary {
 
 export interface ReadingDashboardDetails {
   summary: TodayReadingSummary;
+  history?: ReadingHistoryDay[];
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
   recentSavedItems: RecentSavedItemSummary[];
@@ -88,6 +99,7 @@ export interface ReadingStatsStore {
   };
   dailyStats: {
     get: (date: string) => Promise<DailyStatRecord | undefined>;
+    bulkGet?: (dates: string[]) => Promise<Array<DailyStatRecord | undefined>>;
   };
   pages: {
     get: (pageId: string) => Promise<PageRecord | undefined>;
@@ -138,6 +150,7 @@ const RECENT_SAVED_ITEM_LIMIT = 5;
 const RECENT_SAVED_ITEM_SCAN_LIMIT = 20;
 const SIDE_PANEL_VOCABULARY_LIMIT = 5;
 const SIDE_PANEL_SAVED_ITEM_LIMIT = 1;
+const DASHBOARD_HISTORY_WEEKS = 13;
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -216,8 +229,9 @@ export async function getReadingDashboardDetails(
   store: ReadingStatsStore = db,
   now = Date.now(),
 ): Promise<ReadingDashboardDetails> {
-  const [summary, recentPageRecords, recentVocabularyRecords, recentSavedItemRecords] = await Promise.all([
+  const [summary, history, recentPageRecords, recentVocabularyRecords, recentSavedItemRecords] = await Promise.all([
     getTodayReadingSummary(store, now),
+    getDashboardReadingHistory(store, now),
     store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
     store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
@@ -237,15 +251,66 @@ export async function getReadingDashboardDetails(
   const recentVocabulary = createRecentVocabularySummaries(recentVocabularyRecords);
   const recentSavedItems = createRecentSavedItemSummaries(recentSavedItemRecords);
 
-  const hasData = summary.hasData || recentPages.length > 0 || recentVocabulary.length > 0 || recentSavedItems.length > 0;
+  const hasHistoricalReading = history.some((day) => day.effectiveWords > 0 || day.minutes > 0);
+  const hasData = summary.hasData
+    || hasHistoricalReading
+    || recentPages.length > 0
+    || recentVocabulary.length > 0
+    || recentSavedItems.length > 0;
 
   return {
     summary,
+    history,
     recentPages,
     recentVocabulary,
     recentSavedItems,
     hasData,
   };
+}
+
+async function getDashboardReadingHistory(
+  store: ReadingStatsStore,
+  now: number,
+): Promise<ReadingHistoryDay[]> {
+  const dates = createDashboardHistoryDates(now);
+  const [dailyStats, checkInThresholdWords] = await Promise.all([
+    store.dailyStats.bulkGet
+      ? store.dailyStats.bulkGet(dates)
+      : Promise.all(dates.map((date) => store.dailyStats.get(date))),
+    getDailyCheckInThresholdWords(store),
+  ]);
+
+  return dates.map((date, index) => {
+    const dailyStat = dailyStats[index];
+
+    return {
+      date,
+      effectiveWords: Math.max(0, dailyStat?.effectiveWords ?? 0),
+      minutes: Math.max(0, dailyStat?.minutes ?? 0),
+      newWords: Math.max(0, dailyStat?.newWords ?? 0),
+      reviewWords: Math.max(0, dailyStat?.reviewWords ?? 0),
+      checkInCompleted: Boolean(dailyStat && hasCompletedDailyCheckIn(dailyStat, checkInThresholdWords)),
+      topDomains: normalizeTopDomains(dailyStat?.topDomains ?? []),
+    };
+  });
+}
+
+function createDashboardHistoryDates(now: number): string[] {
+  const today = new Date(now);
+  // Noon keeps local calendar stepping stable across daylight-saving transitions.
+  today.setHours(12, 0, 0, 0);
+  const daysSinceMonday = (today.getDay() + 6) % 7;
+  const firstMonday = new Date(today);
+  firstMonday.setDate(today.getDate() - daysSinceMonday - (DASHBOARD_HISTORY_WEEKS - 1) * 7);
+
+  const dates: string[] = [];
+  const cursor = new Date(firstMonday);
+  while (cursor <= today) {
+    dates.push(formatLocalDate(cursor.getTime()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
 }
 
 export async function getSidePanelReadingDetails(
