@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { createChunkId, createPageId, hashText } from '../domain/events';
-import { isReadingEventBatchMessage, MESSAGE_TYPES, type ReadingEventBatchMessage } from './contracts';
+import {
+  isReadingCollectorStatusRequest,
+  isReadingCollectorStatusResponse,
+  isReadingEventBatchMessage,
+  MESSAGE_TYPES,
+  type ReadingEventBatchMessage,
+} from './contracts';
 
 const validPageUrl = 'https://example.com/articles/local-reading';
 const validPageId = createPageId(validPageUrl);
@@ -60,6 +66,28 @@ const validMessage: ReadingEventBatchMessage = {
     ],
   },
 };
+
+describe('reading collector status messages', () => {
+  it('accepts only the dedicated status request and a complete response', () => {
+    expect(isReadingCollectorStatusRequest({
+      type: MESSAGE_TYPES.readingCollectorStatusRequest,
+    })).toBe(true);
+    expect(isReadingCollectorStatusRequest({
+      type: MESSAGE_TYPES.readingCollectorStatusResponse,
+    })).toBe(false);
+
+    expect(isReadingCollectorStatusResponse({
+      type: MESSAGE_TYPES.readingCollectorStatusResponse,
+      url: validPageUrl,
+      collecting: true,
+    })).toBe(true);
+    expect(isReadingCollectorStatusResponse({
+      type: MESSAGE_TYPES.readingCollectorStatusResponse,
+      url: validPageUrl,
+      collecting: 'yes',
+    })).toBe(false);
+  });
+});
 
 describe('isReadingEventBatchMessage', () => {
   it('accepts a structurally valid reading event batch message', () => {

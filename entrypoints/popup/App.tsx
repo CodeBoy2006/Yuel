@@ -14,6 +14,7 @@ import {
   disableEnabledSite,
   enableCurrentTabSite,
   getCurrentTabSiteAccess,
+  isUnsupportedPageAccess,
   listEnabledSites,
   type EnabledSiteRecord,
   type SiteAccessState,
@@ -376,7 +377,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             {currentSiteLoading
               ? '正在检查页面...'
               : currentSiteUnavailable
-                ? '当前页面不可用'
+                ? isUnsupportedPageAccess(siteAccess) ? '当前页面不可用' : '无法确认当前页面'
                 : shouldEnableCurrentSite
               ? siteAccessBusy
                 ? '启用中...'
@@ -462,7 +463,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: boolean): string {
   if (failed) return '权限状态不可用';
   if (!siteAccess) return '正在检查页面';
-  if (!siteAccess.supported) return '当前页面无法记录';
+  if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
+  if (!siteAccess.supported) return '当前页面状态未知';
   return siteAccess.host;
 }
 
@@ -470,7 +472,8 @@ function formatSiteAccessStatus(siteAccess: SiteAccessState | undefined, failed:
   if (failed) return '错误';
   if (denied) return '未授权';
   if (!siteAccess) return '检查中';
-  if (!siteAccess.supported) return '不可用';
+  if (isUnsupportedPageAccess(siteAccess)) return '不可用';
+  if (!siteAccess.supported) return '未知';
   if (siteAccess.enabled) return '已启用';
   return '未启用';
 }
@@ -496,9 +499,12 @@ function formatSiteAccessDetail(
   if (failed) return '暂时无法读取当前页面权限状态。';
   if (denied) return '权限未授予，此网站尚未启用。';
   if (!siteAccess) return '正在读取当前标签。';
-  if (!siteAccess.supported) return '浏览器内部页面无法记录。';
+  if (isUnsupportedPageAccess(siteAccess)) return '浏览器内部页面无法记录。';
+  if (!siteAccess.supported) return '暂时无法确认当前标签页状态。';
   if (siteAccess.starterSite) return '默认记录站点，数据保存在本机。';
-  if (siteAccess.enabled) return '正在记录此网站的英文阅读。';
+  if (siteAccess.enabled && siteAccess.collectorState === 'recording') return '正在记录此网站的英文阅读。';
+  if (siteAccess.enabled && siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容。';
+  if (siteAccess.enabled) return '网站已启用，正在确认页面采集状态。';
   if (siteAccess.granted) return '权限已授予，可启用记录。';
   return '仅请求当前网站权限。';
 }

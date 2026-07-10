@@ -1,6 +1,12 @@
 import { browser } from 'wxt/browser';
 
 import {
+  isReadingCollectorStatusResponse,
+  MESSAGE_TYPES,
+  type ReadingCollectorStatusRequest,
+  type ReadingCollectorStatusResponse,
+} from '../messaging/contracts';
+import {
   CONTENT_SCRIPT_FILE,
   ENABLED_SITE_ORIGINS_KEY,
   getEnabledSiteOrigins,
@@ -14,9 +20,13 @@ export { CONTENT_SCRIPT_FILE, ENABLED_SITE_ORIGINS_KEY } from './contentScriptRe
 
 const ENABLED_SITE_MUTATION_LOCK = 'yuel-enabled-site-mutation';
 
+export type ReadingCollectorState = 'recording' | 'idle';
+export type SiteAccessUnavailableReason = 'unsupported-page' | 'tab-unavailable';
+
 export interface SiteAccessTab {
   id?: number;
   url?: string;
+  collectorState?: ReadingCollectorState;
 }
 
 export interface SiteAccessTabQuery {
@@ -29,6 +39,7 @@ export interface SiteAccessTabQuery {
 export interface SiteAccessRuntime extends ContentScriptRegistrationRuntime {
   tabs: {
     query: (queryInfo: SiteAccessTabQuery) => Promise<SiteAccessTab[]>;
+    sendMessage: (tabId: number, message: ReadingCollectorStatusRequest) => Promise<unknown>;
   };
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
@@ -61,11 +72,12 @@ export interface SupportedSiteAccessState {
   granted: boolean;
   enabled: boolean;
   starterSite: boolean;
+  collectorState?: ReadingCollectorState;
 }
 
 export interface UnsupportedSiteAccessState {
   supported: false;
-  reason: string;
+  reason: SiteAccessUnavailableReason;
 }
 
 export interface EnabledSiteRecord {
@@ -123,10 +135,14 @@ export async function listEnabledSites(runtime: SiteAccessRuntime = browser as S
 export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = browser as SiteAccessRuntime): Promise<SiteAccessState> {
   const tab = await getActiveTab(runtime);
   const url = tab?.url;
-  const origin = url ? toOptionalHostOrigin(url) : undefined;
 
-  if (!tab || !url || !origin) {
-    return { supported: false, reason: 'Unsupported page' };
+  if (!tab || !url) {
+    return { supported: false, reason: 'tab-unavailable' };
+  }
+
+  const origin = toOptionalHostOrigin(url);
+  if (!origin) {
+    return { supported: false, reason: 'unsupported-page' };
   }
 
   const [granted, enabledOrigins] = await Promise.all([
@@ -144,7 +160,14 @@ export async function getCurrentTabSiteAccess(runtime: SiteAccessRuntime = brows
     granted,
     enabled: starterSite || (granted && enabledOrigins.includes(origin)),
     starterSite,
+    ...(tab.collectorState ? { collectorState: tab.collectorState } : {}),
   };
+}
+
+export function isUnsupportedPageAccess(
+  siteAccess: SiteAccessState | undefined,
+): siteAccess is UnsupportedSiteAccessState & { reason: 'unsupported-page' } {
+  return siteAccess?.supported === false && siteAccess.reason === 'unsupported-page';
 }
 
 export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser as SiteAccessRuntime): Promise<SiteEnableResult> {
@@ -206,11 +229,19 @@ export async function enableCurrentTabSite(runtime: SiteAccessRuntime = browser 
     };
   }
 
+  const injected = await injectCollector(runtime, access.tabId);
+  const collectorStatus = injected && typeof access.tabId === 'number'
+    ? await getReadingCollectorStatus(runtime, access.tabId)
+    : undefined;
+
   return {
     ...access,
     granted: true,
     enabled: true,
-    injected: await injectCollector(runtime, access.tabId),
+    collectorState: collectorStatus?.url === access.url
+      ? collectorStatus.collecting ? 'recording' : 'idle'
+      : undefined,
+    injected,
   };
 }
 
@@ -333,12 +364,52 @@ function parseWildcardHostRemovalOrigin(origin: string): { protocol?: string; ba
 
 async function getActiveTab(runtime: SiteAccessRuntime): Promise<SiteAccessTab | undefined> {
   const [lastFocusedTab] = await runtime.tabs.query({ active: true, lastFocusedWindow: true });
-  if (lastFocusedTab?.url && toOptionalHostOrigin(lastFocusedTab.url)) {
-    return lastFocusedTab;
+  const resolvedLastFocusedTab = await resolveCollectorBackedTab(lastFocusedTab, runtime);
+  if (resolvedLastFocusedTab?.url && toOptionalHostOrigin(resolvedLastFocusedTab.url)) {
+    return resolvedLastFocusedTab;
   }
 
   const [currentWindowTab] = await runtime.tabs.query({ active: true, currentWindow: true });
-  return currentWindowTab;
+  const sameSnapshot = currentWindowTab?.id === lastFocusedTab?.id && currentWindowTab?.url === lastFocusedTab?.url;
+  const resolvedCurrentWindowTab = sameSnapshot
+    ? resolvedLastFocusedTab
+    : await resolveCollectorBackedTab(currentWindowTab, runtime);
+  if (resolvedCurrentWindowTab?.url && toOptionalHostOrigin(resolvedCurrentWindowTab.url)) {
+    return resolvedCurrentWindowTab;
+  }
+
+  return resolvedCurrentWindowTab ?? resolvedLastFocusedTab;
+}
+
+async function resolveCollectorBackedTab(
+  tab: SiteAccessTab | undefined,
+  runtime: SiteAccessRuntime,
+): Promise<SiteAccessTab | undefined> {
+  if (!tab || typeof tab.id !== 'number') return tab;
+
+  const collectorStatus = await getReadingCollectorStatus(runtime, tab.id);
+  if (!collectorStatus || !toOptionalHostOrigin(collectorStatus.url)) return tab;
+
+  return {
+    ...tab,
+    url: collectorStatus.url,
+    collectorState: collectorStatus.collecting ? 'recording' : 'idle',
+  };
+}
+
+async function getReadingCollectorStatus(
+  runtime: SiteAccessRuntime,
+  tabId: number,
+): Promise<ReadingCollectorStatusResponse | undefined> {
+  try {
+    const response = await runtime.tabs.sendMessage(tabId, {
+      type: MESSAGE_TYPES.readingCollectorStatusRequest,
+    });
+    return isReadingCollectorStatusResponse(response) ? response : undefined;
+  } catch {
+    // A missing receiver is expected on sites where Yuel is not enabled.
+    return undefined;
+  }
 }
 
 async function getEnabledOrigins(runtime: SiteAccessRuntime): Promise<string[]> {

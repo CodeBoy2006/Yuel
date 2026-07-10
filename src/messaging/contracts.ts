@@ -11,7 +11,19 @@ import {
 
 export const MESSAGE_TYPES = {
   readingEventsBatch: 'yuel.readingEvents.batch',
+  readingCollectorStatusRequest: 'yuel.readingCollector.status.request',
+  readingCollectorStatusResponse: 'yuel.readingCollector.status.response',
 } as const;
+
+export interface ReadingCollectorStatusRequest {
+  type: typeof MESSAGE_TYPES.readingCollectorStatusRequest;
+}
+
+export interface ReadingCollectorStatusResponse {
+  type: typeof MESSAGE_TYPES.readingCollectorStatusResponse;
+  url: string;
+  collecting: boolean;
+}
 
 export interface ReadingEventBatchPayload {
   page: PageSnapshot;
@@ -24,7 +36,7 @@ export interface ReadingEventBatchMessage {
   payload: ReadingEventBatchPayload;
 }
 
-export type YuelMessage = ReadingEventBatchMessage;
+export type YuelMessage = ReadingEventBatchMessage | ReadingCollectorStatusRequest;
 
 const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
@@ -67,6 +79,19 @@ export function isReadingEventBatchMessage(message: unknown): message is Reading
     isObject(message) &&
     message.type === MESSAGE_TYPES.readingEventsBatch &&
     isReadingEventBatchPayload(message.payload)
+  );
+}
+
+export function isReadingCollectorStatusRequest(message: unknown): message is ReadingCollectorStatusRequest {
+  return isObject(message) && message.type === MESSAGE_TYPES.readingCollectorStatusRequest;
+}
+
+export function isReadingCollectorStatusResponse(value: unknown): value is ReadingCollectorStatusResponse {
+  return (
+    isObject(value) &&
+    value.type === MESSAGE_TYPES.readingCollectorStatusResponse &&
+    isNonBlankString(value.url) &&
+    isBoolean(value.collecting)
   );
 }
 

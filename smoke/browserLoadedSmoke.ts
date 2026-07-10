@@ -25,6 +25,7 @@ export interface BrowserStarterSiteContentScriptLoopSmokeResult {
   extensionId: string;
   pageText: string;
   dashboardText: string;
+  sidePanelText: string;
 }
 
 interface BrowserLoadedSmokeOptions {
@@ -106,8 +107,9 @@ export async function validateBrowserStarterSiteContentScriptLoop(
       },
       async ({ client, extensionId, timeoutMs }) => {
         const dashboardUrl = `chrome-extension://${extensionId}/dashboard.html`;
+        const sidePanelUrl = `chrome-extension://${extensionId}/sidepanel.html`;
 
-        return client.withOpenPage(starterSiteUrl, timeoutMs, async (sessionId) => {
+        return client.withOpenPage(starterSiteUrl, timeoutMs, async (sessionId, starterSiteTargetId) => {
           const pageText = await client.readAttachedPageText(sessionId, timeoutMs);
           const dashboardText = await waitFor(async () => {
             const text = await client.readPageText(dashboardUrl, timeoutMs);
@@ -117,8 +119,20 @@ export async function validateBrowserStarterSiteContentScriptLoop(
 
             throw new Error(`Dashboard did not show starter-site reading data yet:\n${text.slice(0, 1_000)}`);
           }, timeoutMs, 1_000);
+          const sidePanelText = await client.withOpenPage(sidePanelUrl, timeoutMs, async (sidePanelSessionId) => {
+            await client.send('Target.activateTarget', { targetId: starterSiteTargetId });
 
-          return { extensionId, pageText, dashboardText };
+            return waitFor(async () => {
+              const text = await client.readAttachedPageText(sidePanelSessionId, timeoutMs);
+              if (text.includes(STARTER_SITE_HOST) && text.includes('记录中')) {
+                return text;
+              }
+
+              throw new Error(`Side panel did not recover the live collector state yet:\n${text.slice(0, 1_000)}`);
+            }, timeoutMs, 500);
+          });
+
+          return { extensionId, pageText, dashboardText, sidePanelText };
         });
       },
     ),
@@ -682,7 +696,11 @@ export class CdpClient {
     this.pendingMessages.clear();
   }
 
-  async withOpenPage<T>(url: string, timeoutMs: number, readPage: (sessionId: string) => Promise<T>): Promise<T> {
+  async withOpenPage<T>(
+    url: string,
+    timeoutMs: number,
+    readPage: (sessionId: string, targetId: string) => Promise<T>,
+  ): Promise<T> {
     const { targetId } = await this.send<{ targetId: string }>('Target.createTarget', { url });
     const { sessionId } = await this.send<{ sessionId: string }>('Target.attachToTarget', {
       flatten: true,
@@ -691,7 +709,7 @@ export class CdpClient {
 
     try {
       await this.waitForPageReady(sessionId, timeoutMs);
-      return await readPage(sessionId);
+      return await readPage(sessionId, targetId);
     } finally {
       await this.send('Target.closeTarget', { targetId });
     }

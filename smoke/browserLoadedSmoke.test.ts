@@ -32,5 +32,8 @@ describe('browser-loaded extension smoke', () => {
     expect(result.pageText).toContain('Starter content script reading loop');
     expect(result.dashboardText).toContain('developer.mozilla.org');
     expect(result.dashboardText).not.toContain('从下一篇外语文章开始');
+    expect(result.sidePanelText).toContain('developer.mozilla.org');
+    expect(result.sidePanelText).toContain('记录中');
+    expect(result.sidePanelText).not.toContain('不可记录');
   }, 45_000);
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { MESSAGE_TYPES } from '../messaging/contracts';
 import {
   CONTENT_SCRIPT_FILE,
   ENABLED_SITE_ORIGINS_KEY,
@@ -27,6 +28,8 @@ function createRuntime({
   removeResult = true,
   enabledOrigins = [],
   matchingTabs,
+  hideTabUrls = false,
+  collectorResponses = [],
 }: {
   currentWindowTabId?: number;
   currentWindowTabUrl?: string;
@@ -39,6 +42,8 @@ function createRuntime({
   removeResult?: boolean;
   enabledOrigins?: string[];
   matchingTabs?: SiteAccessTab[];
+  hideTabUrls?: boolean;
+  collectorResponses?: unknown[];
 } = {}): SiteAccessRuntime & {
   containedOrigins: string[][];
   requestedOrigins: string[][];
@@ -50,6 +55,7 @@ function createRuntime({
   registeredScripts: unknown[];
   updatedScripts: unknown[];
   tabQueries: SiteAccessTabQuery[];
+  sentTabMessages: Array<{ tabId: number; message: unknown }>;
   unregisteredFilters: Array<{ ids: string[] }>;
   storedValues: Record<string, unknown>[];
 } {
@@ -65,9 +71,13 @@ function createRuntime({
   const registeredScripts: unknown[] = [];
   const updatedScripts: unknown[] = [];
   const tabQueries: SiteAccessTabQuery[] = [];
+  const sentTabMessages: Array<{ tabId: number; message: unknown }> = [];
   const unregisteredFilters: Array<{ ids: string[] }> = [];
   const storedValues: Record<string, unknown>[] = [];
   let dynamicScriptRegistered = false;
+  const remainingCollectorResponses = [...collectorResponses];
+
+  const visibleTabUrl = (url: string) => hideTabUrls ? undefined : url;
 
   return {
     containedOrigins,
@@ -80,6 +90,7 @@ function createRuntime({
     registeredScripts,
     updatedScripts,
     tabQueries,
+    sentTabMessages,
     unregisteredFilters,
     storedValues,
     tabs: {
@@ -89,13 +100,17 @@ function createRuntime({
           return matchingTabs ?? [{ id: tabId, url: tabUrl }];
         }
         if (queryInfo.lastFocusedWindow) {
-          return [{ id: lastFocusedTabId ?? tabId, url: lastFocusedTabUrl ?? tabUrl }];
+          return [{ id: lastFocusedTabId ?? tabId, url: visibleTabUrl(lastFocusedTabUrl ?? tabUrl) }];
         }
         if (queryInfo.currentWindow) {
-          return [{ id: currentWindowTabId ?? tabId, url: currentWindowTabUrl ?? tabUrl }];
+          return [{ id: currentWindowTabId ?? tabId, url: visibleTabUrl(currentWindowTabUrl ?? tabUrl) }];
         }
 
-        return [{ id: tabId, url: tabUrl }];
+        return [{ id: tabId, url: visibleTabUrl(tabUrl) }];
+      },
+      async sendMessage(messageTabId, message) {
+        sentTabMessages.push({ tabId: messageTabId, message });
+        return remainingCollectorResponses.shift();
       },
     },
     permissions: {
@@ -227,13 +242,70 @@ describe('getCurrentTabSiteAccess', () => {
     });
   });
 
+  it('recovers the real recording page from its collector when tab URL metadata is hidden', async () => {
+    const runtime = createRuntime({
+      hideTabUrls: true,
+      permissionGranted: true,
+      enabledOrigins: ['https://example.com/*'],
+      collectorResponses: [{
+        type: MESSAGE_TYPES.readingCollectorStatusResponse,
+        url: 'https://example.com/article?utm=1',
+        collecting: true,
+      }],
+    });
+
+    const access = await getCurrentTabSiteAccess(runtime);
+
+    expect(runtime.sentTabMessages).toEqual([{
+      tabId: 42,
+      message: { type: MESSAGE_TYPES.readingCollectorStatusRequest },
+    }]);
+    expect(access).toMatchObject({
+      supported: true,
+      url: 'https://example.com/article?utm=1',
+      host: 'example.com',
+      enabled: true,
+      collectorState: 'recording',
+    });
+  });
+
+  it('reports an unknown tab state instead of an unsupported page when URL metadata is hidden', async () => {
+    const runtime = createRuntime({ hideTabUrls: true });
+
+    const access = await getCurrentTabSiteAccess(runtime);
+
+    expect(access).toEqual({
+      supported: false,
+      reason: 'tab-unavailable',
+    });
+    expect(runtime.containedOrigins).toEqual([]);
+  });
+
+  it('reports an enabled collector that found no recordable English separately from active recording', async () => {
+    const access = await getCurrentTabSiteAccess(createRuntime({
+      permissionGranted: true,
+      enabledOrigins: ['https://example.com/*'],
+      collectorResponses: [{
+        type: MESSAGE_TYPES.readingCollectorStatusResponse,
+        url: 'https://example.com/article?utm=1',
+        collecting: false,
+      }],
+    }));
+
+    expect(access).toMatchObject({
+      supported: true,
+      enabled: true,
+      collectorState: 'idle',
+    });
+  });
+
   it('marks unsupported current tabs without querying permissions', async () => {
     const runtime = createRuntime({ tabUrl: 'chrome://extensions' });
     const access = await getCurrentTabSiteAccess(runtime);
 
     expect(access).toEqual({
       supported: false,
-      reason: 'Unsupported page',
+      reason: 'unsupported-page',
     });
     expect(runtime.requestedOrigins).toEqual([]);
   });

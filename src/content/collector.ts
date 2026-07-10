@@ -11,6 +11,7 @@ import {
 } from './extractBlocks';
 
 export interface CollectorController {
+  readonly collecting: boolean;
   stop: () => void;
 }
 
@@ -22,6 +23,7 @@ interface CollectorOptions {
 }
 
 interface CollectorRunController {
+  readonly collecting: boolean;
   stop: (options?: { emitPageHidden?: boolean }) => void;
 }
 
@@ -107,6 +109,9 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   window.addEventListener('hashchange', restartForRouteIfNeeded);
 
   return {
+    get collecting() {
+      return !stopped && currentRun.collecting;
+    },
     stop: () => {
       if (stopped) {
         return;
@@ -457,6 +462,9 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
   void flushNow();
 
   return {
+    get collecting() {
+      return !stopped;
+    },
     stop: ({ emitPageHidden = true }: { emitPageHidden?: boolean } = {}) => {
       if (stopped) {
         return;
@@ -542,12 +550,14 @@ function isPotentialReadableNode(node: Node): boolean {
 
 function createNoopCollectorController(): CollectorController {
   return {
+    collecting: false,
     stop: () => undefined,
   };
 }
 
 function createNoopCollectorRunController(): CollectorRunController {
   return {
+    collecting: false,
     stop: () => undefined,
   };
 }

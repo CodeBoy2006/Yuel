@@ -191,6 +191,7 @@ describe('startReadingCollector', () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce({ ok: true });
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+    expect(controller.collecting).toBe(true);
 
     await flushPromises();
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
@@ -210,6 +211,7 @@ describe('startReadingCollector', () => {
     });
 
     controller.stop();
+    expect(controller.collecting).toBe(false);
   });
 
   it('keeps pending events when the background reports a failed write', async () => {
@@ -311,6 +313,7 @@ describe('startReadingCollector', () => {
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
 
     try {
+      expect(controller.collecting).toBe(false);
       await flushPromises();
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();

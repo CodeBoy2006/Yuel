@@ -1059,3 +1059,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Live browser geometry reports exact 0px left and right gaps for both themes. The focused carousel test, production build, interface detector, and browser console checks pass.
+
+## [2026-07-10 20:11] Truthful Live Recording Status
+- **Changes:** Added a live content-collector status responder, recovered current-page identity when Chrome withholds tab URL metadata, separated unknown tabs from truly unsupported pages, and updated Popup/Side Panel copy to distinguish recording, enabled, no-English, unknown, and unsupported states. Expanded unit, UI, and loaded-Chrome regression coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The fix preserves the existing least-privilege manifest without adding the broad `tabs` metadata permission. All 313 unit/UI tests, TypeScript, the production build, static manifest smoke, interface detector, and three loaded-Chrome smoke flows pass.

@@ -79,6 +79,21 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
   };
 }
 
+async function renderSidePanelWithAccess(
+  access: Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentTabSiteAccess']>>>,
+) {
+  return renderForSmoke(
+    <SidePanelApp
+      dependencies={{
+        getTodayReadingSummary: async () => createDashboardDetails(320).summary,
+        getCurrentTabSiteAccess: async () => access,
+        subscribeToRefresh: () => vi.fn(),
+        openDashboard: vi.fn(),
+      }}
+    />,
+  );
+}
+
 describe('extension UI entrypoint smoke rendering', () => {
   it('declares Simplified Chinese and the shared brand icon for every extension UI document', () => {
     for (const entrypoint of ['popup', 'sidepanel', 'dashboard']) {
@@ -246,6 +261,64 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('值得关注');
     expect(container.textContent).toContain('摘录');
     expect(container.textContent).not.toContain('Observe');
+  });
+
+  it('uses the live collector signal instead of permission alone for the side-panel status', async () => {
+    const recording = await renderSidePanelWithAccess({
+      supported: true,
+      tabId: 1,
+      url: 'https://example.com/article',
+      origin: 'https://example.com/*',
+      host: 'example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+      collectorState: 'recording',
+    });
+    const idle = await renderSidePanelWithAccess({
+      supported: true,
+      tabId: 2,
+      url: 'https://example.com/zh',
+      origin: 'https://example.com/*',
+      host: 'example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+      collectorState: 'idle',
+    });
+    const unconfirmed = await renderSidePanelWithAccess({
+      supported: true,
+      tabId: 3,
+      url: 'https://example.com/loading',
+      origin: 'https://example.com/*',
+      host: 'example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+    });
+
+    expect(recording.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('记录中');
+    expect(idle.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('未检测到英文');
+    expect(idle.textContent).toContain('当前页面未检测到可记录的英文内容');
+    expect(unconfirmed.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('已启用');
+    expect(unconfirmed.textContent).toContain('网站已启用，正在确认页面采集状态');
+  });
+
+  it('distinguishes hidden tab metadata from a page that is truly unsupported', async () => {
+    const unknown = await renderSidePanelWithAccess({
+      supported: false,
+      reason: 'tab-unavailable',
+    });
+    const unsupported = await renderSidePanelWithAccess({
+      supported: false,
+      reason: 'unsupported-page',
+    });
+
+    expect(unknown.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('状态未知');
+    expect(unknown.textContent).toContain('暂时无法确认当前页面');
+    expect(unknown.textContent).not.toContain('不可记录');
+    expect(unsupported.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('不可记录');
+    expect(unsupported.textContent).toContain('当前页面无法记录');
   });
 
   it('renders the dashboard as a progress instrument panel with the danger action demoted', async () => {
@@ -677,6 +750,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         granted: true,
         enabled: true,
         starterSite: false,
+        collectorState: 'recording',
         injected: true,
       });
       await enableResult.promise;
@@ -776,6 +850,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       granted: true,
       enabled: true,
       starterSite: false,
+      collectorState: 'recording' as const,
     };
     const listEnabledSites = vi.fn(async () => [{ origin: currentAccess.origin, host: currentAccess.host }]);
     const getCurrentTabSiteAccess = vi.fn(async () => currentAccess);
@@ -1071,6 +1146,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             granted: true,
             enabled: true,
             starterSite: false,
+            collectorState: 'recording',
           }),
           listEnabledSites,
           enableCurrentTabSite: vi.fn(),
@@ -1126,6 +1202,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             granted: true,
             enabled: true,
             starterSite: false,
+            collectorState: 'recording',
           }),
           listEnabledSites,
           enableCurrentTabSite: vi.fn(),
@@ -2408,6 +2485,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         granted: true,
         enabled: true,
         starterSite: false,
+        collectorState: 'recording',
         injected: true,
       });
       await enableResult.promise;

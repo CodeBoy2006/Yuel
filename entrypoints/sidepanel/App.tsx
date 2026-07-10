@@ -14,6 +14,7 @@ import { browser } from 'wxt/browser';
 import {
   enableCurrentTabSite,
   getCurrentTabSiteAccess,
+  isUnsupportedPageAccess,
   type SiteAccessState,
 } from '../../src/permissions/siteAccess';
 import {
@@ -580,9 +581,12 @@ function formatStatusText(
 ): string {
   if (siteAccessFailed) return '状态未知';
   if (currentTabInjectionMissed) return '待刷新';
-  if (siteAccess?.supported && siteAccess.enabled) return '记录中';
   if (siteAccess?.supported && !siteAccess.enabled) return '未启用';
-  if (siteAccess && !siteAccess.supported) return '不可记录';
+  if (siteAccess?.supported && siteAccess.collectorState === 'recording') return '记录中';
+  if (siteAccess?.supported && siteAccess.collectorState === 'idle') return '未检测到英文';
+  if (siteAccess?.supported) return '已启用';
+  if (isUnsupportedPageAccess(siteAccess)) return '不可记录';
+  if (siteAccess) return '状态未知';
   if (loadFailed && !summary) return '不可用';
   if (summary?.hasData) return '今日有记录';
   if (hasLoaded) return '待开始';
@@ -597,7 +601,7 @@ function getStatusTone(
 ): StatusTone {
   if (siteAccessFailed) return 'danger';
   if (currentTabInjectionMissed) return 'warning';
-  if (siteAccess?.supported && siteAccess.enabled) return 'positive';
+  if (siteAccess?.supported && siteAccess.enabled && siteAccess.collectorState === 'recording') return 'positive';
   if (siteAccess?.supported && !siteAccess.enabled) return 'warning';
   if (loadFailed) return 'danger';
   return 'neutral';
@@ -634,8 +638,11 @@ function formatCurrentPageEmptyState(
 ): string {
   if (siteAccessFailed || currentPageFailed) return '本页状态暂时不可用';
   if (!siteAccess) return '正在读取当前页面';
-  if (!siteAccess.supported) return '当前页面无法记录';
+  if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
+  if (!siteAccess.supported) return '暂时无法确认当前页面';
   if (!siteAccess.enabled) return '启用后显示本页阅读';
+  if (siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容';
+  if (!siteAccess.collectorState) return '网站已启用，正在确认页面采集状态';
   return '等待当前页面产生有效阅读';
 }
 
