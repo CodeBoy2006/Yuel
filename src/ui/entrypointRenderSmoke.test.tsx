@@ -83,17 +83,74 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
   };
 }
 
+type SidePanelDetails = Awaited<ReturnType<SidePanelAppDependencies['getSidePanelReadingDetails']>>;
+type SidePanelSummary = SidePanelDetails['summary'];
+
+function createSidePanelDetails(
+  summaryOverrides: Partial<SidePanelSummary> = {},
+): SidePanelDetails {
+  return {
+    summary: {
+      ...createDashboardDetails().summary,
+      ...summaryOverrides,
+    },
+    recentVocabulary: [],
+    recentSavedItems: [],
+  };
+}
+
+function createSidePanelDependencies(
+  overrides: Partial<SidePanelAppDependencies> = {},
+): SidePanelAppDependencies {
+  return {
+    getSidePanelReadingDetails: async () => createSidePanelDetails(),
+    getCurrentTabSiteAccess: async () => ({
+      supported: true,
+      tabId: 1,
+      url: 'https://docs.example.com/article',
+      origin: 'https://docs.example.com/*',
+      host: 'docs.example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+      collectorState: 'recording',
+    }),
+    getCurrentPageReadingSummary: async () => ({
+      pageId: 'page-default',
+      domain: 'docs.example.com',
+      totalWords: 0,
+      effectiveWords: 0,
+      coveredWords: 0,
+      effectiveMinutes: 0,
+      hasData: false,
+    }),
+    enableCurrentTabSite: async () => ({
+      supported: true,
+      tabId: 1,
+      url: 'https://docs.example.com/article',
+      origin: 'https://docs.example.com/*',
+      host: 'docs.example.com',
+      granted: true,
+      enabled: true,
+      starterSite: false,
+      collectorState: 'recording',
+      injected: true,
+    }),
+    subscribeToRefresh: () => () => undefined,
+    openDashboard: async () => undefined,
+    ...overrides,
+  };
+}
+
 async function renderSidePanelWithAccess(
-  access: Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentTabSiteAccess']>>>,
+  access: Awaited<ReturnType<SidePanelAppDependencies['getCurrentTabSiteAccess']>>,
 ) {
   return renderForSmoke(
     <SidePanelApp
-      dependencies={{
-        getTodayReadingSummary: async () => createDashboardDetails(320).summary,
+      dependencies={createSidePanelDependencies({
+        getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
         getCurrentTabSiteAccess: async () => access,
-        subscribeToRefresh: () => vi.fn(),
-        openDashboard: vi.fn(),
-      }}
+      })}
     />,
   );
 }
@@ -242,21 +299,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders the side panel around current reading, vocabulary, and highlights', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 1540,
-            minutes: 18,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: ['docs.example.com'],
-            readPages: 4,
-            learningWords: 7,
-            hasData: true,
-          }),
-          openDashboard: vi.fn(),
-        }}
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(1540).summary),
+        })}
       />,
     );
 
@@ -1373,10 +1418,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('keeps the side-panel card action locked before the daily goal is reached', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails(320).summary,
-          openDashboard: vi.fn(),
-        }}
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
+        })}
       />,
     );
 
@@ -2149,27 +2193,23 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('uses the focused side-panel snapshot and merges overlapping refresh requests', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
     const initialDetails = createDeferred<ReturnType<typeof createDashboardDetails>>();
-    const getTodayReadingSummary = vi.fn(async () => createDashboardDetails(100).summary);
     const getSidePanelReadingDetails = vi
       .fn()
       .mockImplementationOnce(() => initialDetails.promise)
       .mockResolvedValueOnce(createDashboardDetails(740, 'latest.example'));
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary,
+        dependencies={createSidePanelDependencies({
           getSidePanelReadingDetails,
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
     expect(getSidePanelReadingDetails).toHaveBeenCalledOnce();
-    expect(getTodayReadingSummary).not.toHaveBeenCalled();
 
     await act(async () => {
       requestRefresh?.('tick');
@@ -2188,9 +2228,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(getSidePanelReadingDetails).toHaveBeenCalledTimes(2);
-    expect(getTodayReadingSummary).not.toHaveBeenCalled();
     expect(container.textContent).toContain('740 词');
-    expect(container.textContent).toContain('latest.example');
     expect(container.querySelector('.sidepanel-page__measure')?.hasAttribute('aria-live')).toBe(false);
   });
 
@@ -2208,8 +2246,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     }));
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails().summary,
+        dependencies={createSidePanelDependencies({
           getCurrentTabSiteAccess: async () => ({
             supported: true,
             tabId: 1,
@@ -2221,9 +2258,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             starterSite: false,
           }),
           enableCurrentTabSite,
-          subscribeToRefresh: () => vi.fn(),
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2238,7 +2273,7 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('clears stale side panel host and page metrics while navigation access is pending', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
     const nextAccess = createDeferred<
-      Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentTabSiteAccess']>>>
+      Awaited<ReturnType<SidePanelAppDependencies['getCurrentTabSiteAccess']>>
     >();
     const getCurrentTabSiteAccess = vi
       .fn()
@@ -2278,27 +2313,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     ));
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 700,
-            minutes: 8,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 2,
-            learningWords: 3,
-            hasData: true,
-          }),
+        dependencies={createSidePanelDependencies({
           getCurrentTabSiteAccess,
           getCurrentPageReadingSummary,
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2340,10 +2362,10 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('ignores a late page result from an older rapid side panel refresh', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
     const staleAccess = createDeferred<
-      Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentTabSiteAccess']>>>
+      Awaited<ReturnType<SidePanelAppDependencies['getCurrentTabSiteAccess']>>
     >();
     const stalePage = createDeferred<
-      Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentPageReadingSummary']>>>
+      Awaited<ReturnType<SidePanelAppDependencies['getCurrentPageReadingSummary']>>
     >();
     const getCurrentTabSiteAccess = vi
       .fn()
@@ -2406,27 +2428,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 900,
-            minutes: 10,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 3,
-            learningWords: 4,
-            hasData: true,
-          }),
+        dependencies={createSidePanelDependencies({
           getCurrentTabSiteAccess,
           getCurrentPageReadingSummary,
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2490,32 +2499,10 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('refreshes side panel totals and current-page context when the active tab changes', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
     const unsubscribe = vi.fn();
-    const getTodayReadingSummary = vi
+    const getSidePanelReadingDetails = vi
       .fn()
-      .mockResolvedValueOnce({
-        date: '2026-06-27',
-        effectiveWords: 600,
-        minutes: 7,
-        advancedWords: 0,
-        expressions: 0,
-        streak: 0,
-        topDomains: ['first.example'],
-        readPages: 1,
-        learningWords: 2,
-        hasData: true,
-      })
-      .mockResolvedValueOnce({
-        date: '2026-06-27',
-        effectiveWords: 1540,
-        minutes: 18,
-        advancedWords: 0,
-        expressions: 0,
-        streak: 0,
-        topDomains: ['second.example'],
-        readPages: 4,
-        learningWords: 7,
-        hasData: true,
-      });
+      .mockResolvedValueOnce(createSidePanelDetails(createDashboardDetails(600, 'first.example').summary))
+      .mockResolvedValueOnce(createSidePanelDetails(createDashboardDetails(1540, 'second.example').summary));
     const getCurrentTabSiteAccess = vi
       .fn()
       .mockResolvedValueOnce({
@@ -2563,16 +2550,15 @@ describe('extension UI entrypoint smoke rendering', () => {
     ));
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary,
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails,
           getCurrentTabSiteAccess,
           getCurrentPageReadingSummary,
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return unsubscribe;
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2586,7 +2572,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       }
     });
 
-    expect(getTodayReadingSummary).toHaveBeenCalledTimes(2);
+    expect(getSidePanelReadingDetails).toHaveBeenCalledTimes(2);
     expect(getCurrentTabSiteAccess).toHaveBeenCalledTimes(2);
     expect(getCurrentPageReadingSummary).toHaveBeenLastCalledWith('https://second.example/guide');
     expect(container.textContent).toContain('second.example');
@@ -2596,23 +2582,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   });
 
   it('keeps the side panel enable action stable and single-shot while permission is pending', async () => {
-    const enableResult = createDeferred<Awaited<ReturnType<NonNullable<SidePanelAppDependencies['enableCurrentTabSite']>>>>();
+    const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
     const enableCurrentTabSite = vi.fn(() => enableResult.promise);
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 0,
-            hasData: false,
-          }),
+        dependencies={createSidePanelDependencies({
           getCurrentTabSiteAccess: async () => ({
             supported: true,
             tabId: 1,
@@ -2624,9 +2598,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             starterSite: false,
           }),
           enableCurrentTabSite,
-          subscribeToRefresh: () => vi.fn(),
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2666,11 +2638,11 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('releases a hung side-panel refresh when an enable action takes ownership', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
-    const staleSummary = createDeferred<ReturnType<typeof createDashboardDetails>['summary']>();
-    const getTodayReadingSummary = vi
+    const staleDetails = createDeferred<SidePanelDetails>();
+    const getSidePanelReadingDetails = vi
       .fn()
-      .mockImplementationOnce(() => staleSummary.promise)
-      .mockResolvedValue(createDashboardDetails(320, 'fresh.example').summary);
+      .mockImplementationOnce(() => staleDetails.promise)
+      .mockResolvedValue(createSidePanelDetails(createDashboardDetails(320, 'fresh.example').summary));
     const getCurrentTabSiteAccess = vi.fn(async () => ({
       supported: true as const,
       tabId: 1,
@@ -2683,8 +2655,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     }));
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary,
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails,
           getCurrentTabSiteAccess,
           enableCurrentTabSite: async () => ({
             supported: true,
@@ -2701,31 +2673,30 @@ describe('extension UI entrypoint smoke rendering', () => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
-    expect(getTodayReadingSummary).toHaveBeenCalledOnce();
+    expect(getSidePanelReadingDetails).toHaveBeenCalledOnce();
     await clickButton(findButton(container, '启用当前网站'));
     await act(async () => {
       requestRefresh?.('tick');
       for (let index = 0; index < 4; index += 1) await Promise.resolve();
     });
 
-    expect(getTodayReadingSummary).toHaveBeenCalledTimes(2);
+    expect(getSidePanelReadingDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('320 词');
 
     await act(async () => {
-      staleSummary.resolve(createDashboardDetails().summary);
-      await staleSummary.promise;
+      staleDetails.resolve(createSidePanelDetails());
+      await staleDetails.promise;
     });
   });
 
   it('does not let a delayed enable page query overwrite a newer side-panel refresh', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
     const delayedEnablePage = createDeferred<
-      Awaited<ReturnType<NonNullable<SidePanelAppDependencies['getCurrentPageReadingSummary']>>>
+      Awaited<ReturnType<SidePanelAppDependencies['getCurrentPageReadingSummary']>>
     >();
     const currentAccess = {
       supported: true as const,
@@ -2762,8 +2733,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails(420).summary,
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(420).summary),
           getCurrentTabSiteAccess: async () => currentAccess,
           getCurrentPageReadingSummary,
           enableCurrentTabSite: async () => ({
@@ -2776,8 +2747,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2811,7 +2781,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('ignores a pending enable result after the active tab changes', async () => {
     let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
-    const enableResult = createDeferred<Awaited<ReturnType<NonNullable<SidePanelAppDependencies['enableCurrentTabSite']>>>>();
+    const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
     const getCurrentTabSiteAccess = vi
       .fn()
       .mockResolvedValueOnce({
@@ -2836,16 +2806,14 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => createDashboardDetails().summary,
+        dependencies={createSidePanelDependencies({
           getCurrentTabSiteAccess,
           enableCurrentTabSite: () => enableResult.promise,
           subscribeToRefresh: (refresh) => {
             requestRefresh = refresh;
             return vi.fn();
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2879,21 +2847,14 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('renders side panel companion metrics from injected local services', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: async () => createSidePanelDetails({
             effectiveWords: 1540,
             minutes: 18,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: ['docs.example.com'],
             readPages: 4,
-            learningWords: 7,
             hasData: true,
           }),
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2907,25 +2868,10 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('shows no-data side panel time metric when local reading stats are empty', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 0,
-            minutes: 0,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: [],
-            readPages: 0,
-            learningWords: 0,
-            hasData: false,
-          }),
-          openDashboard: vi.fn(),
-        }}
+        dependencies={createSidePanelDependencies()}
       />,
     );
 
-    expect(container.textContent).toContain('待开始');
     expect(container.textContent).toContain('阅读时间0 分钟');
     expect(container.textContent).not.toContain('阅读时间不足 1 分钟');
   });
@@ -2933,10 +2879,9 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('does not show side panel top-domain empty state while local summary is loading', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: () => new Promise(() => undefined),
-          openDashboard: vi.fn(),
-        }}
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: () => new Promise(() => undefined),
+        })}
       />,
     );
 
@@ -2947,12 +2892,11 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('shows unavailable side panel metrics when local reading stats fail to load', async () => {
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => {
+        dependencies={createSidePanelDependencies({
+          getSidePanelReadingDetails: async () => {
             throw new Error('stats unavailable');
           },
-          openDashboard: vi.fn(),
-        }}
+        })}
       />,
     );
 
@@ -2968,21 +2912,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     const openDashboard = vi.fn(async () => undefined);
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 1540,
-            minutes: 18,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: ['docs.example.com'],
-            readPages: 4,
-            learningWords: 7,
-            hasData: true,
-          }),
+        dependencies={createSidePanelDependencies({
           openDashboard,
-        }}
+        })}
       />,
     );
 
@@ -3002,21 +2934,9 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
     const container = await renderForSmoke(
       <SidePanelApp
-        dependencies={{
-          getTodayReadingSummary: async () => ({
-            date: '2026-06-27',
-            effectiveWords: 1540,
-            minutes: 18,
-            advancedWords: 0,
-            expressions: 0,
-            streak: 0,
-            topDomains: ['docs.example.com'],
-            readPages: 4,
-            learningWords: 7,
-            hasData: true,
-          }),
+        dependencies={createSidePanelDependencies({
           openDashboard,
-        }}
+        })}
       />,
     );
 

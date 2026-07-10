@@ -1125,3 +1125,9 @@
 - **Status:** Completed
 - **Next Steps:** Continue with SidePanel dependency cleanup and collector event-envelope consolidation.
 - **Context:** The single `domains` field remains the source for preview and copy output, eliminating 14 net lines and a potentially stale default copy snapshot. Focused share-card tests and TypeScript checks pass; existing transparent-export work remains unstaged.
+
+## [2026-07-11 02:40] SidePanel Dependency Contract Simplification
+- **Changes:** Made all production SidePanel services required, removed the test-only summary fallback path and optional-service branches, derived summary from the focused details snapshot, and replaced sparse inline test dependencies with one typed fixture factory.
+- **Status:** Completed
+- **Next Steps:** Apply the same evidence-based contract cleanup to Dashboard after the collector and storage batches.
+- **Context:** Production and test code drop 143 net lines, two duplicate states, and an unreachable load path while retaining refresh/enable generation guards. All 55 UI smoke tests, TypeScript checks, and the production extension build pass; the sidepanel bundle decreased from 12.53 kB at baseline to 11.88 kB.

@@ -21,7 +21,6 @@ import {
 import {
   getCurrentPageReadingSummary,
   getSidePanelReadingDetails,
-  getTodayReadingSummary,
   type CurrentPageReadingSummary,
   type SidePanelReadingDetails,
   type TodayReadingSummary,
@@ -48,17 +47,15 @@ import {
 export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 
 export interface SidePanelAppDependencies {
-  getTodayReadingSummary: typeof getTodayReadingSummary;
   openDashboard: (target?: 'share-card') => Promise<void>;
-  getCurrentTabSiteAccess?: typeof getCurrentTabSiteAccess;
-  enableCurrentTabSite?: typeof enableCurrentTabSite;
-  getCurrentPageReadingSummary?: typeof getCurrentPageReadingSummary;
-  getSidePanelReadingDetails?: typeof getSidePanelReadingDetails;
-  subscribeToRefresh?: (refresh: (reason?: SidePanelRefreshReason) => void) => () => void;
+  getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
+  enableCurrentTabSite: typeof enableCurrentTabSite;
+  getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
+  getSidePanelReadingDetails: typeof getSidePanelReadingDetails;
+  subscribeToRefresh: (refresh: (reason?: SidePanelRefreshReason) => void) => () => void;
 }
 
 const defaultDependencies: SidePanelAppDependencies = {
-  getTodayReadingSummary,
   getCurrentTabSiteAccess,
   enableCurrentTabSite,
   getCurrentPageReadingSummary,
@@ -74,12 +71,10 @@ const defaultDependencies: SidePanelAppDependencies = {
 };
 
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
-  const [summary, setSummary] = useState<TodayReadingSummary>();
   const [details, setDetails] = useState<SidePanelReadingDetails>();
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [currentPage, setCurrentPage] = useState<CurrentPageReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
-  const [detailsFailed, setDetailsFailed] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
   const [currentPageFailed, setCurrentPageFailed] = useState(false);
   const [enableBusy, setEnableBusy] = useState(false);
@@ -104,85 +99,55 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const runRefresh = useCallback(async (_reason: SidePanelRefreshReason) => {
     const requestId = ++refreshSequenceRef.current;
     const isCurrentRequest = () => mountedRef.current && requestId === refreshSequenceRef.current;
-    const tasks: Promise<void>[] = [];
+    const detailsTask = dependencies.getSidePanelReadingDetails()
+      .then((nextDetails) => {
+        if (!isCurrentRequest()) return;
+        setDetails(nextDetails);
+        setLoadFailed(false);
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel side panel details', error);
+        if (!isCurrentRequest()) return;
+        setLoadFailed(true);
+      });
+    const siteAccessTask = dependencies.getCurrentTabSiteAccess()
+      .then(async (nextAccess) => {
+        if (!isCurrentRequest()) return;
 
-    if (dependencies.getSidePanelReadingDetails) {
-      tasks.push(
-        dependencies.getSidePanelReadingDetails()
-          .then((nextDetails) => {
-            if (!isCurrentRequest()) return;
-            setDetails(nextDetails);
-            setSummary(nextDetails.summary);
-            setLoadFailed(false);
-            setDetailsFailed(false);
-          })
-          .catch((error) => {
-            console.error('Failed to load Yuel side panel details', error);
-            if (!isCurrentRequest()) return;
-            setLoadFailed(true);
-            setDetailsFailed(true);
-          }),
-      );
-    } else {
-      tasks.push(
-        dependencies.getTodayReadingSummary()
-          .then((nextSummary) => {
-            if (!isCurrentRequest()) return;
-            setSummary(nextSummary);
-            setLoadFailed(false);
-          })
-          .catch((error) => {
-            console.error('Failed to load Yuel side panel stats', error);
-            if (!isCurrentRequest()) return;
-            setLoadFailed(true);
-          }),
-      );
-    }
+        const nextUrl = nextAccess.supported ? nextAccess.url : undefined;
+        if (!nextUrl || nextUrl !== currentUrlRef.current) {
+          setCurrentPage(undefined);
+        }
+        currentUrlRef.current = nextUrl;
+        setSiteAccess(nextAccess);
+        setSiteAccessFailed(false);
+        setCurrentPageFailed(false);
 
-    const loadSiteAccess = dependencies.getCurrentTabSiteAccess;
-    const loadCurrentPage = dependencies.getCurrentPageReadingSummary;
-    if (loadSiteAccess) {
-      tasks.push(
-        loadSiteAccess()
-          .then(async (nextAccess) => {
-            if (!isCurrentRequest()) return;
+        if (!nextAccess.supported) return;
 
-            const nextUrl = nextAccess.supported ? nextAccess.url : undefined;
-            if (!nextUrl || nextUrl !== currentUrlRef.current) {
-              setCurrentPage(undefined);
-            }
-            currentUrlRef.current = nextUrl;
-            setSiteAccess(nextAccess);
-            setSiteAccessFailed(false);
-            setCurrentPageFailed(false);
+        try {
+          const nextPage = await dependencies.getCurrentPageReadingSummary(nextAccess.url);
+          if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
+          setCurrentPage(nextPage);
+          setCurrentPageFailed(false);
+        } catch (error) {
+          console.error('Failed to load Yuel side panel current page stats', error);
+          if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
+          setCurrentPage(undefined);
+          setCurrentPageFailed(true);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel side panel current page state', error);
+        if (!isCurrentRequest()) return;
+        currentUrlRef.current = undefined;
+        setSiteAccess(undefined);
+        setCurrentPage(undefined);
+        setSiteAccessFailed(true);
+        setCurrentPageFailed(false);
+      });
 
-            if (!nextAccess.supported || !loadCurrentPage) return;
-
-            try {
-              const nextPage = await loadCurrentPage(nextAccess.url);
-              if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
-              setCurrentPage(nextPage);
-              setCurrentPageFailed(false);
-            } catch (error) {
-              console.error('Failed to load Yuel side panel current page stats', error);
-              if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
-              setCurrentPage(undefined);
-              setCurrentPageFailed(true);
-            }
-          })
-          .catch((error) => {
-            console.error('Failed to load Yuel side panel current page state', error);
-            if (!isCurrentRequest()) return;
-            currentUrlRef.current = undefined;
-            setSiteAccess(undefined);
-            setCurrentPage(undefined);
-            setSiteAccessFailed(true);
-            setCurrentPageFailed(false);
-          }),
-      );
-    }
-
-    await Promise.all(tasks);
+    await Promise.all([detailsTask, siteAccessTask]);
     if (isCurrentRequest()) {
       setLastUpdatedAt(Date.now());
     }
@@ -237,7 +202,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   useEffect(() => {
     mountedRef.current = true;
     void refresh('resume');
-    const unsubscribe = dependencies.subscribeToRefresh?.((reason) => {
+    const unsubscribe = dependencies.subscribeToRefresh((reason) => {
       void refresh(reason);
     });
 
@@ -250,28 +215,19 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       activeRefreshTokenRef.current += 1;
       refreshInFlightRef.current = false;
       pendingRefreshReasonRef.current = undefined;
-      unsubscribe?.();
+      unsubscribe();
     };
   }, [dependencies, refresh]);
 
-  const hasSummaryLoader = Boolean(summary) || loadFailed;
-  const hasSiteAccessLoader = Boolean(dependencies.getCurrentTabSiteAccess);
+  const summary = details?.summary;
   const statusText = formatStatusText(
     siteAccess,
     siteAccessFailed,
     summary,
-    hasSummaryLoader,
     loadFailed,
     currentTabInjectionMissed,
   );
-  const currentHost = formatCurrentHost({
-    siteAccess,
-    siteAccessFailed,
-    hasSiteAccessLoader,
-    summary,
-    loadFailed,
-    hasSummaryLoader,
-  });
+  const currentHost = formatCurrentHost(siteAccess, siteAccessFailed);
   const todayValue = summary ? formatWords(summary.effectiveWords) : loadFailed ? '不可用' : '读取中';
   const timeValue = summary ? (summary.hasData ? formatMinutes(summary.minutes) : '0 分钟') : loadFailed ? '不可用' : '读取中';
   const pagesValue = summary ? `${summary.readPages} 页` : loadFailed ? '不可用' : '读取中';
@@ -287,16 +243,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const savedItem = details?.recentSavedItems[0];
   const shouldEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled);
   const showEnableCurrentSite = shouldEnableCurrentSite || enableBusy;
-  const refreshLabel = loadFailed || detailsFailed || siteAccessFailed || currentPageFailed
+  const refreshLabel = loadFailed || siteAccessFailed || currentPageFailed
     ? '同步未完成'
     : lastUpdatedAt
       ? '刚刚同步'
       : '同步中';
 
   const enableSite = async () => {
-    const enableCurrentSite = dependencies.enableCurrentTabSite;
-    const loadCurrentPage = dependencies.getCurrentPageReadingSummary;
-    if (!enableCurrentSite || enableBusy) return;
+    if (enableBusy) return;
 
     setEnableBusy(true);
     setEnableDenied(false);
@@ -309,7 +263,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     pendingRefreshReasonRef.current = undefined;
 
     try {
-      const result = await enableCurrentSite();
+      const result = await dependencies.enableCurrentTabSite();
       if (!mountedRef.current || actionId !== enableSequenceRef.current) return;
 
       // Permission prompts can overlap a scheduled refresh. The explicit user
@@ -336,29 +290,27 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
         setCurrentPage(undefined);
       }
       currentUrlRef.current = result.url;
-      if (loadCurrentPage) {
-        const pageRequestId = refreshSequenceRef.current;
-        try {
-          const nextPage = await loadCurrentPage(result.url);
-          if (
-            !mountedRef.current
-            || actionId !== enableSequenceRef.current
-            || pageRequestId !== refreshSequenceRef.current
-            || currentUrlRef.current !== result.url
-          ) return;
-          setCurrentPage(nextPage);
-          setCurrentPageFailed(false);
-        } catch (error) {
-          console.error('Failed to load Yuel side panel current page stats after enabling', error);
-          if (
-            !mountedRef.current
-            || actionId !== enableSequenceRef.current
-            || pageRequestId !== refreshSequenceRef.current
-            || currentUrlRef.current !== result.url
-          ) return;
-          setCurrentPage(undefined);
-          setCurrentPageFailed(true);
-        }
+      const pageRequestId = refreshSequenceRef.current;
+      try {
+        const nextPage = await dependencies.getCurrentPageReadingSummary(result.url);
+        if (
+          !mountedRef.current
+          || actionId !== enableSequenceRef.current
+          || pageRequestId !== refreshSequenceRef.current
+          || currentUrlRef.current !== result.url
+        ) return;
+        setCurrentPage(nextPage);
+        setCurrentPageFailed(false);
+      } catch (error) {
+        console.error('Failed to load Yuel side panel current page stats after enabling', error);
+        if (
+          !mountedRef.current
+          || actionId !== enableSequenceRef.current
+          || pageRequestId !== refreshSequenceRef.current
+          || currentUrlRef.current !== result.url
+        ) return;
+        setCurrentPage(undefined);
+        setCurrentPageFailed(true);
       }
     } catch (error) {
       console.error('Failed to enable Yuel from side panel', error);
@@ -497,7 +449,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             </ul>
           ) : (
             <EmptyState>
-              {detailsFailed ? '词汇数据暂时不可用。' : details ? '还没有值得关注的词汇。' : '正在读取词汇。'}
+              {loadFailed ? '词汇数据暂时不可用。' : details ? '还没有值得关注的词汇。' : '正在读取词汇。'}
             </EmptyState>
           )}
         </section>
@@ -515,7 +467,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
               </figcaption>
             </figure>
           ) : (
-            <EmptyState>{detailsFailed ? '摘录数据暂时不可用。' : details ? '还没有保存摘录。' : '正在读取摘录。'}</EmptyState>
+            <EmptyState>{loadFailed ? '摘录数据暂时不可用。' : details ? '还没有保存摘录。' : '正在读取摘录。'}</EmptyState>
           )}
         </section>
       </main>
@@ -595,7 +547,6 @@ function formatStatusText(
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   summary: TodayReadingSummary | undefined,
-  hasLoaded: boolean,
   loadFailed: boolean,
   currentTabInjectionMissed = false,
 ): string {
@@ -609,7 +560,7 @@ function formatStatusText(
   if (siteAccess) return '状态未知';
   if (loadFailed && !summary) return '不可用';
   if (summary?.hasData) return '今日有记录';
-  if (hasLoaded) return '待开始';
+  if (summary) return '待开始';
   return '读取中';
 }
 
@@ -627,28 +578,14 @@ function getStatusTone(
   return 'neutral';
 }
 
-function formatCurrentHost({
-  siteAccess,
-  siteAccessFailed,
-  hasSiteAccessLoader,
-  summary,
-  loadFailed,
-  hasSummaryLoader,
-}: {
-  siteAccess: SiteAccessState | undefined;
-  siteAccessFailed: boolean;
-  hasSiteAccessLoader: boolean;
-  summary: TodayReadingSummary | undefined;
-  loadFailed: boolean;
-  hasSummaryLoader: boolean;
-}): string {
+function formatCurrentHost(
+  siteAccess: SiteAccessState | undefined,
+  siteAccessFailed: boolean,
+): string {
   if (siteAccess?.supported) return siteAccess.host;
   if (siteAccess && !siteAccess.supported) return '当前页面';
   if (siteAccessFailed) return '当前页面状态不可用';
-  if (hasSiteAccessLoader) return '读取中';
-  if (summary?.topDomains[0]) return summary.topDomains[0];
-  if (loadFailed) return '不可用';
-  return hasSummaryLoader ? '暂无当前网站' : '读取中';
+  return '读取中';
 }
 
 function formatCurrentPageEmptyState(
