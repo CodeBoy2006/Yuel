@@ -1047,3 +1047,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Chrome 150 and both CDP harnesses are healthy. Sandboxed launch reproduced a missing `DevToolsActivePort`, while the same DOM and packaged-extension suites passed outside the process sandbox; set `YUEL_BROWSER_SMOKE_HEADLESS=false` only when a visible run is intentional.
+
+## [2026-07-10 19:54] Share Card Theme Carousel
+- **Changes:** Rebuilt the dashboard check-in card as a manual four-theme carousel with distinct Forest, Mist, Midnight, and Berry compositions, responsive 4:5 previews, accessible theme controls, and theme-specific PNG filenames. Expanded dashboard smoke coverage for selection and selected-card export.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The carousel never auto-advances. TypeScript, all 305 tests, the production build, the interface detector, and live browser checks at desktop, 390px, and 240px widths passed without console errors or horizontal overflow.

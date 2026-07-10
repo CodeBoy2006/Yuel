@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ReactNode, Ref } from 'react';
+import type { ReactNode } from 'react';
 
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
 import { clearLocalReadingData } from '../../src/storage/repositories';
@@ -50,8 +50,14 @@ import {
   StatusPill,
 } from '../../src/ui/primitives';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
-import { createShareCardContent, type ShareCardContent } from '../../src/ui/shareCardContent';
+import { createShareCardContent } from '../../src/ui/shareCardContent';
 import { getWebsiteFaviconUrl, SiteFavicon } from '../../src/ui/siteFavicon';
+import {
+  DEFAULT_SHARE_CARD_THEME,
+  getShareCardTheme,
+  ShareCardCarousel,
+  type ShareCardThemeId,
+} from './ShareCardCarousel';
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -90,6 +96,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded' | 'failed'>('idle');
   const [shareCardOpen, setShareCardOpen] = useState(() => window.location.hash === '#share-card');
+  const [selectedShareCardTheme, setSelectedShareCardTheme] = useState<ShareCardThemeId>(DEFAULT_SHARE_CARD_THEME);
   const [calibrationStep, setCalibrationStep] = useState<CalibrationStep>('idle');
   const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
@@ -227,6 +234,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareCardContent = summary ? createShareCardContent(summary) : undefined;
   const todayDomain = shareCardContent?.domain ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
+  const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
 
   const retryLoading = () => {
     setDetails(undefined);
@@ -307,7 +315,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setDownloadStatus('downloading');
 
     try {
-      await exportCardPng(shareCardRef.current, `yuel-reading-${details.summary.date}.png`);
+      await exportCardPng(
+        shareCardRef.current,
+        `yuel-reading-${details.summary.date}-${selectedShareCardTheme}.png`,
+      );
       if (!mountedRef.current || actionId !== shareActionSequenceRef.current) return;
       setDownloadStatus('downloaded');
     } catch (error) {
@@ -319,6 +330,14 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         shareActionBusyRef.current = false;
       }
     }
+  };
+
+  const selectShareCardTheme = (theme: ShareCardThemeId) => {
+    if (shareActionBusyRef.current || theme === selectedShareCardTheme) return;
+    shareActionSequenceRef.current += 1;
+    setCopyStatus('idle');
+    setDownloadStatus('idle');
+    setSelectedShareCardTheme(theme);
   };
 
   const startPaceCalibration = () => {
@@ -478,13 +497,25 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
             {shareCardOpen ? (
               <section id="share-card" className="dashboard-panel share-section" aria-labelledby="share-card-title">
-                <SectionHeader icon={Share2} meta="可复制或导出">
-                  <span id="share-card-title" tabIndex={-1}>今日卡片预览</span>
+                <SectionHeader icon={Share2} meta="4 款 · 手动切换">
+                  <span id="share-card-title" tabIndex={-1}>今日打卡卡片</span>
                 </SectionHeader>
                 <div className="share-section__layout">
-                  {shareCardContent ? <ShareCardPreview ref={shareCardRef} content={shareCardContent} /> : null}
-                  <div className="share-section__actions">
-                    <p>今日阅读摘要</p>
+                  {shareCardContent ? (
+                    <ShareCardCarousel
+                      cardRef={shareCardRef}
+                      content={shareCardContent}
+                      disabled={shareActionBusy}
+                      onThemeChange={selectShareCardTheme}
+                      selectedTheme={selectedShareCardTheme}
+                    />
+                  ) : null}
+                  <aside className="share-section__actions" aria-label="打卡卡片操作">
+                    <div className="share-section__action-copy">
+                      <span>当前样式</span>
+                      <h3>{selectedShareCardStyle.name}</h3>
+                      <p aria-live="polite">导出会使用当前选择的卡片，轮播不会自动播放。</p>
+                    </div>
                     <ActionButton
                       icon={Clipboard}
                       disabled={shareActionBusy}
@@ -506,7 +537,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                     {copyStatus === 'failed' || downloadStatus === 'failed'
                       ? <InlineNotice tone="danger">卡片操作失败，请重试。</InlineNotice>
                       : null}
-                  </div>
+                  </aside>
                 </div>
               </section>
             ) : null}
@@ -705,33 +736,6 @@ function Panel({
     </section>
   );
 }
-
-const ShareCardPreview = ({
-  ref,
-  content,
-}: {
-  ref: Ref<HTMLDivElement>;
-  content: ShareCardContent;
-}) => (
-  <div ref={ref} className="share-card-preview">
-    <div className="share-card-preview__header">
-      <span>今日英文阅读</span>
-      <span>{content.date}</span>
-    </div>
-    <div className="share-card-preview__main">
-      <p>今天计入 <strong>{content.effectiveWords}</strong> 个英文词</p>
-    </div>
-    <dl>
-      <div><dt>阅读时间</dt><dd>{content.readingTime}</dd></div>
-      <div><dt>页面</dt><dd>{content.pages} 页</dd></div>
-      <div><dt>学习中词汇</dt><dd>{content.learningWords}</dd></div>
-    </dl>
-    <div className="share-card-preview__footer">
-      <span title={content.domain}>{content.domain}</span>
-      <strong>Yuel 阅量</strong>
-    </div>
-  </div>
-);
 
 function RecentPageCard({
   page,

@@ -53,7 +53,7 @@ async function revealTodayCard(container: HTMLElement) {
   expect(toggle?.getAttribute('aria-controls')).toBeNull();
   await clickButton(toggle);
   expect(findButton(container, '收起今日卡片')?.getAttribute('aria-controls')).toBe('share-card');
-  expect(container.textContent).toContain('今日卡片预览');
+  expect(container.textContent).toContain('今日打卡卡片');
   expect(container.querySelector('.share-card-preview .sr-only')).toBeNull();
 }
 
@@ -1210,7 +1210,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('fail gracefully under pressure');
     expect(container.textContent).toContain('保存摘录');
     expect(container.textContent).toContain('查看今日卡片');
-    expect(container.textContent).not.toContain('今日卡片预览');
+    expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).toContain('今日有效阅读');
 
     const pageProgress = container.querySelector<HTMLElement>('[role="progressbar"]');
@@ -1541,8 +1541,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('已复制');
   });
 
-  it('exports the dashboard share card as a PNG through injected renderer', async () => {
-    const exportSummaryCardPng = vi.fn(async () => undefined);
+  it('switches the static card carousel and exports the selected style as a PNG', async () => {
+    const exportSummaryCardPng = vi.fn<NonNullable<DashboardAppDependencies['exportSummaryCardPng']>>(
+      async () => undefined,
+    );
     const container = await renderForSmoke(
       <DashboardApp
         dependencies={{
@@ -1572,6 +1574,25 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
 
     await revealTodayCard(container);
+    const themeInputs = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[name="share-card-theme"]'),
+    );
+    expect(themeInputs.map((input) => input.value)).toEqual(['forest', 'mist', 'midnight', 'berry']);
+    expect(themeInputs.find((input) => input.value === 'forest')?.checked).toBe(true);
+    expect(container.querySelector('.share-carousel__slide:not([aria-hidden="true"]) .share-card-preview')?.getAttribute('data-card-theme'))
+      .toBe('forest');
+
+    await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="下一种卡片样式"]') ?? undefined);
+    expect(themeInputs.find((input) => input.value === 'mist')?.checked).toBe(true);
+    expect(container.querySelector('.share-carousel__caption strong')?.textContent).toBe('雾白');
+
+    await act(async () => {
+      themeInputs.find((input) => input.value === 'berry')?.click();
+    });
+    expect(themeInputs.find((input) => input.value === 'berry')?.checked).toBe(true);
+    expect(container.querySelector('.share-carousel__slide:not([aria-hidden="true"]) .share-card-preview')?.getAttribute('data-card-theme'))
+      .toBe('berry');
+
     const downloadButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === '下载 PNG');
     expect(downloadButton).toBeInstanceOf(HTMLButtonElement);
 
@@ -1582,7 +1603,8 @@ describe('extension UI entrypoint smoke rendering', () => {
       await Promise.resolve();
     });
 
-    expect(exportSummaryCardPng).toHaveBeenCalledWith(expect.any(HTMLElement), 'yuel-reading-2026-06-27.png');
+    expect(exportSummaryCardPng).toHaveBeenCalledWith(expect.any(HTMLElement), 'yuel-reading-2026-06-27-berry.png');
+    expect((exportSummaryCardPng.mock.calls[0]?.[0] as HTMLElement).dataset.cardTheme).toBe('berry');
     expect(container.textContent).toContain('已下载');
   });
 
@@ -1730,7 +1752,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.querySelectorAll('.dashboard-state--empty')).toHaveLength(1);
     expect(container.textContent).toContain('从下一篇外语文章开始');
     expect(container.textContent).not.toContain('今日有效阅读');
-    expect(container.textContent).not.toContain('今日卡片预览');
+    expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).not.toContain('查看今日卡片');
     expect(container.textContent).not.toContain('复制文案');
     expect(container.textContent).not.toContain('下载 PNG');
