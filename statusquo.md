@@ -1251,3 +1251,9 @@
 - **Status:** Completed
 - **Next Steps:** Commit the mechanical collector DOM/observer fixtures and finish the remaining dormant read-model review.
 - **Context:** The read model and fixtures remove 38 net lines. All 31 reading-stat tests, 55 UI behavior tests, TypeScript checks, production build, and whitespace validation pass; the extension bundle is 544.22 kB.
+
+## [2026-07-11 04:34] Collector DOM and Observer Fixture Consolidation
+- **Changes:** Replaced 23 identical guide DOM templates and 20 first-observer visible emits with two narrow helpers, leaving multi-entry, hidden, mutation, and lifecycle-order cases explicit.
+- **Status:** Completed
+- **Next Steps:** Remove the remaining independently confirmed dormant read-model fields, then run final verification and stop audits.
+- **Context:** The collector test removes 120 net lines without absorbing flush, mock-clear, timer, or stop ordering. All 35 collector tests, TypeScript checks, and whitespace validation pass.

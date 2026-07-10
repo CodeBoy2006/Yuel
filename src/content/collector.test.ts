@@ -42,6 +42,16 @@ function visibleIntersectionEntry(
   return { target, isIntersecting: true, intersectionRatio };
 }
 
+function setGuideText(text: string): void {
+  document.body.innerHTML = `<article><p id="guide">${text}</p></article>`;
+}
+
+function emitFirstIntersection(target: Element, intersectionRatio = 1): void {
+  TestIntersectionObserver.instances[0].emit([
+    visibleIntersectionEntry(target, intersectionRatio),
+  ]);
+}
+
 class TestMutationObserver {
   static instances: TestMutationObserver[] = [];
 
@@ -276,11 +286,7 @@ describe('startReadingCollector', () => {
   it('starts collection from English text even when the page declares another language', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     document.documentElement.lang = 'zh-CN';
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Technical documentation should remain eligible for local English reading capture when the page declares another language.</p>
-      </article>
-    `;
+    setGuideText('Technical documentation should remain eligible for local English reading capture when the page declares another language.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
 
@@ -312,11 +318,7 @@ describe('startReadingCollector', () => {
   it('does not start collection for pages without English reading text', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     document.documentElement.lang = 'en-US';
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">这篇文章介绍浏览器扩展的权限模型、内容脚本、后台服务和本地数据处理流程。</p>
-      </article>
-    `;
+    setGuideText('这篇文章介绍浏览器扩展的权限模型、内容脚本、后台服务和本地数据处理流程。');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
 
@@ -336,11 +338,7 @@ describe('startReadingCollector', () => {
 
   it('uses the same text snapshot for page totals and flushed chunks', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Dynamic pages should keep page word totals aligned with emitted chunk snapshots.</p>
-      </article>
-    `;
+    setGuideText('Dynamic pages should keep page word totals aligned with emitted chunk snapshots.');
     const hiddenRect = {
       ...visibleRect(),
       width: 0,
@@ -491,11 +489,7 @@ describe('startReadingCollector', () => {
 
   it('ignores intersection updates while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Hidden technical articles should not record visible reading exposure before the user returns.</p>
-      </article>
-    `;
+    setGuideText('Hidden technical articles should not record visible reading exposure before the user returns.');
     setDocumentVisibility('hidden');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
@@ -504,9 +498,7 @@ describe('startReadingCollector', () => {
       await flushPromises();
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -536,11 +528,7 @@ describe('startReadingCollector', () => {
 
   it('orders page visible before restored block visibility when a hidden tab becomes visible', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Restored visible documentation blocks should follow the page visible lifecycle event.</p>
-      </article>
-    `;
+    setGuideText('Restored visible documentation blocks should follow the page visible lifecycle event.');
     setDocumentVisibility('hidden');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
@@ -565,11 +553,7 @@ describe('startReadingCollector', () => {
 
   it('does not emit hidden block events for blocks that were never visible', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Below threshold documentation blocks should not create hidden events before becoming visible.</p>
-      </article>
-    `;
+    setGuideText('Below threshold documentation blocks should not create hidden events before becoming visible.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -579,9 +563,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element, 0.1),
-      ]);
+      emitFirstIntersection(blockElement as Element, 0.1);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -595,9 +577,7 @@ describe('startReadingCollector', () => {
 
   it('emits exposure before a visible block hidden event when the block leaves the viewport', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article><p id="guide">Visible documentation blocks should emit a hidden lifecycle event after leaving the viewport.</p></article>
-    `;
+    setGuideText('Visible documentation blocks should emit a hidden lifecycle event after leaving the viewport.');
     const controller = startReadingCollector({ flushIntervalMs: 10_000, sampleIntervalMs: 10_000 });
 
     try {
@@ -647,11 +627,7 @@ describe('startReadingCollector', () => {
 
   it('does not duplicate visible block events while a block stays visible', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Repeated visible observer updates should update exposure state without duplicating lifecycle events.</p>
-      </article>
-    `;
+    setGuideText('Repeated visible observer updates should update exposure state without duplicating lifecycle events.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -661,12 +637,8 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element, 0.2),
-      ]);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element, 0.9),
-      ]);
+      emitFirstIntersection(blockElement as Element, 0.2);
+      emitFirstIntersection(blockElement as Element, 0.9);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -701,11 +673,7 @@ describe('startReadingCollector', () => {
 
   it('uses the current viewport visible ratio in exposure ticks instead of the historical maximum', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Viewport exposure should reflect the visible text available at the time the tick closes.</p>
-      </article>
-    `;
+    setGuideText('Viewport exposure should reflect the visible text available at the time the tick closes.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -715,9 +683,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element, 0.9),
-      ]);
+      emitFirstIntersection(blockElement as Element, 0.9);
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(partiallyVisibleRect(0.25));
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -828,9 +794,7 @@ describe('startReadingCollector', () => {
         value: 200,
       });
       vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(longBlockElement),
-      ]);
+      emitFirstIntersection(longBlockElement);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -879,9 +843,7 @@ describe('startReadingCollector', () => {
         value: 200,
       });
       vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(longBlockElement),
-      ]);
+      emitFirstIntersection(longBlockElement);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -902,11 +864,7 @@ describe('startReadingCollector', () => {
 
   it('ignores scroll velocity updates while a tab remains hidden', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Hidden scrolling through dense technical documentation should not affect local reading velocity.</p>
-      </article>
-    `;
+    setGuideText('Hidden scrolling through dense technical documentation should not affect local reading velocity.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -988,11 +946,7 @@ describe('startReadingCollector', () => {
 
   it('batches scroll velocity and attaches it to exposure ticks', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Memory overhead increases quickly when scrolling through dense technical documentation and architecture guides.</p>
-      </article>
-    `;
+    setGuideText('Memory overhead increases quickly when scrolling through dense technical documentation and architecture guides.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
     await flushPromises();
@@ -1000,9 +954,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     setWindowScrollY(600);
@@ -1034,11 +986,7 @@ describe('startReadingCollector', () => {
 
   it('samples exposure on a one-second heartbeat independently of batch delivery', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Stable heartbeat sampling should preserve reading intervals even when runtime batches are delivered less frequently.</p>
-      </article>
-    `;
+    setGuideText('Stable heartbeat sampling should preserve reading intervals even when runtime batches are delivered less frequently.');
 
     const controller = startReadingCollector({ flushIntervalMs: 5_000, sampleIntervalMs: 1_000 });
 
@@ -1048,9 +996,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(4_000);
       expect(mocks.sendMessage).not.toHaveBeenCalled();
@@ -1072,11 +1018,7 @@ describe('startReadingCollector', () => {
 
   it('expires stale scroll velocity instead of applying it to later reading ticks', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Brief scrolling should not suppress later attentive reading after the motion signal becomes stale.</p>
-      </article>
-    `;
+    setGuideText('Brief scrolling should not suppress later attentive reading after the motion signal becomes stale.');
 
     const controller = startReadingCollector({
       flushIntervalMs: 2_000,
@@ -1090,9 +1032,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(500);
       setWindowScrollY(600);
@@ -1120,11 +1060,7 @@ describe('startReadingCollector', () => {
 
   it('marks visible dwell as inactive while the browser window is unfocused', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Window focus should gate attention even while the document remains technically visible.</p>
-      </article>
-    `;
+    setGuideText('Window focus should gate attention even while the document remains technically visible.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_500, sampleIntervalMs: 500 });
 
@@ -1134,9 +1070,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(500);
       window.dispatchEvent(new Event('blur'));
@@ -1165,11 +1099,7 @@ describe('startReadingCollector', () => {
   it('starts with attention disabled when the document is already unfocused', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     vi.mocked(document.hasFocus).mockReturnValue(false);
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Collector startup should respect an already unfocused browser window before any blur event arrives.</p>
-      </article>
-    `;
+    setGuideText('Collector startup should respect an already unfocused browser window before any blur event arrives.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -1179,9 +1109,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -1198,11 +1126,7 @@ describe('startReadingCollector', () => {
 
   it('marks exposure ticks as idle after the user stops interacting', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Long visible documentation pages should not count as active reading after the user leaves the browser idle.</p>
-      </article>
-    `;
+    setGuideText('Long visible documentation pages should not count as active reading after the user leaves the browser idle.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
     await flushPromises();
@@ -1210,9 +1134,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(1_000);
 
@@ -1239,11 +1161,7 @@ describe('startReadingCollector', () => {
 
   it('emits an active event and resumes non-idle exposure after user interaction', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Active reading should resume when keyboard input follows an idle visible documentation session.</p>
-      </article>
-    `;
+    setGuideText('Active reading should resume when keyboard input follows an idle visible documentation session.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000, idleTimeoutMs: 500 });
     await flushPromises();
@@ -1251,9 +1169,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(600);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
@@ -1285,11 +1201,7 @@ describe('startReadingCollector', () => {
 
   it('keeps final visibilitychange exposure active for the visible dwell window', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Visible reading before a tab is hidden should still count as active exposure time.</p>
-      </article>
-    `;
+    setGuideText('Visible reading before a tab is hidden should still count as active exposure time.');
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
 
@@ -1299,9 +1211,7 @@ describe('startReadingCollector', () => {
 
       const blockElement = document.querySelector('#guide');
       expect(blockElement).toBeInstanceOf(HTMLElement);
-      TestIntersectionObserver.instances[0].emit([
-        visibleIntersectionEntry(blockElement as Element),
-      ]);
+      emitFirstIntersection(blockElement as Element);
 
       await vi.advanceTimersByTimeAsync(500);
       setDocumentVisibility('hidden');
@@ -1332,11 +1242,7 @@ describe('startReadingCollector', () => {
 
   it('resumes exposure ticks for visible blocks after the tab becomes visible again', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Visible documentation should continue accumulating local reading exposure after returning to the tab.</p>
-      </article>
-    `;
+    setGuideText('Visible documentation should continue accumulating local reading exposure after returning to the tab.');
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
     await flushPromises();
@@ -1344,9 +1250,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     setDocumentVisibility('hidden');
@@ -1378,11 +1282,7 @@ describe('startReadingCollector', () => {
 
   it('flushes open exposure when the page is hidden by navigation before the next interval', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Navigation away from a technical article should preserve the final visible reading exposure locally.</p>
-      </article>
-    `;
+    setGuideText('Navigation away from a technical article should preserve the final visible reading exposure locally.');
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
     await flushPromises();
@@ -1390,9 +1290,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     window.dispatchEvent(new Event('pagehide'));
@@ -1420,11 +1318,7 @@ describe('startReadingCollector', () => {
 
   it('retries the final stop flush once when runtime delivery fails', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Stopping a collector should still preserve final visible reading exposure when delivery briefly fails.</p>
-      </article>
-    `;
+    setGuideText('Stopping a collector should still preserve final visible reading exposure when delivery briefly fails.');
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
     await flushPromises();
@@ -1432,9 +1326,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce({ ok: true });
@@ -1457,11 +1349,7 @@ describe('startReadingCollector', () => {
 
   it('orders final stop exposure before the page hidden event', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Stopping a visible reading session should keep exposure before the lifecycle hidden event.</p>
-      </article>
-    `;
+    setGuideText('Stopping a visible reading session should keep exposure before the lifecycle hidden event.');
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
     await flushPromises();
@@ -1469,9 +1357,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     controller.stop();
@@ -1502,11 +1388,7 @@ describe('startReadingCollector', () => {
 
   it('does not flush again when the collector is stopped twice', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    document.body.innerHTML = `
-      <article>
-        <p id="guide">Repeated collector stops should not duplicate visible reading exposure after cleanup completes.</p>
-      </article>
-    `;
+    setGuideText('Repeated collector stops should not duplicate visible reading exposure after cleanup completes.');
 
     const controller = startReadingCollector({ flushIntervalMs: 10_000 });
     await flushPromises();
@@ -1514,9 +1396,7 @@ describe('startReadingCollector', () => {
 
     const blockElement = document.querySelector('#guide');
     expect(blockElement).toBeInstanceOf(HTMLElement);
-    TestIntersectionObserver.instances[0].emit([
-      visibleIntersectionEntry(blockElement as Element),
-    ]);
+    emitFirstIntersection(blockElement as Element);
 
     await vi.advanceTimersByTimeAsync(500);
     controller.stop();
