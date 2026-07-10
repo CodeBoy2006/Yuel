@@ -1053,3 +1053,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The carousel never auto-advances. TypeScript, all 305 tests, the production build, the interface detector, and live browser checks at desktop, 390px, and 240px widths passed without console errors or horizontal overflow.
+
+## [2026-07-10 20:04] Full-Bleed Share Card Bands
+- **Changes:** Unified responsive card units under the carousel viewport so the Mist metrics band and Berry reading panel reach both card edges without residual side gaps.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Live browser geometry reports exact 0px left and right gaps for both themes. The focused carousel test, production build, interface detector, and browser console checks pass.
