@@ -19,6 +19,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { analyzeEnglishText } from '../../src/analysis/english';
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../../src/domain/metrics';
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
@@ -101,7 +102,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
-  const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'rejected' | 'failed'>('idle');
   const dashboardRootRef = useRef<HTMLElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const calibrationSessionRef = useRef(0);
@@ -403,7 +404,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       setCalibrationStep('idle');
       setCalibrationStartedAt(undefined);
       setCalibrationReadingFinishedAt(undefined);
-      setCalibrationSaveStatus('saved');
+      setCalibrationSaveStatus(nextPaceSummary.calibrationAccepted === false ? 'rejected' : 'saved');
     } catch (error) {
       console.error('Failed to save Yuel reading pace calibration', error);
       if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
@@ -644,6 +645,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           ) : null}
 
           {calibrationSaveStatus === 'saved' ? <InlineNotice tone="positive">校准已保存。</InlineNotice> : null}
+          {calibrationSaveStatus === 'rejected' ? (
+            <InlineNotice tone="neutral">理解题未达门槛，本次速度样本未写入。</InlineNotice>
+          ) : null}
         </section>
 
         {viewState === 'ready' && details ? (
@@ -802,9 +806,9 @@ function SavedHighlightCard({ item }: { item: RecentSavedItemSummary }) {
 }
 
 const PACE_CALIBRATION_PASSAGE =
-  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should start with one realistic pace for the reader, then divide that attention across the text that is actually visible. When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become cautious. When the reader stays with a stable viewport and several body paragraphs remain visible, the sample becomes more useful. Yuel uses this calibration passage to set an initial baseline for your personal reading pace. The result is not a grade. It is a local starting point that can improve later as real pages provide stronger evidence. Comprehension questions help decide how much weight to give the timing measurement. If the answers are solid, the observed pace can influence the baseline more. If the answers are weak, the system keeps more of the default pace and waits for future high confidence samples. Over time, adaptive updates should move slowly, so one unusual page does not suddenly rewrite the baseline. This keeps daily word counts practical without rewarding fast skimming or accidental exposure.';
+  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should start with one realistic pace for the reader, then divide that attention across the text that is actually visible. When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become cautious. When the reader stays with a stable viewport and several body paragraphs remain visible, the sample becomes more useful. Yuel uses this calibration passage to set an initial baseline for your personal reading pace. The result is not a grade. It is a local starting point that can improve later as real pages provide stronger evidence. Comprehension questions help decide how much weight to give the timing measurement. If the answers are solid, the observed pace can influence the baseline more. If the answers are weak, the timing sample is discarded and the system waits for future high confidence evidence. Over time, adaptive updates should move slowly, so one unusual page does not suddenly rewrite the baseline. This keeps daily word counts practical without rewarding fast skimming or accidental exposure.';
 
-const PACE_CALIBRATION_WORD_COUNT = countWords(PACE_CALIBRATION_PASSAGE);
+const PACE_CALIBRATION_WORD_COUNT = analyzeEnglishText(PACE_CALIBRATION_PASSAGE).wordCount;
 
 const paceCalibrationQuestions = [
   {
@@ -848,10 +852,6 @@ function scrollToSection(root: HTMLElement | null, id: string) {
   const focusTarget = target.querySelector<HTMLElement>('[tabindex="-1"]')
     ?? target.querySelector<HTMLElement>('h1, h2, h3');
   focusTarget?.focus({ preventScroll: true });
-}
-
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 async function getFallbackReadingPaceSummary(): Promise<ReadingPaceSummary> {

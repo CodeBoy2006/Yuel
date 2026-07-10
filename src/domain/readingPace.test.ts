@@ -17,9 +17,9 @@ describe('reading pace calibration', () => {
       defaultWordsPerMinute: 220,
     };
 
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 3 })).toBeCloseTo(233, 6);
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 2 })).toBeCloseTo(227, 6);
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 1 })).toBeCloseTo(222, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 3 })).toBeCloseTo(227, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 2 })).toBeCloseTo(223, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 1 })).toBeCloseTo(220, 6);
   });
 
   it('clamps onboarding pace to the content-type range', () => {
@@ -66,6 +66,20 @@ describe('reading pace calibration', () => {
       source: 'onboarding',
       updatedAt: 61_000,
     });
+  });
+
+  it('rejects onboarding timing when comprehension is below the acceptance threshold', () => {
+    expect(
+      upsertOnboardingReadingPaceProfile(undefined, {
+        language: 'en',
+        contentType: 'general',
+        wordCount: 240,
+        startedAt: 1_000,
+        completedAt: 61_000,
+        correctAnswers: 1,
+        questionCount: 3,
+      }),
+    ).toBeUndefined();
   });
 
   it('updates adaptive pace with the early-sample EMA weight', () => {

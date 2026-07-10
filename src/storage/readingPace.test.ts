@@ -65,9 +65,44 @@ describe('reading pace storage', () => {
     expect(summary).toMatchObject({
       language: 'en',
       contentType: 'general',
-      baseWordsPerMinute: expect.closeTo(233, 6),
+      baseWordsPerMinute: expect.closeTo(227, 6),
       source: 'onboarding',
       hasProfile: true,
+      calibrationAccepted: true,
+    });
+  });
+
+  it('does not overwrite the active profile when comprehension is too weak', async () => {
+    const existingProfile: ReadingPaceProfileRecord = {
+      id: 'en:general',
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 205,
+      sampleCount: 4,
+      source: 'adaptive',
+      updatedAt: 500,
+    };
+    const store = createStore(existingProfile);
+
+    const summary = await saveOnboardingReadingPaceCalibration(
+      {
+        language: 'en',
+        contentType: 'general',
+        wordCount: 240,
+        startedAt: 1_000,
+        completedAt: 61_000,
+        correctAnswers: 1,
+        questionCount: 3,
+      },
+      store,
+    );
+
+    expect(store.readingPaceProfiles.put).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({
+      baseWordsPerMinute: 205,
+      source: 'adaptive',
+      hasProfile: true,
+      calibrationAccepted: false,
     });
   });
 });

@@ -21,6 +21,7 @@ export interface PageSnapshot {
   urlHash: string;
   language: string;
   totalWords: number;
+  metricModelVersion?: number;
   capturedAt: number;
 }
 
@@ -29,6 +30,7 @@ export interface TextChunkSnapshot {
   pageId: string;
   textHash: string;
   text?: string;
+  sourceKey?: string;
   wordCount: number;
   sentenceCount: number;
   selector: string;
@@ -58,8 +60,9 @@ export function createPageId(url: string): string {
   return `${domain}_${hashText(normalizeUrlForHashing(url))}`;
 }
 
-export function createChunkId(pageId: string, text: string): string {
-  return `${pageId}_${hashText(text)}`;
+export function createChunkId(pageId: string, text: string, sourceKey?: string): string {
+  const identity = sourceKey ? `${sourceKey}\u0000${text}` : text;
+  return `${pageId}_${hashText(identity)}`;
 }
 
 export function getDomain(url: string): string {

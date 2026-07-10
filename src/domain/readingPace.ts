@@ -92,14 +92,14 @@ export function getOnboardingConfidenceWeight(correctAnswers: number, questionCo
   const wrongAnswers = boundedQuestionCount - boundedCorrectAnswers;
 
   if (wrongAnswers <= 0 && boundedQuestionCount > 0) {
-    return 0.65;
-  }
-
-  if (wrongAnswers === 1) {
     return 0.35;
   }
 
-  return 0.1;
+  if (wrongAnswers === 1) {
+    return 0.15;
+  }
+
+  return 0;
 }
 
 export function calculateOnboardingBaseWordsPerMinute(input: OnboardingReadingPaceInput): number {
@@ -117,7 +117,11 @@ export function calculateOnboardingBaseWordsPerMinute(input: OnboardingReadingPa
 export function upsertOnboardingReadingPaceProfile(
   existingProfile: ReadingPaceProfile | undefined,
   input: OnboardingReadingPaceInput,
-): ReadingPaceProfile {
+): ReadingPaceProfile | undefined {
+  if (getOnboardingConfidenceWeight(input.correctAnswers, input.questionCount) <= 0) {
+    return undefined;
+  }
+
   const language = normalizeReadingPaceLanguage(input.language ?? existingProfile?.language);
   const contentType = input.contentType ?? existingProfile?.contentType ?? DEFAULT_READING_CONTENT_TYPE;
   const baseWordsPerMinute = calculateOnboardingBaseWordsPerMinute({

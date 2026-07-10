@@ -20,6 +20,8 @@ interface CollectorOptions {
   flushIntervalMs?: number;
   idleTimeoutMs?: number;
   routeCheckIntervalMs?: number;
+  sampleIntervalMs?: number;
+  scrollSpeedExpiryMs?: number;
 }
 
 interface CollectorRunController {
@@ -38,9 +40,13 @@ interface ScrollVelocitySample {
 
 interface ScrollVelocityMeasurement extends ScrollVelocitySample {
   scrollDeltaPx: number;
+  scrollDirection: -1 | 1;
   elapsedMs: number;
   scrollSpeedWordsPerMinute: number;
 }
+
+const VIEWPORT_ATTENTION_MEAN = 0.492;
+const VIEWPORT_ATTENTION_STANDARD_DEVIATION = 0.201;
 
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   if (getDocumentPrimaryLanguage(document) !== 'en') {
@@ -51,7 +57,8 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   const routeCheckIntervalMs = options.routeCheckIntervalMs ?? 1_000;
   let stopped = false;
   let currentHref = window.location.href;
-  let currentRun = startReadingCollectorRun(options);
+  let currentSessionId = createSessionId();
+  let currentRun = startReadingCollectorRun(options, currentSessionId);
   let dynamicRefreshTimer: number | undefined;
 
   const restartRun = (emitPageHidden: boolean) => {
@@ -66,7 +73,10 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
 
     currentRun.stop({ emitPageHidden });
     currentHref = window.location.href;
-    currentRun = startReadingCollectorRun(options);
+    if (emitPageHidden) {
+      currentSessionId = createSessionId();
+    }
+    currentRun = startReadingCollectorRun(options, currentSessionId);
   };
 
   const restartForRouteIfNeeded = () => {
@@ -130,25 +140,32 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
   };
 }
 
-function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunController {
+function startReadingCollectorRun(
+  options: CollectorOptions = {},
+  sessionId = createSessionId(),
+): CollectorRunController {
   if (getDocumentPrimaryLanguage(document) !== 'en') {
     return createNoopCollectorRunController();
   }
 
   const flushIntervalMs = options.flushIntervalMs ?? 15_000;
   const idleTimeoutMs = options.idleTimeoutMs ?? 45_000;
-  const sessionId = createSessionId();
+  const sampleIntervalMs = options.sampleIntervalMs ?? 1_000;
+  const scrollSpeedExpiryMs = options.scrollSpeedExpiryMs ?? 750;
   const blocks = collectTextBlocks();
   const page = summarizeCurrentPage(document, blocks);
   const blocksByElement = groupBlocksByElement(blocks);
   const visibleBlocks = new Map<string, VisibleBlockState>();
   let latestScrollSpeedWordsPerMinute = 0;
+  let latestScrollDirection: -1 | 0 | 1 = 0;
   let userIdle = false;
   let pageHidden = document.visibilityState === 'hidden';
+  let windowFocused = !pageHidden && hasDocumentFocus();
   let stopped = false;
   let lastInteractionAt = Date.now();
   let lastViewportTickAt = Date.now();
   let idleStartedAt: number | undefined;
+  let scrollSpeedExpiryTimer: number | undefined;
   let lastScrollSample: ScrollVelocitySample = {
     scrollY: getCurrentScrollY(),
     sampledAt: Date.now(),
@@ -261,7 +278,7 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
 
   const closeCurrentViewportInterval = (
     now = Date.now(),
-    activeTab = document.visibilityState === 'visible',
+    activeTab = document.visibilityState === 'visible' && windowFocused,
     documentVisible = document.visibilityState === 'visible',
   ) => {
     appendViewportExposureTick(
@@ -272,6 +289,7 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
       lastViewportTickAt,
       now,
       latestScrollSpeedWordsPerMinute,
+      latestScrollDirection,
       activeTab,
       documentVisible,
       now - lastInteractionAt,
@@ -282,6 +300,9 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
   const flushTimer = window.setInterval(() => {
     void flushNow();
   }, flushIntervalMs);
+  const sampleTimer = window.setInterval(() => {
+    closeCurrentViewportInterval();
+  }, sampleIntervalMs);
 
   let idleTimer = window.setTimeout(() => {
     markUserIdle(Date.now());
@@ -299,6 +320,7 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
       return;
     }
 
+    closeCurrentViewportInterval(now);
     userIdle = true;
     idleStartedAt = now;
     pendingEvents.push({
@@ -314,12 +336,11 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
     });
   };
 
-  const markUserActive = () => {
+  const markUserActive = (now = Date.now()) => {
     if (pageHidden) {
       return;
     }
 
-    const now = Date.now();
     if (userIdle) {
       pendingEvents.push({
         id: createEventId('UserActive', now),
@@ -358,7 +379,13 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
   };
 
   const flushHiddenPage = () => {
-    closeCurrentViewportInterval(Date.now(), true, true);
+    closeCurrentViewportInterval(Date.now(), windowFocused, true);
+    if (scrollSpeedExpiryTimer !== undefined) {
+      window.clearTimeout(scrollSpeedExpiryTimer);
+      scrollSpeedExpiryTimer = undefined;
+    }
+    latestScrollSpeedWordsPerMinute = 0;
+    latestScrollDirection = 0;
     visibleBlocks.clear();
     appendPageHiddenOnce();
 
@@ -373,6 +400,7 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
 
     if (pageHidden) {
       pageHidden = false;
+      windowFocused = hasDocumentFocus();
       const now = Date.now();
       lastInteractionAt = now;
       lastViewportTickAt = now;
@@ -393,23 +421,40 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
     flushHiddenPage();
   };
 
+  const scheduleScrollSpeedExpiry = () => {
+    if (scrollSpeedExpiryTimer !== undefined) {
+      window.clearTimeout(scrollSpeedExpiryTimer);
+    }
+    scrollSpeedExpiryTimer = window.setTimeout(() => {
+      scrollSpeedExpiryTimer = undefined;
+      if (!pageHidden && latestScrollSpeedWordsPerMinute > 0) {
+        closeCurrentViewportInterval();
+      }
+      latestScrollSpeedWordsPerMinute = 0;
+      latestScrollDirection = 0;
+    }, scrollSpeedExpiryMs);
+  };
+
   const onScroll = () => {
     if (pageHidden) {
       return;
     }
 
-    markUserActive();
-
     const measurement = measureScrollVelocity(lastScrollSample, page.totalWords);
     if (!measurement) {
+      markUserActive();
       return;
     }
 
+    closeCurrentViewportInterval(measurement.sampledAt);
+    markUserActive(measurement.sampledAt);
     lastScrollSample = {
       scrollY: measurement.scrollY,
       sampledAt: measurement.sampledAt,
     };
     latestScrollSpeedWordsPerMinute = measurement.scrollSpeedWordsPerMinute;
+    latestScrollDirection = measurement.scrollDirection;
+    scheduleScrollSpeedExpiry();
     pendingEvents.push({
       id: createEventId('ScrollVelocityChanged', measurement.sampledAt),
       sessionId,
@@ -419,6 +464,7 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
       confidence: confidenceFromScrollSpeed(measurement.scrollSpeedWordsPerMinute),
       value: {
         scrollDeltaPx: measurement.scrollDeltaPx,
+        scrollDirection: measurement.scrollDirection,
         elapsedMs: measurement.elapsedMs,
         scrollSpeedWordsPerMinute: measurement.scrollSpeedWordsPerMinute,
       },
@@ -433,13 +479,15 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
     const text = document.getSelection()?.toString().trim();
     if (!text) return;
 
-    markUserActive();
+    const now = Date.now();
+    closeCurrentViewportInterval(now);
+    markUserActive(now);
     pendingEvents.push({
-      id: createEventId('TextSelected'),
+      id: createEventId('TextSelected', now),
       sessionId,
       pageId: page.pageId,
       kind: 'TextSelected',
-      occurredAt: Date.now(),
+      occurredAt: now,
       confidence: 'high',
       value: {
         textHash: hashText(text),
@@ -449,11 +497,30 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
   };
 
   const onUserActivity = () => {
-    markUserActive();
+    const now = Date.now();
+    closeCurrentViewportInterval(now);
+    markUserActive(now);
+  };
+
+  const onWindowBlur = () => {
+    if (!windowFocused) return;
+    const now = Date.now();
+    closeCurrentViewportInterval(now, true, document.visibilityState === 'visible');
+    windowFocused = false;
+  };
+
+  const onWindowFocus = () => {
+    if (windowFocused || pageHidden) return;
+    const now = Date.now();
+    closeCurrentViewportInterval(now, false, document.visibilityState === 'visible');
+    windowFocused = true;
+    markUserActive(now);
   };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('blur', onWindowBlur);
+  window.addEventListener('focus', onWindowFocus);
   document.addEventListener('pointerdown', onUserActivity);
   document.addEventListener('keydown', onUserActivity);
   window.addEventListener('scroll', onScroll, { passive: true });
@@ -472,9 +539,15 @@ function startReadingCollectorRun(options: CollectorOptions = {}): CollectorRunC
 
       stopped = true;
       window.clearInterval(flushTimer);
+      window.clearInterval(sampleTimer);
       window.clearTimeout(idleTimer);
+      if (scrollSpeedExpiryTimer !== undefined) {
+        window.clearTimeout(scrollSpeedExpiryTimer);
+      }
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('focus', onWindowFocus);
       document.removeEventListener('pointerdown', onUserActivity);
       document.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onScroll);
@@ -617,6 +690,7 @@ function appendViewportExposureTick(
   startedAt: number,
   now: number,
   scrollSpeedWordsPerMinute: number,
+  scrollDirection: -1 | 0 | 1,
   activeTab: boolean,
   documentVisible: boolean,
   idleAgeMs: number,
@@ -627,18 +701,27 @@ function appendViewportExposureTick(
   }
 
   const visibleChunks = Array.from(visibleBlocks.values()).flatMap((state) => {
-    const visibleRatio = getTextBlockVisibleRatio(state.block);
+    const rects = getTextBlockClientRects(state.block);
+    const visibleRatio = getViewportRectsVisibleRatio(rects);
     if (visibleRatio < 0.15) {
       return [];
     }
+
+    const contentMultiplier = getContentRateMultiplier(state.block.element);
 
     return [
       {
         chunkId: state.block.chunkId,
         wordCount: state.block.wordCount,
         visibleRatio,
-        centerDistance: getTextBlockCenterDistance(state.block),
-        contentWeight: getContentWeight(state.block.element),
+        visibleWordCount: state.block.wordCount * visibleRatio,
+        centerDistance: getViewportRectCenterDistance(getBoundingRect(rects)),
+        viewportY: getViewportRectCenterY(getBoundingRect(rects)),
+        attentionMass: getTextBlockAttentionMass(state.block, rects),
+        contentMultiplier,
+        // Kept during the v2 event migration so older background workers can
+        // still validate and conservatively interpret a locally queued batch.
+        contentWeight: contentMultiplier,
       },
     ];
   });
@@ -660,6 +743,7 @@ function appendViewportExposureTick(
       activeTab,
       documentVisible,
       scrollSpeedWordsPerMinute,
+      scrollDirection,
       idleAgeMs: Math.max(0, idleAgeMs),
       visibleChunks,
     },
@@ -670,8 +754,20 @@ function getTextBlockVisibleRatio(block: TextBlockCandidate): number {
   return getViewportRectsVisibleRatio(getTextBlockClientRects(block));
 }
 
-function getTextBlockCenterDistance(block: TextBlockCandidate): number {
-  return getViewportRectCenterDistance(getBoundingRect(getTextBlockClientRects(block)));
+function getTextBlockAttentionMass(block: TextBlockCandidate, rects = getTextBlockClientRects(block)): number {
+  const totalArea = rects.reduce((sum, rect) => sum + getRectArea(rect), 0);
+  if (totalArea <= 0) return 0;
+
+  return rects.reduce((sum, rect) => {
+    const visibleArea = getViewportVisibleArea(rect);
+    if (visibleArea <= 0) return sum;
+
+    const visibleWordMass = block.wordCount * visibleArea / totalArea;
+    const viewportY = getVisibleRectCenterY(rect);
+    const normalizedDistance = (viewportY - VIEWPORT_ATTENTION_MEAN) / VIEWPORT_ATTENTION_STANDARD_DEVIATION;
+    const gaussianWeight = Math.exp(-0.5 * normalizedDistance * normalizedDistance);
+    return sum + visibleWordMass * gaussianWeight;
+  }, 0);
 }
 
 function getTextBlockClientRects(block: TextBlockCandidate): DOMRect[] {
@@ -772,6 +868,18 @@ function getViewportRectCenterDistance(rect: DOMRect): number {
   return Math.max(0, Math.abs(elementCenterY - viewportCenterY) / Math.max(1, viewportHeight));
 }
 
+function getViewportRectCenterY(rect: DOMRect): number {
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
+  return (rect.top + rect.height / 2) / Math.max(1, viewportHeight);
+}
+
+function getVisibleRectCenterY(rect: DOMRect): number {
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
+  const visibleTop = Math.max(0, Math.min(viewportHeight, rect.top));
+  const visibleBottom = Math.max(visibleTop, Math.min(viewportHeight, rect.bottom));
+  return (visibleTop + visibleBottom) / 2 / Math.max(1, viewportHeight);
+}
+
 function hasRectArea(rect: DOMRect): boolean {
   return getRectArea(rect) > 0;
 }
@@ -789,7 +897,7 @@ function getViewportVisibleArea(rect: DOMRect): number {
   return visibleWidth * visibleHeight;
 }
 
-function getContentWeight(element: HTMLElement): number {
+function getContentRateMultiplier(element: HTMLElement): number {
   const tagName = element.tagName.toLowerCase();
   if (element.closest('pre, code')) return 0.2;
   if (tagName === 'li') return 0.8;
@@ -801,7 +909,8 @@ function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: numbe
   const sampledAt = Date.now();
   const scrollY = getCurrentScrollY();
   const elapsedMs = sampledAt - previous.sampledAt;
-  const scrollDeltaPx = Math.abs(scrollY - previous.scrollY);
+  const signedScrollDeltaPx = scrollY - previous.scrollY;
+  const scrollDeltaPx = Math.abs(signedScrollDeltaPx);
 
   if (elapsedMs < 100 || scrollDeltaPx < 1) {
     return undefined;
@@ -814,6 +923,7 @@ function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: numbe
     scrollY,
     sampledAt,
     scrollDeltaPx,
+    scrollDirection: signedScrollDeltaPx > 0 ? 1 : -1,
     elapsedMs,
     scrollSpeedWordsPerMinute: Math.round(Math.max(0, totalWords) * pageProgressPerMinute),
   };
@@ -821,6 +931,10 @@ function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: numbe
 
 function getCurrentScrollY(): number {
   return Math.max(0, window.scrollY || window.pageYOffset || 0);
+}
+
+function hasDocumentFocus(): boolean {
+  return typeof document.hasFocus !== 'function' || document.hasFocus();
 }
 
 function confidenceFromScrollSpeed(scrollSpeedWordsPerMinute: number): ReadingEvent['confidence'] {

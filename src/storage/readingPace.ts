@@ -18,6 +18,7 @@ export interface ReadingPaceSummary {
   source: ReadingPaceProfileSource;
   updatedAt?: number;
   hasProfile: boolean;
+  calibrationAccepted?: boolean;
 }
 
 export interface ReadingPaceStore {
@@ -47,8 +48,18 @@ export async function saveOnboardingReadingPaceCalibration(
   const existingProfile = await store.readingPaceProfiles.get(profileId);
   const nextProfile = upsertOnboardingReadingPaceProfile(existingProfile, input);
 
+  if (!nextProfile) {
+    return {
+      ...toReadingPaceSummary(existingProfile, input.language ?? DEFAULT_READING_LANGUAGE, contentType),
+      calibrationAccepted: false,
+    };
+  }
+
   await store.readingPaceProfiles.put(nextProfile);
-  return toReadingPaceSummary(nextProfile, nextProfile.language, nextProfile.contentType);
+  return {
+    ...toReadingPaceSummary(nextProfile, nextProfile.language, nextProfile.contentType),
+    calibrationAccepted: true,
+  };
 }
 
 function toReadingPaceSummary(

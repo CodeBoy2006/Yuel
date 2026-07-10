@@ -1,5 +1,6 @@
 import { analyzeEnglishText, isLikelyEnglishText } from '../analysis/english';
 import { createChunkId, createPageId, hashText, type PageSnapshot, type TextChunkSnapshot } from '../domain/events';
+import { READING_METRIC_MODEL_VERSION } from '../domain/metrics';
 
 export interface TextBlockCandidate extends TextChunkSnapshot {
   element: HTMLElement;
@@ -54,8 +55,8 @@ const TEXT_BLOCK_SELECTOR = [
 ].join(',');
 const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body h1, body h2, body h3, body pre, body blockquote';
 const MIN_TEXT_CHUNK_WORDS = 8;
-const TARGET_MIN_TEXT_CHUNK_WORDS = 30;
-const MAX_TEXT_CHUNK_WORDS = 120;
+const TARGET_MIN_TEXT_CHUNK_WORDS = 16;
+const MAX_TEXT_CHUNK_WORDS = 24;
 const EXCLUDED_ANCESTOR_SELECTOR = [
   'nav',
   'header',
@@ -89,6 +90,7 @@ export function summarizeCurrentPage(
     urlHash: hashText(url),
     language: blocks.length > 0 ? 'en' : getDocumentPrimaryLanguage(doc),
     totalWords: blocks.reduce((sum, block) => sum + block.wordCount, 0),
+    metricModelVersion: READING_METRIC_MODEL_VERSION,
     capturedAt: Date.now(),
   };
 }
@@ -105,15 +107,18 @@ export function getDocumentPrimaryLanguage(doc: Document = document): string {
 }
 
 function collectCandidates(doc: Document, pageId: string, selector: string): TextBlockCandidate[] {
-  const seen = new Set<string>();
+  const sourceOccurrences = new Map<string, number>();
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
     .filter((element) => !hasExcludedAncestor(element))
-    .flatMap((element) => createCandidates(pageId, element))
-    .filter((candidate) => {
-      if (seen.has(candidate.textHash)) return false;
-      seen.add(candidate.textHash);
-      return true;
+    .flatMap((element) => {
+      const sourceFingerprint = createSourceFingerprint(element);
+      const sourceOccurrence = (sourceOccurrences.get(sourceFingerprint) ?? 0) + 1;
+      const candidates = createCandidates(pageId, element, sourceFingerprint, sourceOccurrence);
+      if (candidates.length > 0) {
+        sourceOccurrences.set(sourceFingerprint, sourceOccurrence);
+      }
+      return candidates;
     });
 }
 
@@ -121,7 +126,12 @@ function hasExcludedAncestor(element: HTMLElement): boolean {
   return Boolean(element.closest(EXCLUDED_ANCESTOR_SELECTOR));
 }
 
-function createCandidates(pageId: string, element: HTMLElement): TextBlockCandidate[] {
+function createCandidates(
+  pageId: string,
+  element: HTMLElement,
+  sourceFingerprint: string,
+  sourceOccurrence: number,
+): TextBlockCandidate[] {
   if (!isVisibleElement(element)) {
     return [];
   }
@@ -146,20 +156,29 @@ function createCandidates(pageId: string, element: HTMLElement): TextBlockCandid
 
   return textChunks.map((chunkText, index) => {
     const analysis = analyzeEnglishText(chunkText);
+    const chunkSelector = textChunks.length === 1 ? selector : `${selector}::chunk(${index + 1})`;
+    const sourceKey = `source(${sourceFingerprint}:${sourceOccurrence})::segment(${index + 1})`;
     return {
       element,
       chunkIndex: index,
       chunkCount: textChunks.length,
       textRange: textRanges[index],
-      chunkId: createChunkId(pageId, chunkText),
+      chunkId: createChunkId(pageId, chunkText, sourceKey),
       pageId,
       textHash: hashText(chunkText),
       text: chunkText,
+      sourceKey,
       wordCount: analysis.wordCount,
       sentenceCount: analysis.sentenceCount,
-      selector: textChunks.length === 1 ? selector : `${selector}::chunk(${index + 1})`,
+      selector: chunkSelector,
     };
   });
+}
+
+function createSourceFingerprint(element: HTMLElement): string {
+  const normalizedText = normalizeWhitespace(element.innerText || element.textContent || '');
+  const stableIdentity = element.id ? `id:${element.id}` : `text:${normalizedText}`;
+  return hashText(stableIdentity);
 }
 
 function createChunkTextRanges(element: HTMLElement, textChunks: string[]): Array<Range | undefined> {
@@ -263,7 +282,7 @@ interface TextChunkUnit {
 
 function splitTextIntoChunkTexts(text: string): string[] {
   const units = splitIntoChunkUnits(text);
-  const chunks: TextChunkUnit[] = [];
+  let chunks: TextChunkUnit[] = [];
   let currentTexts: string[] = [];
   let currentWordCount = 0;
 
@@ -288,6 +307,8 @@ function splitTextIntoChunkTexts(text: string): string[] {
       wordCount: currentWordCount,
     });
   }
+
+  chunks = rebalanceUndersizedChunks(chunks);
 
   const lastChunk = chunks.at(-1);
   const previousChunk = chunks.at(-2);
@@ -327,10 +348,18 @@ function splitIntoSentenceTexts(text: string): string[] {
 }
 
 function splitOversizedSentence(sentence: string): TextChunkUnit[] {
-  const parts = sentence.split(/\s+/).filter(Boolean);
+  return splitTextByBalancedWords(sentence);
+}
+
+function splitTextByBalancedWords(text: string): TextChunkUnit[] {
+  const parts = text.split(/\s+/).filter(Boolean);
+  const totalWordCount = analyzeEnglishText(text).wordCount;
+  const desiredChunkCount = Math.max(1, Math.ceil(totalWordCount / MAX_TEXT_CHUNK_WORDS));
   const chunks: TextChunkUnit[] = [];
   let currentParts: string[] = [];
   let currentWordCount = 0;
+  let remainingWordCount = totalWordCount;
+  let remainingChunkCount = desiredChunkCount;
 
   for (const part of parts) {
     const wordCount = analyzeEnglishText(part).wordCount;
@@ -339,11 +368,18 @@ function splitOversizedSentence(sentence: string): TextChunkUnit[] {
       continue;
     }
 
-    if (currentWordCount > 0 && currentWordCount + wordCount > MAX_TEXT_CHUNK_WORDS) {
+    const targetWordCount = Math.ceil(remainingWordCount / Math.max(1, remainingChunkCount));
+    if (
+      currentWordCount > 0 &&
+      currentWordCount + wordCount > targetWordCount &&
+      chunks.length < desiredChunkCount - 1
+    ) {
       chunks.push({
         text: currentParts.join(' '),
         wordCount: currentWordCount,
       });
+      remainingWordCount -= currentWordCount;
+      remainingChunkCount -= 1;
       currentParts = [part];
       currentWordCount = wordCount;
       continue;
@@ -361,6 +397,20 @@ function splitOversizedSentence(sentence: string): TextChunkUnit[] {
   }
 
   return chunks;
+}
+
+function rebalanceUndersizedChunks(chunks: TextChunkUnit[]): TextChunkUnit[] {
+  const rebalanced = chunks.map((chunk) => ({ ...chunk }));
+  let undersizedIndex = rebalanced.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
+
+  while (undersizedIndex >= 0 && rebalanced.length > 1) {
+    const pairStart = undersizedIndex === rebalanced.length - 1 ? undersizedIndex - 1 : undersizedIndex;
+    const combinedText = `${rebalanced[pairStart].text} ${rebalanced[pairStart + 1].text}`;
+    rebalanced.splice(pairStart, 2, ...splitTextByBalancedWords(combinedText));
+    undersizedIndex = rebalanced.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
+  }
+
+  return rebalanced;
 }
 
 function isVisibleElement(element: HTMLElement): boolean {

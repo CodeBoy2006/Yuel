@@ -66,6 +66,9 @@ interface VisibleChunkEventValue {
   visibleRatio: number;
   centerDistance: number;
   contentWeight: number;
+  attentionMass?: number;
+  contentMultiplier?: number;
+  visibleWordCount?: number;
 }
 
 export function summarizeReadingEventBatch(
@@ -114,6 +117,9 @@ export function summarizeReadingEventBatch(
           visibleRatio: visibleChunk.visibleRatio,
           centerDistance: visibleChunk.centerDistance,
           contentWeight: visibleChunk.contentWeight,
+          attentionMass: visibleChunk.attentionMass,
+          contentMultiplier: visibleChunk.contentMultiplier,
+          visibleWordCount: visibleChunk.visibleWordCount,
           sessionEffectiveWords: runningChunkState?.sessionEffectiveWords ?? chunkState?.sessionEffectiveWords ?? 0,
           todayEffectiveWords:
             runningChunkDayState?.effectiveWords ??
@@ -318,6 +324,9 @@ function readVisibleChunks(value: unknown): VisibleChunkEventValue[] {
         visibleRatio: readNumber(visibleChunk, 'visibleRatio', 0),
         centerDistance: readNumber(visibleChunk, 'centerDistance', 0),
         contentWeight: readNumber(visibleChunk, 'contentWeight', 0),
+        attentionMass: readOptionalNumber(visibleChunk, 'attentionMass'),
+        contentMultiplier: readOptionalNumber(visibleChunk, 'contentMultiplier'),
+        visibleWordCount: readOptionalNumber(visibleChunk, 'visibleWordCount'),
       },
     ];
   });
@@ -358,6 +367,11 @@ function readPositiveNumber(value: Record<string, unknown> | undefined, key: str
 
 function readPositiveFiniteNumber(value: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function readOptionalNumber(value: Record<string, unknown> | undefined, key: string): number | undefined {
+  const candidate = value?.[key];
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined;
 }
 
 function readBoolean(value: Record<string, unknown> | undefined, key: string, fallback: boolean): boolean {

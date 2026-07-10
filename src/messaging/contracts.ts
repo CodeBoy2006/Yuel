@@ -199,6 +199,10 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
     isNonBlankString(value.urlHash) &&
     value.language === 'en' &&
     isNonNegativeFiniteNumber(value.totalWords) &&
+    (value.metricModelVersion === undefined || (
+      Number.isInteger(value.metricModelVersion) &&
+      isPositiveFiniteNumber(value.metricModelVersion)
+    )) &&
     isNonNegativeFiniteNumber(value.capturedAt)
   );
 }
@@ -210,6 +214,7 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.textHash) &&
     isNonBlankString(value.text) &&
+    (value.sourceKey === undefined || isNonBlankString(value.sourceKey)) &&
     hasConsistentChunkTextSnapshot(value, value.pageId, value.text) &&
     isFiniteNumberAtLeast(value.wordCount, MIN_TEXT_CHUNK_WORD_COUNT) &&
     isPositiveFiniteNumber(value.sentenceCount) &&
@@ -219,10 +224,11 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
 
 function hasConsistentChunkTextSnapshot(value: Record<string, unknown>, pageId: string, text: string): boolean {
   const analysis = analyzeEnglishText(text);
+  const sourceKey = typeof value.sourceKey === 'string' ? value.sourceKey : undefined;
 
   return (
     value.textHash === hashText(text) &&
-    value.chunkId === createChunkId(pageId, text) &&
+    (value.chunkId === createChunkId(pageId, text, sourceKey) || value.chunkId === createChunkId(pageId, text)) &&
     value.wordCount === analysis.wordCount &&
     value.sentenceCount === analysis.sentenceCount
   );
@@ -270,6 +276,7 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
       isBoolean(value.activeTab) &&
       isBoolean(value.documentVisible) &&
       isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute) &&
+      (value.scrollDirection === undefined || value.scrollDirection === -1 || value.scrollDirection === 0 || value.scrollDirection === 1) &&
       isNonNegativeFiniteNumber(value.idleAgeMs) &&
       Array.isArray(value.visibleChunks) &&
       value.visibleChunks.length > 0 &&
@@ -306,6 +313,7 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     return (
       isObject(value) &&
       isFiniteNumberAtLeast(value.scrollDeltaPx, 1) &&
+      (value.scrollDirection === undefined || value.scrollDirection === -1 || value.scrollDirection === 1) &&
       isFiniteNumberAtLeast(value.elapsedMs, 100) &&
       isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute)
     );
@@ -330,6 +338,16 @@ function isVisibleChunkExposureSnapshot(value: unknown): boolean {
     isUnitIntervalFiniteNumber(value.visibleRatio) &&
     value.visibleRatio >= MIN_VISIBLE_BLOCK_RATIO &&
     isNonNegativeFiniteNumber(value.centerDistance) &&
+    (value.viewportY === undefined || isFiniteNumber(value.viewportY)) &&
+    (value.visibleWordCount === undefined || (
+      isNonNegativeFiniteNumber(value.visibleWordCount) &&
+      value.visibleWordCount <= value.wordCount
+    )) &&
+    (value.attentionMass === undefined || isPositiveFiniteNumber(value.attentionMass)) &&
+    (value.contentMultiplier === undefined || (
+      isPositiveFiniteNumber(value.contentMultiplier) &&
+      value.contentMultiplier <= 1
+    )) &&
     isFiniteNumber(value.contentWeight) &&
     value.contentWeight > 0 &&
     value.contentWeight <= 1

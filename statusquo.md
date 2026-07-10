@@ -1071,3 +1071,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The Playwright version matches the local click2data reference (`1.58.2`). Unit/UI tests, TypeScript, static extension smoke, real DOM, large-text stress, a 22-page live corpus, and three packaged-extension E2E flows pass; process-sandbox launch failures now include the exact browser command, process log, trace, and screenshots.
+
+## [2026-07-10 20:47] Reading Attention Budget V2
+- **Changes:** Replaced renewable word budgets with shared attention-time water-filling, added additive Gaussian rect mass, stable sentence-aligned segments, one-second sampling, focus and scroll-expiry gates, bulk segment persistence, model-version coverage migration, same-route episode continuity, rolling-median adaptive samples, and lower comprehension-gated onboarding weights.
+- **Status:** Completed
+- **Next Steps:** Validate the new metric distribution on an opt-in real-world corpus before tuning thresholds or adding content-specific profiles.
+- **Context:** Model version 2 preserves legacy page coverage while preventing migrated words from being counted as new again. All 326 unit/UI tests, TypeScript, production build, static extension smoke, real-browser DOM tests, and the 97k-word/2,000-tick pressure suite pass.

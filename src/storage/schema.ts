@@ -10,6 +10,7 @@ export interface PageRecord {
   urlHash: string;
   language: string;
   totalWords: number;
+  metricModelVersion?: number;
   effectiveWords: number;
   coveredWords?: number;
   newWords?: number;
@@ -28,6 +29,7 @@ export interface TextChunkRecord {
   pageId: string;
   textHash: string;
   wordCount: number;
+  metricModelVersion?: number;
   sentenceCount: number;
   difficulty: number;
   exposureSeconds: number;
@@ -93,6 +95,7 @@ export interface SavedItemRecord {
 export interface DailyStatRecord {
   date: string;
   effectiveWords: number;
+  metricModelVersion?: number;
   newWords?: number;
   reviewWords?: number;
   minutes: number;
@@ -112,7 +115,29 @@ export interface ReadingPaceProfileRecord {
   baseWordsPerMinute: number;
   sampleCount: number;
   source: ReadingPaceProfileSource;
+  recentAdaptiveWordsPerMinute?: number[];
   updatedAt: number;
+}
+
+export interface ReadingPaceEpisodeSegmentState {
+  wordCount: number;
+  centerDwellMs: number;
+  lastViewportY: number;
+  lastSeenAt: number;
+}
+
+export interface ReadingPaceEpisodeRecord {
+  id: string;
+  sessionId: string;
+  pageId: string;
+  language: string;
+  startedAt: number;
+  lastObservedAt: number;
+  activeMs: number;
+  completedWords: number;
+  completedSegmentIds: string[];
+  segmentStates: Record<string, ReadingPaceEpisodeSegmentState>;
+  lastScrollDirection: -1 | 0 | 1;
 }
 
 export interface MetadataRecord {
@@ -130,6 +155,7 @@ export class YuelDatabase extends Dexie {
   savedItems!: Table<SavedItemRecord, string>;
   dailyStats!: Table<DailyStatRecord, string>;
   readingPaceProfiles!: Table<ReadingPaceProfileRecord, string>;
+  readingPaceEpisodes!: Table<ReadingPaceEpisodeRecord, string>;
   metadata!: Table<MetadataRecord, string>;
 
   constructor() {
@@ -177,6 +203,20 @@ export class YuelDatabase extends Dexie {
       savedItems: 'id, type, sourceDomain, createdAt',
       dailyStats: 'date',
       readingPaceProfiles: 'id, language, contentType, source, updatedAt',
+      metadata: 'key',
+    });
+
+    this.version(5).stores({
+      pages: 'pageId, domain, language, lastReadAt',
+      textChunks: 'chunkId, pageId, textHash',
+      chunkSessions: 'id, sessionId, chunkId',
+      chunkDays: 'id, date, chunkId',
+      readingEvents: 'id, sessionId, pageId, chunkId, kind, occurredAt',
+      vocabExposures: 'lemma, language, lastSeenAt, userStatus',
+      savedItems: 'id, type, sourceDomain, createdAt',
+      dailyStats: 'date',
+      readingPaceProfiles: 'id, language, contentType, source, updatedAt',
+      readingPaceEpisodes: 'id, sessionId, pageId, lastObservedAt',
       metadata: 'key',
     });
   }

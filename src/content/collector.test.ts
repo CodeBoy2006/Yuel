@@ -158,6 +158,7 @@ describe('startReadingCollector', () => {
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
     vi.stubGlobal('MutationObserver', TestMutationObserver);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(visibleRect());
     Object.defineProperty(window, 'innerHeight', {
       configurable: true,
@@ -373,6 +374,7 @@ describe('startReadingCollector', () => {
 
     try {
       await flushPromises();
+      const initialSessionId = mocks.sendMessage.mock.calls[0][0].payload.events[0].sessionId;
       mocks.sendMessage.mockClear();
 
       const article = document.querySelector('#article');
@@ -400,6 +402,7 @@ describe('startReadingCollector', () => {
       expect(refreshedBatch.payload.events).toEqual([
         expect.objectContaining({
           kind: 'PageVisible',
+          sessionId: initialSessionId,
         }),
       ]);
     } finally {
@@ -420,6 +423,7 @@ describe('startReadingCollector', () => {
 
     try {
       await flushPromises();
+      const initialSessionId = mocks.sendMessage.mock.calls[0][0].payload.events[0].sessionId;
       mocks.sendMessage.mockClear();
 
       window.history.pushState({}, '', '/next-route');
@@ -444,6 +448,7 @@ describe('startReadingCollector', () => {
           kind: 'PageVisible',
         }),
       ]);
+      expect(nextRouteBatch.payload.events[0].sessionId).not.toBe(initialSessionId);
     } finally {
       controller.stop();
       await flushPromises();
@@ -743,8 +748,22 @@ describe('startReadingCollector', () => {
           value: expect.objectContaining({
             tickMs: 1_000,
             visibleChunks: [
-              expect.objectContaining({ visibleRatio: 1, contentWeight: 1 }),
-              expect.objectContaining({ visibleRatio: 1, contentWeight: 1 }),
+              expect.objectContaining({
+                visibleRatio: 1,
+                visibleWordCount: expect.any(Number),
+                attentionMass: expect.any(Number),
+                contentMultiplier: 1,
+                contentWeight: 1,
+                viewportY: expect.any(Number),
+              }),
+              expect.objectContaining({
+                visibleRatio: 1,
+                visibleWordCount: expect.any(Number),
+                attentionMass: expect.any(Number),
+                contentMultiplier: 1,
+                contentWeight: 1,
+                viewportY: expect.any(Number),
+              }),
             ],
           }),
         }),
@@ -796,7 +815,7 @@ describe('startReadingCollector', () => {
       const visibleChunkIds = viewportTick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId);
 
       expect(batch.payload.chunks.length).toBeGreaterThan(1);
-      expect(batch.payload.chunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 120)).toBe(true);
+      expect(batch.payload.chunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 24)).toBe(true);
       expect(visibleChunkIds.length).toBeGreaterThan(0);
       expect(visibleChunkIds.length).toBeLessThan(batch.payload.chunks.length);
       expect(visibleChunkIds).toContain(batch.payload.chunks[0].chunkId);
@@ -808,7 +827,11 @@ describe('startReadingCollector', () => {
 
   it('uses text range client rects instead of element-height slicing for split chunks', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
-    mockRangeClientRects([[belowViewportRect()], [visibleRect()]]);
+    mockRangeClientRects([
+      [belowViewportRect()],
+      [visibleRect()],
+      ...Array.from({ length: 20 }, () => [belowViewportRect()]),
+    ]);
     document.body.innerHTML = `
       <article>
         <p id="long">${longReadableParagraph()}</p>
@@ -973,12 +996,14 @@ describe('startReadingCollector', () => {
         expect.objectContaining({
           kind: 'ScrollVelocityChanged',
           value: expect.objectContaining({
+            scrollDirection: 1,
             scrollSpeedWordsPerMinute: expect.any(Number),
           }),
         }),
         expect.objectContaining({
           kind: 'TextViewportExposureTick',
           value: expect.objectContaining({
+            scrollDirection: 1,
             scrollSpeedWordsPerMinute: expect.any(Number),
           }),
         }),
@@ -986,6 +1011,186 @@ describe('startReadingCollector', () => {
     );
 
     controller.stop();
+  });
+
+  it('samples exposure on a one-second heartbeat independently of batch delivery', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Stable heartbeat sampling should preserve reading intervals even when runtime batches are delivered less frequently.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 5_000, sampleIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      expect(mocks.sendMessage).toHaveBeenCalledOnce();
+      const exposureTicks = mocks.sendMessage.mock.calls[0][0].payload.events.filter(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(exposureTicks).toHaveLength(5);
+      expect(exposureTicks.every((event: { value: { tickMs: number } }) => event.value.tickMs === 1_000)).toBe(true);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('expires stale scroll velocity instead of applying it to later reading ticks', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Brief scrolling should not suppress later attentive reading after the motion signal becomes stale.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({
+      flushIntervalMs: 2_000,
+      sampleIntervalMs: 250,
+      scrollSpeedExpiryMs: 750,
+    });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(500);
+      setWindowScrollY(600);
+      window.dispatchEvent(new Event('scroll'));
+      await vi.advanceTimersByTimeAsync(1_500);
+      await flushPromises();
+
+      const exposureTicks = mocks.sendMessage.mock.calls[0][0].payload.events.filter(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(exposureTicks.some((event: { value: { scrollSpeedWordsPerMinute: number } }) =>
+        event.value.scrollSpeedWordsPerMinute > 0,
+      )).toBe(true);
+      expect(exposureTicks.at(-1)?.value).toEqual(
+        expect.objectContaining({
+          scrollDirection: 0,
+          scrollSpeedWordsPerMinute: 0,
+        }),
+      );
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('marks visible dwell as inactive while the browser window is unfocused', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Window focus should gate attention even while the document remains technically visible.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_500, sampleIntervalMs: 500 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(500);
+      window.dispatchEvent(new Event('blur'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      const exposureTicks = mocks.sendMessage.mock.calls[0][0].payload.events.filter(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(exposureTicks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ value: expect.objectContaining({ activeTab: true }) }),
+          expect.objectContaining({ value: expect.objectContaining({ activeTab: false }) }),
+        ]),
+      );
+      expect(exposureTicks
+        .filter((event: { value: { activeTab: boolean } }) => !event.value.activeTab)
+        .reduce((sum: number, event: { value: { tickMs: number } }) => sum + event.value.tickMs, 0))
+        .toBe(1_000);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('starts with attention disabled when the document is already unfocused', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    vi.mocked(document.hasFocus).mockReturnValue(false);
+    document.body.innerHTML = `
+      <article>
+        <p id="guide">Collector startup should respect an already unfocused browser window before any blur event arrives.</p>
+      </article>
+    `;
+
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      mocks.sendMessage.mockClear();
+
+      const blockElement = document.querySelector('#guide');
+      expect(blockElement).toBeInstanceOf(HTMLElement);
+      TestIntersectionObserver.instances[0].emit([
+        {
+          target: blockElement as Element,
+          isIntersecting: true,
+          intersectionRatio: 1,
+        },
+      ]);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+
+      const exposureTick = mocks.sendMessage.mock.calls[0][0].payload.events.find(
+        (event: { kind: string }) => event.kind === 'TextViewportExposureTick',
+      );
+      expect(exposureTick.value).toEqual(expect.objectContaining({ activeTab: false }));
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
   });
 
   it('marks exposure ticks as idle after the user stops interacting', async () => {

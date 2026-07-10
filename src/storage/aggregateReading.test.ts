@@ -173,37 +173,39 @@ describe('summarizeReadingEventBatch', () => {
     ]);
   });
 
-  it('caps aggregate effective words and folded reading time by currently visible chunk supply', () => {
+  it('persists local-rate words while keeping directly allocated attention time', () => {
     const payload = createPayload({ chunks: [createPayload().chunks[0]] });
     payload.events[0].value = {
       ...payload.events[0].value,
+      tickMs: 15_000,
       baseWordsPerMinute: 220,
       visibleChunks: [
         {
           chunkId: 'chunk-1',
           wordCount: 120,
-          visibleRatio: 0.15,
+          visibleRatio: 1,
           centerDistance: 0,
-          contentWeight: 1,
+          contentWeight: 0.2,
+          contentMultiplier: 0.2,
         },
       ],
     };
 
     const summary = summarizeReadingEventBatch(payload);
 
-    expect(summary.pageEffectiveWords).toBeCloseTo(18, 6);
-    expect(summary.totalEffectiveReadingMs).toBeCloseTo(18 * 60_000 / 220, 6);
+    expect(summary.pageEffectiveWords).toBeCloseTo(11, 6);
+    expect(summary.totalEffectiveReadingMs).toBeCloseTo(15_000, 6);
     expect(summary.chunkUpdates).toEqual([
       expect.objectContaining({
         chunkId: 'chunk-1',
-        effectiveWords: expect.closeTo(18, 6),
-        effectiveReadingMs: expect.closeTo(18 * 60_000 / 220, 6),
+        effectiveWords: expect.closeTo(11, 6),
+        effectiveReadingMs: expect.closeTo(15_000, 6),
       }),
     ]);
     expect(summary.dailyUpdates).toEqual([
       expect.objectContaining({
-        effectiveWords: expect.closeTo(18, 6),
-        minutes: expect.closeTo(18 / 220, 6),
+        effectiveWords: expect.closeTo(11, 6),
+        minutes: expect.closeTo(0.25, 6),
       }),
     ]);
   });

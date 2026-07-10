@@ -113,8 +113,8 @@ describe('collectTextBlocks', () => {
     const page = summarizeCurrentPage(document, blocks);
 
     expect(blocks.length).toBeGreaterThan(1);
-    expect(blocks.every((block) => block.wordCount <= 120)).toBe(true);
-    expect(blocks.every((block) => block.wordCount >= 30)).toBe(true);
+    expect(blocks.every((block) => block.wordCount <= 24)).toBe(true);
+    expect(blocks.every((block) => block.wordCount >= 8)).toBe(true);
     expect(blocks.map((block) => block.text).join(' ')).toBe(text);
     expect(blocks.map((block) => block.selector)).toEqual(blocks.map((_, index) => `p#long::chunk(${index + 1})`));
     expect(page.totalWords).toBe(blocks.reduce((sum, block) => sum + block.wordCount, 0));
@@ -135,7 +135,42 @@ describe('collectTextBlocks', () => {
     expect(blocks.length).toBeGreaterThan(1);
     expect(blocks.map((block) => block.text).join(' ')).toBe(text);
     expect(blocks.reduce((sum, block) => sum + block.wordCount, 0)).toBe(125);
-    expect(blocks.at(-1)?.text).toBe(trailingSentence);
+    expect(blocks.every((block) => block.wordCount >= 8 && block.wordCount <= 24)).toBe(true);
+    expect(blocks.at(-1)?.text?.endsWith(trailingSentence) ?? false).toBe(true);
+  });
+
+  it('keeps repeated text segments distinct by source position', () => {
+    const repeated = 'Repeated documentation guidance should count at each intentional position in the article body.';
+    document.body.innerHTML = `
+      <article>
+        <p>${repeated}</p>
+        <p>${repeated}</p>
+      </article>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(2);
+    expect(new Set(blocks.map((block) => block.chunkId)).size).toBe(2);
+    expect(blocks[0].sourceKey).toMatch(/^source\([a-z0-9]+:1\)::segment\(1\)$/);
+    expect(blocks[1].sourceKey).toMatch(/^source\([a-z0-9]+:2\)::segment\(1\)$/);
+  });
+
+  it('keeps chunk ids stable when unrelated content is inserted before a source element', () => {
+    document.body.innerHTML = `
+      <article>
+        <p id="stable">Stable source fingerprints should survive unrelated dynamic content inserted earlier in an article.</p>
+      </article>
+    `;
+    const originalChunkId = collectTextBlocks(document)[0].chunkId;
+
+    document.querySelector('article')?.insertAdjacentHTML(
+      'afterbegin',
+      '<p>Newly inserted context should not renumber the existing reading segment identity.</p>',
+    );
+    const stableBlock = collectTextBlocks(document).find((block) => block.selector === 'p#stable');
+
+    expect(stableBlock?.chunkId).toBe(originalChunkId);
   });
 
   it('skips non-reading ancestors even when they match primary content selectors', () => {

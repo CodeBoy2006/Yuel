@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
-import { clearLocalReadingData, pruneExpiredReadingEvents, recordReadingEventBatch } from './repositories';
+import {
+  clearLocalReadingData,
+  pruneExpiredReadingEvents,
+  pruneExpiredReadingPaceEpisodes,
+  recordReadingEventBatch,
+} from './repositories';
 import type { DailyStatRecord } from './schema';
 
 const mocks = vi.hoisted(() => {
+  const textChunksGet = vi.fn();
   const pages = {
     clear: vi.fn(),
     get: vi.fn(),
@@ -12,17 +18,22 @@ const mocks = vi.hoisted(() => {
   };
   const textChunks = {
     clear: vi.fn(),
-    get: vi.fn(),
+    get: textChunksGet,
+    bulkGet: vi.fn(async (ids: string[]) => Promise.all(ids.map((id) => textChunksGet(id)))),
     bulkPut: vi.fn(),
   };
+  const chunkSessionsGet = vi.fn();
   const chunkSessions = {
     clear: vi.fn(),
-    get: vi.fn(),
+    get: chunkSessionsGet,
+    bulkGet: vi.fn(async (ids: string[]) => Promise.all(ids.map((id) => chunkSessionsGet(id)))),
     put: vi.fn(),
   };
+  const chunkDaysGet = vi.fn();
   const chunkDays = {
     clear: vi.fn(),
-    get: vi.fn(),
+    get: chunkDaysGet,
+    bulkGet: vi.fn(async (ids: string[]) => Promise.all(ids.map((id) => chunkDaysGet(id)))),
     put: vi.fn(),
   };
   const readingEvents = {
@@ -49,6 +60,13 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(),
     put: vi.fn(),
   };
+  const readingPaceEpisodes = {
+    clear: vi.fn(),
+    delete: vi.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+    where: vi.fn(),
+  };
   const metadata = {
     get: vi.fn(),
     put: vi.fn(),
@@ -63,6 +81,7 @@ const mocks = vi.hoisted(() => {
     savedItems,
     dailyStats,
     readingPaceProfiles,
+    readingPaceEpisodes,
     metadata,
     transaction: vi.fn(async (...args: unknown[]) => {
       const callback = args.at(-1);
@@ -72,7 +91,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { chunkDays, chunkSessions, db, dailyStats, metadata, pages, readingEvents, readingPaceProfiles, savedItems, textChunks, vocabExposures };
+  return { chunkDays, chunkSessions, db, dailyStats, metadata, pages, readingEvents, readingPaceEpisodes, readingPaceProfiles, savedItems, textChunks, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -144,9 +163,15 @@ describe('recordReadingEventBatch', () => {
     mocks.vocabExposures.get.mockResolvedValue(undefined);
     mocks.dailyStats.get.mockResolvedValue(undefined);
     mocks.readingPaceProfiles.get.mockResolvedValue(undefined);
+    mocks.readingPaceEpisodes.get.mockResolvedValue(undefined);
     mocks.metadata.get.mockResolvedValue(undefined);
     mocks.readingEvents.bulkGet.mockResolvedValue([]);
     mocks.readingEvents.where.mockReturnValue({
+      below: vi.fn(() => ({
+        delete: vi.fn(),
+      })),
+    });
+    mocks.readingPaceEpisodes.where.mockReturnValue({
       below: vi.fn(() => ({
         delete: vi.fn(),
       })),
@@ -174,6 +199,15 @@ describe('recordReadingEventBatch', () => {
         }),
       ]),
     );
+  });
+
+  it('loads segment, session, and day cap state with one bulk read per table', async () => {
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.textChunks.bulkGet).toHaveBeenCalledOnce();
+    expect(mocks.textChunks.bulkGet).toHaveBeenCalledWith(['chunk-1']);
+    expect(mocks.chunkSessions.bulkGet).toHaveBeenCalledWith(['session-1:chunk-1']);
+    expect(mocks.chunkDays.bulkGet).toHaveBeenCalledWith(['2026-06-27:chunk-1']);
   });
 
   it('uses event time rather than delayed processing time for page and vocabulary recency', async () => {
@@ -511,6 +545,50 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
+  it('seeds v2 segment coverage from the legacy page baseline without recounting old words as new', async () => {
+    mocks.pages.get.mockResolvedValueOnce({
+      pageId: 'page-1',
+      domain: 'docs.example.com',
+      titleHash: 'title',
+      urlHash: 'url',
+      language: 'en',
+      totalWords: 8,
+      metricModelVersion: 1,
+      effectiveWords: 4,
+      coveredWords: 4,
+      newWords: 4,
+      difficultyScore: 0,
+      firstSeenAt: capturedAt - 60_000,
+      lastReadAt: capturedAt - 30_000,
+      snapshotCapturedAt: capturedAt - 60_000,
+    });
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      metricModelVersion: 2,
+    };
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.textChunks.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        chunkId: 'chunk-1',
+        metricModelVersion: 2,
+        effectiveWords: 8,
+        newWords: 8,
+        reviewWords: 4,
+      }),
+    ]);
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metricModelVersion: 2,
+        coveredWords: 8,
+        newWords: 8,
+        reviewWords: 4,
+      }),
+    );
+  });
+
   it('records proportional vocabulary exposure when a partially credited chunk gains effective coverage', async () => {
     mocks.textChunks.get.mockResolvedValueOnce({
       chunkId: 'chunk-1',
@@ -692,7 +770,7 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
-  it('uses the stored reading pace profile for budget allocation and adaptive updates', async () => {
+  it('uses the stored reading pace profile without adapting from non-progression visibility', async () => {
     mocks.readingPaceProfiles.get.mockResolvedValueOnce({
       id: 'en:general',
       language: 'en',
@@ -761,14 +839,204 @@ describe('recordReadingEventBatch', () => {
         effectiveWords: expect.closeTo(120, 6),
       }),
     );
-    expect(mocks.readingPaceProfiles.put).toHaveBeenCalledWith(
+    expect(mocks.readingPaceProfiles.put).not.toHaveBeenCalled();
+    expect(mocks.readingPaceEpisodes.put).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'en:general',
-        baseWordsPerMinute: expect.closeTo(141.6, 6),
-        sampleCount: 1,
-        source: 'adaptive',
+        sessionId: payload.events[0].sessionId,
+        activeMs: 0,
+        completedWords: 0,
       }),
     );
+  });
+
+  it('builds forward-reading episodes across batches and applies a rolling-median adaptive sample', async () => {
+    const profiles = new Map<string, Record<string, unknown>>([
+      ['en:general', {
+        id: 'en:general',
+        language: 'en',
+        contentType: 'general',
+        baseWordsPerMinute: 120,
+        sampleCount: 0,
+        source: 'onboarding',
+        updatedAt: capturedAt - 1_000,
+      }],
+    ]);
+    const episodes = new Map<string, Record<string, unknown>>();
+    mocks.readingPaceProfiles.get.mockImplementation(async (id: string) => profiles.get(id));
+    mocks.readingPaceProfiles.put.mockImplementation(async (profile: Record<string, unknown>) => {
+      profiles.set(String(profile.id), profile);
+    });
+    mocks.readingPaceEpisodes.get.mockImplementation(async (id: string) => episodes.get(id));
+    mocks.readingPaceEpisodes.put.mockImplementation(async (episode: Record<string, unknown>) => {
+      episodes.set(String(episode.id), episode);
+    });
+    mocks.readingPaceEpisodes.delete.mockImplementation(async (id: string) => {
+      episodes.delete(id);
+    });
+
+    const createEpisodePayload = (
+      sessionIndex: number,
+      phase: 'center' | 'complete',
+    ): ReadingEventBatchPayload => {
+      const sessionId = `session_episode_${sessionIndex}`;
+      const baseTime = capturedAt + sessionIndex * 100_000;
+      const chunks = Array.from({ length: 15 }, (_, index) => ({
+        chunkId: `episode-${sessionIndex}-chunk-${index + 1}`,
+        pageId: `episode-page-${sessionIndex}`,
+        textHash: `episode-text-${index + 1}`,
+        text: `Forward reading segment ${index + 1} contains enough ordinary prose words for a stable adaptive sample.`,
+        wordCount: 20,
+        sentenceCount: 1,
+        selector: `p::chunk(${index + 1})`,
+      }));
+      const visibleChunks = (viewportY: number) => chunks.slice(0, 6).map((chunk) => ({
+        chunkId: chunk.chunkId,
+        wordCount: chunk.wordCount,
+        visibleRatio: 1,
+        centerDistance: Math.abs(viewportY - 0.5),
+        viewportY,
+        attentionMass: chunk.wordCount,
+        contentMultiplier: 1,
+        contentWeight: 1,
+      }));
+      const tickEvents = Array.from({ length: 15 }, (_, index) => ({
+        id: `TextViewportExposureTick_${sessionIndex}_${phase}_${index}`,
+        sessionId,
+        pageId: `episode-page-${sessionIndex}`,
+        kind: 'TextViewportExposureTick' as const,
+        occurredAt: baseTime + (phase === 'center' ? index + 1 : index + 16) * 1_000,
+        confidence: 'high' as const,
+        value: {
+          tickMs: 1_000,
+          baseWordsPerMinute: 220,
+          activeTab: true,
+          documentVisible: true,
+          scrollSpeedWordsPerMinute: 0,
+          scrollDirection: phase === 'complete' ? 1 : 0,
+          idleAgeMs: 0,
+          visibleChunks: visibleChunks(phase === 'center' ? 0.5 : 0.1),
+        },
+      }));
+      const events = phase === 'center'
+        ? tickEvents
+        : [
+            {
+              id: `ScrollVelocityChanged_${sessionIndex}`,
+              sessionId,
+              pageId: `episode-page-${sessionIndex}`,
+              kind: 'ScrollVelocityChanged' as const,
+              occurredAt: baseTime + 15_500,
+              confidence: 'high' as const,
+              value: {
+                scrollDeltaPx: 100,
+                scrollDirection: 1,
+                elapsedMs: 500,
+                scrollSpeedWordsPerMinute: 120,
+              },
+            },
+            ...tickEvents,
+            {
+              id: `PageHidden_${sessionIndex}`,
+              sessionId,
+              pageId: `episode-page-${sessionIndex}`,
+              kind: 'PageHidden' as const,
+              occurredAt: baseTime + 31_000,
+              confidence: 'medium' as const,
+            },
+          ];
+
+      return {
+        page: {
+          pageId: `episode-page-${sessionIndex}`,
+          domain: 'docs.example.com',
+          titleHash: 'title',
+          urlHash: 'url',
+          language: 'en',
+          totalWords: 300,
+          metricModelVersion: 2,
+          capturedAt: baseTime,
+        },
+        chunks,
+        events,
+      };
+    };
+
+    for (let sessionIndex = 1; sessionIndex <= 3; sessionIndex += 1) {
+      await recordReadingEventBatch(createEpisodePayload(sessionIndex, 'center'));
+      expect(episodes.size).toBe(1);
+      await recordReadingEventBatch(createEpisodePayload(sessionIndex, 'complete'));
+      expect(episodes.size).toBe(0);
+      if (sessionIndex < 3) {
+        expect(profiles.get('en:general')).toEqual(expect.objectContaining({
+          recentAdaptiveWordsPerMinute: Array.from({ length: sessionIndex }, () => 240),
+          source: 'onboarding',
+          updatedAt: capturedAt - 1_000,
+        }));
+      }
+    }
+
+    expect(profiles.get('en:general')).toEqual(expect.objectContaining({
+      baseWordsPerMinute: expect.closeTo(134.4, 6),
+      recentAdaptiveWordsPerMinute: [240, 240, 240],
+      sampleCount: 1,
+      source: 'adaptive',
+    }));
+  });
+
+  it('ends a persisted calibration episode immediately on a fast forward jump', async () => {
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      totalWords: 300,
+    };
+    payload.events = [
+      {
+        ...payload.events[0],
+        value: {
+          ...payload.events[0].value,
+          tickMs: 1_000,
+          visibleChunks: [
+            {
+              chunkId: 'chunk-1',
+              wordCount: 8,
+              visibleRatio: 1,
+              centerDistance: 0,
+              viewportY: 0.5,
+              attentionMass: 8,
+              contentMultiplier: 1,
+              contentWeight: 1,
+            },
+          ],
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+    const episode = mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0];
+    expect(episode).toEqual(expect.objectContaining({ activeMs: 1_000 }));
+
+    mocks.readingPaceEpisodes.get.mockResolvedValue(episode);
+    mocks.readingPaceEpisodes.delete.mockClear();
+    payload.events = [
+      {
+        id: 'ScrollVelocityChanged_fast-jump',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollVelocityChanged',
+        occurredAt: capturedAt + 2_000,
+        confidence: 'low',
+        value: {
+          scrollDeltaPx: 900,
+          scrollDirection: 1,
+          elapsedMs: 200,
+          scrollSpeedWordsPerMinute: 1_000,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceEpisodes.delete).toHaveBeenCalledWith('session-1:page-1');
   });
 
   it('does not aggregate duplicate reading events that are already stored locally', async () => {
@@ -882,6 +1150,22 @@ describe('recordReadingEventBatch', () => {
     expect(deleteOldEvents).toHaveBeenCalledOnce();
   });
 
+  it('prunes abandoned reading pace episodes after the retention window', async () => {
+    const deleteOldEpisodes = vi.fn();
+    const belowRetentionCutoff = vi.fn(() => ({
+      delete: deleteOldEpisodes,
+    }));
+    mocks.readingPaceEpisodes.where.mockReturnValue({
+      below: belowRetentionCutoff,
+    });
+
+    await pruneExpiredReadingPaceEpisodes(capturedAt + 120_000);
+
+    expect(mocks.readingPaceEpisodes.where).toHaveBeenCalledWith('lastObservedAt');
+    expect(belowRetentionCutoff).toHaveBeenCalledWith(capturedAt + 120_000 - 24 * 60 * 60 * 1_000);
+    expect(deleteOldEpisodes).toHaveBeenCalledOnce();
+  });
+
   it('clears local reading data tables and records the event cutoff without touching extension settings', async () => {
     await clearLocalReadingData(capturedAt);
 
@@ -894,6 +1178,7 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
     expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();
     expect(mocks.readingPaceProfiles.clear).toHaveBeenCalledOnce();
+    expect(mocks.readingPaceEpisodes.clear).toHaveBeenCalledOnce();
     expect(mocks.metadata.put).toHaveBeenCalledWith({
       key: 'readingDataClearedAt',
       numberValue: capturedAt,
