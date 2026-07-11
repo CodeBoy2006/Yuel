@@ -174,3 +174,24 @@ export async function readActiveTabCollectorStatus(worker: Worker): Promise<Read
   }
   return response;
 }
+
+export async function readReadingToolbarActionState(
+  worker: Worker,
+): Promise<{ title: string; badgeText: string }> {
+  return worker.evaluate(async () => {
+    type ChromeActionApi = {
+      getBadgeText: (details: Record<string, never>) => Promise<string>;
+      getTitle: (details: Record<string, never>) => Promise<string>;
+    };
+
+    const action = (globalThis as typeof globalThis & {
+      chrome: { action: ChromeActionApi };
+    }).chrome.action;
+    const [title, badgeText] = await Promise.all([
+      action.getTitle({}),
+      action.getBadgeText({}),
+    ]);
+
+    return { title, badgeText };
+  });
+}

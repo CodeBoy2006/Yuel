@@ -200,6 +200,7 @@ function createDashboardDependencies(
       hasProfile: true,
       calibrationAccepted: true,
     }),
+    refreshReadingToolbarIcon: async () => undefined,
     saveDailyCheckInThresholdWords: async (thresholdWords) => thresholdWords,
     saveShareCardSettings: async (settings) => ({ ...settings }),
     ...overrides,
@@ -941,6 +942,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('keeps sharing locked until the daily goal is reached and saves a user-defined goal', async () => {
     const saveDailyCheckInThresholdWords = vi.fn(async (thresholdWords: number) => thresholdWords);
+    const refreshReadingToolbarIcon = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(320))
@@ -954,6 +956,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       });
     const container = await renderDashboard({
       getReadingDashboardDetails,
+      refreshReadingToolbarIcon,
       saveDailyCheckInThresholdWords,
     });
 
@@ -980,6 +983,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '保存目标'));
 
     expect(saveDailyCheckInThresholdWords).toHaveBeenCalledWith(900);
+    expect(refreshReadingToolbarIcon).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('900 词 / 天');
     expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
@@ -1318,6 +1322,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('clears local dashboard data through injected services', async () => {
     const clearLocalReadingData = vi.fn(async () => undefined);
+    const refreshReadingToolbarIcon = vi.fn(async () => undefined);
     const getReadingDashboardDetails = vi
       .fn()
       .mockResolvedValueOnce(createDashboardDetails(960, 'developer.mozilla.org'))
@@ -1325,14 +1330,54 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderDashboard({
       getReadingDashboardDetails,
       clearLocalReadingData,
+      refreshReadingToolbarIcon,
     });
 
     await clickButton(findButton(container, '清空本地数据'));
     await flushReactMicrotasks();
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
+    expect(refreshReadingToolbarIcon).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('从下一篇外语文章开始');
+  });
+
+  it('keeps a saved goal successful when browser chrome refresh is unavailable', async () => {
+    const getReadingDashboardDetails = vi
+      .fn()
+      .mockResolvedValueOnce(createDashboardDetails(320))
+      .mockResolvedValueOnce({
+        ...createDashboardDetails(320),
+        summary: {
+          ...createDashboardDetails(320).summary,
+          checkInThresholdWords: 900,
+          checkInCompleted: false,
+        },
+      });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderDashboard({
+      getReadingDashboardDetails,
+      refreshReadingToolbarIcon: async () => {
+        throw new Error('background unavailable');
+      },
+    });
+
+    await clickButton(findButton(container, '调整目标'));
+    const goalInput = container.querySelector<HTMLInputElement>('#daily-check-in-threshold');
+    await act(async () => {
+      if (!goalInput) return;
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      valueSetter?.call(goalInput, '900');
+      goalInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await clickButton(findButton(container, '保存目标'));
+
+    expect(container.textContent).toContain('900 词 / 天');
+    expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
+    expect(console.error).toHaveBeenCalledWith(
+      'Failed to refresh Yuel reading toolbar icon',
+      expect.any(Error),
+    );
   });
 
   it('resets copied dashboard share state after local data is cleared', async () => {

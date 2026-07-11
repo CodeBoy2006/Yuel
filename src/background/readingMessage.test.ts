@@ -82,16 +82,18 @@ describe('handleReadingRuntimeMessage', () => {
   it('returns the storage write promise for reading event batches', async () => {
     const recordReadingEventBatch = vi.fn(async () => undefined);
     const authorize = vi.fn(async () => true);
+    const syncToolbarIcon = vi.fn(async () => undefined);
 
     const result = handleReadingRuntimeMessage(
       { type: MESSAGE_TYPES.readingEventsBatch, payload },
       { tab: { url: pageUrl } },
-      { authorize, recordBatch: recordReadingEventBatch },
+      { authorize, recordBatch: recordReadingEventBatch, syncToolbarIcon },
     );
 
     expect(result).toBeInstanceOf(Promise);
     await expect(result).resolves.toBeUndefined();
     expect(recordReadingEventBatch).toHaveBeenCalledWith(payload);
+    expect(syncToolbarIcon).toHaveBeenCalledOnce();
   });
 
   it('drops a valid batch when its sender is no longer authorized', async () => {
@@ -100,7 +102,11 @@ describe('handleReadingRuntimeMessage', () => {
     const result = handleReadingRuntimeMessage(
       { type: MESSAGE_TYPES.readingEventsBatch, payload },
       { tab: { url: pageUrl } },
-      { authorize: async () => false, recordBatch: recordReadingEventBatch },
+      {
+        authorize: async () => false,
+        recordBatch: recordReadingEventBatch,
+        syncToolbarIcon: async () => undefined,
+      },
     );
 
     await expect(result).resolves.toBeUndefined();
@@ -117,7 +123,11 @@ describe('handleReadingRuntimeMessage', () => {
     const result = handleReadingRuntimeMessage(
       { type: MESSAGE_TYPES.readingEventsBatch, payload },
       { tab: { url: pageUrl } },
-      { authorize: async () => true, recordBatch: recordReadingEventBatch },
+      {
+        authorize: async () => true,
+        recordBatch: recordReadingEventBatch,
+        syncToolbarIcon: async () => undefined,
+      },
     );
 
     await expect(result).rejects.toThrow('indexeddb unavailable');
@@ -132,7 +142,11 @@ describe('handleReadingRuntimeMessage', () => {
       { type: MESSAGE_TYPES.readingEventsBatch, payload },
       { tab: { url: pageUrl } },
       sendResponse,
-      { authorize: async () => true, recordBatch: () => write.promise },
+      {
+        authorize: async () => true,
+        recordBatch: () => write.promise,
+        syncToolbarIcon: async () => undefined,
+      },
     );
 
     expect(keepChannelOpen).toBe(true);
@@ -158,6 +172,7 @@ describe('handleReadingRuntimeMessage', () => {
         recordBatch: async () => {
           throw failure;
         },
+        syncToolbarIcon: async () => undefined,
       },
     );
 
@@ -165,6 +180,31 @@ describe('handleReadingRuntimeMessage', () => {
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalledWith({ ok: false });
     });
+  });
+
+  it('keeps a stored reading batch successful when toolbar feedback fails', async () => {
+    const failure = new Error('action unavailable');
+    const recordBatch = vi.fn(async () => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const result = handleReadingRuntimeMessage(
+      { type: MESSAGE_TYPES.readingEventsBatch, payload },
+      { tab: { url: pageUrl } },
+      {
+        authorize: async () => true,
+        recordBatch,
+        syncToolbarIcon: async () => {
+          throw failure;
+        },
+      },
+    );
+
+    await expect(result).resolves.toBeUndefined();
+    expect(recordBatch).toHaveBeenCalledWith(payload);
+    expect(console.error).toHaveBeenCalledWith(
+      'Failed to refresh Yuel reading toolbar icon',
+      failure,
+    );
   });
 });
 

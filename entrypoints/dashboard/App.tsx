@@ -26,6 +26,7 @@ import {
   MIN_DAILY_CHECK_IN_THRESHOLD_WORDS,
   isValidDailyCheckInThresholdWords,
 } from '../../src/domain/checkIn';
+import { requestReadingToolbarIconRefresh } from '../../src/messaging/readingToolbarClient';
 import { saveDailyCheckInThresholdWords } from '../../src/storage/checkInSettings';
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
@@ -85,6 +86,7 @@ export interface DashboardAppDependencies {
   saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
   saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
   saveShareCardSettings: typeof saveShareCardSettings;
+  refreshReadingToolbarIcon: typeof requestReadingToolbarIconRefresh;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -97,6 +99,7 @@ const defaultDependencies: DashboardAppDependencies = {
   getReadingDashboardDetails,
   getReadingPaceSummary,
   getShareCardSettings,
+  refreshReadingToolbarIcon: requestReadingToolbarIconRefresh,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
   saveShareCardSettings,
@@ -344,6 +347,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setCheckInGoalSaveStatus('saving');
     try {
       await dependencies.saveDailyCheckInThresholdWords(nextThresholdWords);
+      await refreshReadingToolbarIconAfterMutation();
       if (!mountedRef.current) return;
 
       await refreshDashboard();
@@ -382,6 +386,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
     try {
       await dependencies.clearLocalReadingData();
+      await refreshReadingToolbarIconAfterMutation();
       if (!mountedRef.current) return;
 
       setDetails(undefined);
@@ -405,6 +410,16 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       if (mountedRef.current) {
         setClearBusy(false);
       }
+    }
+  };
+
+  const refreshReadingToolbarIconAfterMutation = async () => {
+    try {
+      await dependencies.refreshReadingToolbarIcon();
+    } catch (error) {
+      // The data mutation remains successful even if browser chrome cannot be
+      // refreshed immediately; the background startup/rollover sync recovers it.
+      console.error('Failed to refresh Yuel reading toolbar icon', error);
     }
   };
 

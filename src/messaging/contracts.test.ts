@@ -5,6 +5,7 @@ import {
   isReadingCollectorStatusRequest,
   isReadingCollectorStatusResponse,
   isReadingEventBatchMessage,
+  isReadingToolbarRefreshRequest,
   MESSAGE_TYPES,
   type ReadingEventBatchMessage,
 } from './contracts';
@@ -115,6 +116,17 @@ describe('reading collector status messages', () => {
       type: MESSAGE_TYPES.readingCollectorStatusResponse,
       url: validPageUrl,
       collecting: 'yes',
+    })).toBe(false);
+  });
+});
+
+describe('reading toolbar messages', () => {
+  it('accepts only the dedicated toolbar refresh request', () => {
+    expect(isReadingToolbarRefreshRequest({
+      type: MESSAGE_TYPES.readingToolbarRefreshRequest,
+    })).toBe(true);
+    expect(isReadingToolbarRefreshRequest({
+      type: MESSAGE_TYPES.readingEventsBatch,
     })).toBe(false);
   });
 });

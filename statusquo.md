@@ -1281,3 +1281,9 @@
 - **Status:** Completed
 - **Next Steps:** None; future changes should preserve the verified narrow contracts and add complexity only for demonstrated behavior.
 - **Context:** Across 31 files, production code removes 391 net lines and tests remove 1,828 net lines, excluding this append-only ledger. All 351 unit tests, normal and strict TypeScript checks, production build, static extension smoke, Chromium DOM and large-text suites, both packaged-extension Playwright gates, real-page corpus, and the Dexie v1-to-v5 upgrade probe pass. Architecture, duplication, and independent final audits all report STOP; existing transparent-export work remains unstaged.
+
+## [2026-07-11 08:37] Chrome Toolbar Reading Progress Logo
+- **Changes:** Added a service-worker-rendered Chrome toolbar Logo with 16 bottom-up gray-to-green progress steps, exact daily-goal tooltip text, a static champagne-gold completion outline/glow, and a non-color-only `✓` badge. Centralized updates in the background after stored reading batches, dashboard goal changes, local-data clearing, startup, and local-day rollover; added runtime messaging, focused unit/UI coverage, packaged-extension coverage, and product documentation.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The toolbar uses cached 16/24/32px `ImageData` generated from the canonical Logo geometry and keeps incomplete states visibly short of full fill. All 365 unit tests, TypeScript checks, production build, static extension smoke, four packaged-extension Playwright tests, whitespace checks, the Impeccable detector, and light/dark visual inspection pass.

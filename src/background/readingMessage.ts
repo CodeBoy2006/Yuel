@@ -1,13 +1,16 @@
 import { isReadingEventBatchMessage } from '../messaging/contracts';
 import { recordReadingEventBatch } from '../storage/repositories';
 import { canRecordReadingBatch, type ReadingMessageSender } from './readingAccess';
+import { syncReadingToolbarIcon } from './readingToolbar';
 
 export type ReadingEventBatchRecorder = typeof recordReadingEventBatch;
 export type ReadingEventBatchAuthorizer = typeof canRecordReadingBatch;
+export type ReadingToolbarIconSyncer = () => Promise<unknown>;
 
 export interface ReadingMessageDependencies {
   authorize?: ReadingEventBatchAuthorizer;
   recordBatch?: ReadingEventBatchRecorder;
+  syncToolbarIcon?: ReadingToolbarIconSyncer;
 }
 
 export interface ReadingMessageResponse {
@@ -20,6 +23,7 @@ export function handleReadingRuntimeMessage(
   {
     authorize = canRecordReadingBatch,
     recordBatch = recordReadingEventBatch,
+    syncToolbarIcon = syncReadingToolbarIcon,
   }: ReadingMessageDependencies = {},
 ): Promise<void> | undefined {
   if (!isReadingEventBatchMessage(message)) {
@@ -42,6 +46,14 @@ export function handleReadingRuntimeMessage(
     } catch (error) {
       console.error('Failed to record Yuel reading batch', error);
       throw error;
+    }
+
+    try {
+      await syncToolbarIcon();
+    } catch (error) {
+      // Reading data is already durable. Toolbar feedback is best-effort and
+      // must not make the collector retry a successfully stored batch.
+      console.error('Failed to refresh Yuel reading toolbar icon', error);
     }
   })();
 }

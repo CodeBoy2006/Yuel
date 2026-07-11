@@ -3,6 +3,7 @@ import {
   openExtensionPage,
   readActiveTabCollectorStatus,
   readExtensionPageText,
+  readReadingToolbarActionState,
   sendExtensionRuntimeMessage,
   test,
 } from './helpers/extension';
@@ -34,6 +35,30 @@ test('records reading data through the extension runtime', async ({ context, ext
   await expect(dashboardBody).toContainText(RUNTIME_LOOP_DOMAIN);
   await expect(dashboardBody).toContainText('今日有效阅读');
   await expect(dashboardBody).not.toContainText('从下一篇外语文章开始');
+});
+
+test('updates the toolbar logo from daily progress through the completed state', async ({
+  context,
+  extensionId,
+  extensionWorker,
+}) => {
+  await expect.poll(() => readReadingToolbarActionState(extensionWorker)).toEqual({
+    title: 'Yuel Reading · 今日 0 / 500 词',
+    badgeText: '',
+  });
+
+  const dashboard = await openExtensionPage(context, extensionId, 'dashboard.html');
+  await dashboard.getByRole('button', { name: '调整目标' }).click();
+  await dashboard.locator('#daily-check-in-threshold').fill('1');
+  await dashboard.getByRole('button', { name: '保存目标' }).click();
+  await expect(dashboard.locator('.check-in-setting__value')).toContainText('1 词 / 天');
+
+  await sendExtensionRuntimeMessage(dashboard, createRuntimeReadingBatchMessage());
+
+  await expect.poll(() => readReadingToolbarActionState(extensionWorker)).toMatchObject({
+    title: expect.stringContaining('Yuel Reading · 今日已达标'),
+    badgeText: '✓',
+  });
 });
 
 test('records starter-site reading and reports the live collector state', async ({ context, extensionId, extensionWorker }) => {

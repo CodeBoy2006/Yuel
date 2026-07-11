@@ -13,6 +13,7 @@ export const MESSAGE_TYPES = {
   readingEventsBatch: 'yuel.readingEvents.batch',
   readingCollectorStatusRequest: 'yuel.readingCollector.status.request',
   readingCollectorStatusResponse: 'yuel.readingCollector.status.response',
+  readingToolbarRefreshRequest: 'yuel.readingToolbar.refresh.request',
 } as const;
 
 export interface ReadingCollectorStatusRequest {
@@ -34,6 +35,10 @@ export interface ReadingEventBatchPayload {
 export interface ReadingEventBatchMessage {
   type: typeof MESSAGE_TYPES.readingEventsBatch;
   payload: ReadingEventBatchPayload;
+}
+
+export interface ReadingToolbarRefreshRequest {
+  type: typeof MESSAGE_TYPES.readingToolbarRefreshRequest;
 }
 
 const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
@@ -91,6 +96,10 @@ export function isReadingCollectorStatusResponse(value: unknown): value is Readi
     isNonBlankString(value.url) &&
     isBoolean(value.collecting)
   );
+}
+
+export function isReadingToolbarRefreshRequest(message: unknown): message is ReadingToolbarRefreshRequest {
+  return isObject(message) && message.type === MESSAGE_TYPES.readingToolbarRefreshRequest;
 }
 
 function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBatchPayload {
