@@ -12,6 +12,10 @@ export function formatCount(value: number): string {
   return countFormatter.format(Math.round(value));
 }
 
+export function formatVocabularyExposureCount(value: number): string {
+  return countFormatter.format(Math.ceil(value));
+}
+
 export function formatWords(words: number): string {
   return `${formatCount(words)} 词`;
 }

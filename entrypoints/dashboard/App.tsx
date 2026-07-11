@@ -52,6 +52,7 @@ import {
   formatCount,
   formatDateTime,
   formatMinutes,
+  formatVocabularyExposureCount,
   formatVocabularyStatus,
 } from '../../src/ui/formatters';
 import {
@@ -1120,7 +1121,7 @@ function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
         <h3 title={vocab.lemma}>{vocab.lemma}</h3>
         <span className={`vocabulary-status vocabulary-status--${vocab.userStatus}`}>{formatVocabularyStatus(vocab.userStatus)}</span>
       </div>
-      <p>有效出现 {formatCount(vocab.effectiveSeenCount)} 次{vocab.savedCount > 0 ? ` · 已收藏 ${vocab.savedCount}` : ''}</p>
+      <p>有效出现 {formatVocabularyExposureCount(vocab.effectiveSeenCount)} 次{vocab.savedCount > 0 ? ` · 已收藏 ${vocab.savedCount}` : ''}</p>
       {vocab.packTags.length > 0 ? (
         <div className="tag-list" aria-label="词汇标签">
           {vocab.packTags.map((tag) => <span key={tag} title={tag}>{tag}</span>)}

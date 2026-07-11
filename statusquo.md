@@ -1305,3 +1305,9 @@
 - **Status:** Completed
 - **Next Steps:** Reload or reinstall the unpacked extension so Chrome applies the new required host permissions.
 - **Context:** Chrome remains the authority for global and per-site extension restrictions, which Yuel now reports as browser-controlled access limits. All 322 unit tests, TypeScript checks, production build, generated-manifest smoke, and four packaged-extension Chromium tests pass, including automatic collection on a non-legacy HTTPS domain.
+
+## [2026-07-11 13:07] Vocabulary Exposure Ceiling
+- **Changes:** Added a vocabulary-specific count formatter that rounds fractional effective exposures upward, and applied it consistently in the side panel and dashboard with focused formatter and UI coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Other reading metrics retain their existing nearest-integer rounding. The two targeted test files pass with 50 tests, TypeScript checks pass, and whitespace validation is clean.

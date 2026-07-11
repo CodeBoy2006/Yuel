@@ -356,13 +356,24 @@ describe('extension UI entrypoint smoke rendering', () => {
 
   it('renders the side panel around current reading, vocabulary, and highlights', async () => {
     const container = await renderSidePanel({
-      getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(1540).summary),
+      getSidePanelReadingDetails: async () => ({
+        ...createSidePanelDetails(createDashboardDetails(1540).summary),
+        recentVocabulary: [{
+          lemma: 'unified',
+          effectiveSeenCount: 0.2,
+          savedCount: 0,
+          packTags: [],
+          userStatus: 'new',
+        }],
+      }),
     });
 
     expect(container.textContent).toContain('当前阅读');
     expect(container.textContent).toContain('本页内容覆盖');
     expect(container.textContent).toContain('今日');
     expect(container.textContent).toContain('值得关注');
+    expect(container.textContent).toContain('新词 · 1 次');
+    expect(container.textContent).not.toContain('新词 · 0 次');
     expect(container.textContent).toContain('摘录');
     expect(container.textContent).not.toContain('Observe');
     expect(container.querySelector<HTMLElement>('.sidepanel-header .yuel-brand__mark')?.dataset.state).toBe('complete');

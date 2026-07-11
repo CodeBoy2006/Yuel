@@ -27,6 +27,7 @@ import {
   formatCount,
   formatDateTime,
   formatMinutes,
+  formatVocabularyExposureCount,
   formatVocabularyStatus,
   formatWords,
 } from '../../src/ui/formatters';
@@ -334,7 +335,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
                     <i data-status={vocab.userStatus} aria-hidden="true" />
                     {vocab.lemma}
                   </span>
-                  <span>{formatVocabularyStatus(vocab.userStatus)} · {formatCount(vocab.effectiveSeenCount)} 次</span>
+                  <span>{formatVocabularyStatus(vocab.userStatus)} · {formatVocabularyExposureCount(vocab.effectiveSeenCount)} 次</span>
                 </li>
               ))}
             </ul>

@@ -4,6 +4,7 @@ import {
   formatCount,
   formatDateTime,
   formatMinutes,
+  formatVocabularyExposureCount,
   formatVocabularyStatus,
   formatWords,
 } from './formatters';
@@ -13,6 +14,12 @@ describe('Chinese UI formatters', () => {
     expect(formatCount(1_280.4)).toBe('1,280');
     expect(formatCount(1_280.5)).toBe('1,281');
     expect(formatWords(1_280.4)).toBe('1,280 词');
+  });
+
+  it('rounds fractional vocabulary exposure counts upward', () => {
+    expect(formatVocabularyExposureCount(0)).toBe('0');
+    expect(formatVocabularyExposureCount(0.2)).toBe('1');
+    expect(formatVocabularyExposureCount(1.2)).toBe('2');
   });
 
   it('keeps the existing minute wording around the one-minute boundary', () => {
