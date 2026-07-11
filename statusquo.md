@@ -1299,3 +1299,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Page-content access remains governed by per-site optional host permissions; `tabs` only removes the frequent unknown-current-page state caused by hidden tab URL metadata.
+
+## [2026-07-11 12:19] Default All-Site Reading Access
+- **Changes:** Promoted HTTP/HTTPS host access to required manifest permissions, made the static content script cover all web pages, removed the application-level site allowlist and manual enable/pause UI, and added upgrade cleanup for the legacy dynamic script and stored origins.
+- **Status:** Completed
+- **Next Steps:** Reload or reinstall the unpacked extension so Chrome applies the new required host permissions.
+- **Context:** Chrome remains the authority for global and per-site extension restrictions, which Yuel now reports as browser-controlled access limits. All 322 unit tests, TypeScript checks, production build, generated-manifest smoke, and four packaged-extension Chromium tests pass, including automatic collection on a non-legacy HTTPS domain.

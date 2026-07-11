@@ -3,7 +3,6 @@ import {
   BookMarked,
   BookOpen,
   ExternalLink,
-  Globe2,
   Languages,
   Quote,
   Sparkles,
@@ -13,7 +12,6 @@ import { browser } from 'wxt/browser';
 
 import { DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS } from '../../src/domain/checkIn';
 import {
-  enableCurrentTabSite,
   getCurrentTabSiteAccess,
   isUnsupportedPageAccess,
   type SiteAccessState,
@@ -49,7 +47,6 @@ export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 export interface SidePanelAppDependencies {
   openDashboard: (target?: 'share-card') => Promise<void>;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
-  enableCurrentTabSite: typeof enableCurrentTabSite;
   getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
   getSidePanelReadingDetails: typeof getSidePanelReadingDetails;
   subscribeToRefresh: (refresh: (reason?: SidePanelRefreshReason) => void) => () => void;
@@ -57,7 +54,6 @@ export interface SidePanelAppDependencies {
 
 const defaultDependencies: SidePanelAppDependencies = {
   getCurrentTabSiteAccess,
-  enableCurrentTabSite,
   getCurrentPageReadingSummary,
   getSidePanelReadingDetails,
   subscribeToRefresh: subscribeToDefaultRefresh,
@@ -77,19 +73,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const [loadFailed, setLoadFailed] = useState(false);
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
   const [currentPageFailed, setCurrentPageFailed] = useState(false);
-  const [enableBusy, setEnableBusy] = useState(false);
-  const [enableDenied, setEnableDenied] = useState(false);
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [shareCardBusy, setShareCardBusy] = useState(false);
   const [dashboardFailed, setDashboardFailed] = useState(false);
-  const [currentTabInjectionMissed, setCurrentTabInjectionMissed] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>();
   const mountedRef = useRef(false);
   const refreshSequenceRef = useRef(0);
-  const enableSequenceRef = useRef(0);
   const dashboardActionSequenceRef = useRef(0);
   const dashboardActionBusyRef = useRef(false);
-  const currentReadingTitleRef = useRef<HTMLHeadingElement>(null);
   const currentUrlRef = useRef<string | undefined>(undefined);
   const refreshInFlightRef = useRef(false);
   const activeRefreshTokenRef = useRef(0);
@@ -161,14 +152,10 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     const isUrgentRefresh = reason === 'tab' || reason === 'navigation';
     if (isUrgentRefresh) {
       refreshSequenceRef.current += 1;
-      enableSequenceRef.current += 1;
       currentUrlRef.current = undefined;
       setSiteAccess(undefined);
       setCurrentPage(undefined);
       setCurrentPageFailed(false);
-      setCurrentTabInjectionMissed(false);
-      setEnableBusy(false);
-      setEnableDenied(false);
     }
 
     const startRefresh = (nextReason: SidePanelRefreshReason) => {
@@ -209,7 +196,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     return () => {
       mountedRef.current = false;
       refreshSequenceRef.current += 1;
-      enableSequenceRef.current += 1;
       dashboardActionSequenceRef.current += 1;
       dashboardActionBusyRef.current = false;
       activeRefreshTokenRef.current += 1;
@@ -225,7 +211,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     siteAccessFailed,
     summary,
     loadFailed,
-    currentTabInjectionMissed,
   );
   const currentHost = formatCurrentHost(siteAccess, siteAccessFailed);
   const todayValue = summary ? formatWords(summary.effectiveWords) : loadFailed ? '不可用' : '读取中';
@@ -240,87 +225,11 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const dashboardActionBusy = dashboardBusy || shareCardBusy;
   const vocabulary = details?.recentVocabulary ?? [];
   const savedItem = details?.recentSavedItems[0];
-  const shouldEnableCurrentSite = Boolean(siteAccess?.supported && !siteAccess.enabled);
-  const showEnableCurrentSite = shouldEnableCurrentSite || enableBusy;
   const refreshLabel = loadFailed || siteAccessFailed || currentPageFailed
     ? '同步未完成'
     : lastUpdatedAt
       ? '刚刚同步'
       : '同步中';
-
-  const enableSite = async () => {
-    if (enableBusy) return;
-
-    setEnableBusy(true);
-    setEnableDenied(false);
-    setSiteAccessFailed(false);
-    setCurrentTabInjectionMissed(false);
-    const actionId = ++enableSequenceRef.current;
-    refreshSequenceRef.current += 1;
-    activeRefreshTokenRef.current += 1;
-    refreshInFlightRef.current = false;
-    pendingRefreshReasonRef.current = undefined;
-
-    try {
-      const result = await dependencies.enableCurrentTabSite();
-      if (!mountedRef.current || actionId !== enableSequenceRef.current) return;
-
-      // Permission prompts can overlap a scheduled refresh. The explicit user
-      // action is newer than any request that began while the prompt was open.
-      refreshSequenceRef.current += 1;
-      activeRefreshTokenRef.current += 1;
-      refreshInFlightRef.current = false;
-      pendingRefreshReasonRef.current = undefined;
-
-      setEnableDenied(result.supported && !result.granted && !result.enabled && !result.starterSite);
-      setSiteAccess(result);
-      setCurrentTabInjectionMissed(result.supported && result.enabled && !result.starterSite && !result.injected);
-      if (result.supported && result.enabled) {
-        currentReadingTitleRef.current?.focus();
-      }
-
-      if (!result.supported) {
-        currentUrlRef.current = undefined;
-        setCurrentPage(undefined);
-        return;
-      }
-
-      if (currentUrlRef.current !== result.url) {
-        setCurrentPage(undefined);
-      }
-      currentUrlRef.current = result.url;
-      const pageRequestId = refreshSequenceRef.current;
-      try {
-        const nextPage = await dependencies.getCurrentPageReadingSummary(result.url);
-        if (
-          !mountedRef.current
-          || actionId !== enableSequenceRef.current
-          || pageRequestId !== refreshSequenceRef.current
-          || currentUrlRef.current !== result.url
-        ) return;
-        setCurrentPage(nextPage);
-        setCurrentPageFailed(false);
-      } catch (error) {
-        console.error('Failed to load Yuel side panel current page stats after enabling', error);
-        if (
-          !mountedRef.current
-          || actionId !== enableSequenceRef.current
-          || pageRequestId !== refreshSequenceRef.current
-          || currentUrlRef.current !== result.url
-        ) return;
-        setCurrentPage(undefined);
-        setCurrentPageFailed(true);
-      }
-    } catch (error) {
-      console.error('Failed to enable Yuel from side panel', error);
-      if (!mountedRef.current || actionId !== enableSequenceRef.current) return;
-      setSiteAccessFailed(true);
-    } finally {
-      if (mountedRef.current && actionId === enableSequenceRef.current) {
-        setEnableBusy(false);
-      }
-    }
-  };
 
   const openDashboard = async (target?: 'share-card') => {
     if (dashboardActionBusyRef.current) return;
@@ -362,14 +271,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           } : undefined}
           progressStatus={loadFailed ? 'unavailable' : 'loading'}
         />
-        <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed, currentTabInjectionMissed)}>{statusText}</StatusPill>
+        <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed)}>{statusText}</StatusPill>
       </header>
 
       <main className="sidepanel-content" aria-label="当前阅读伴读面板">
         <section className="sidepanel-page" aria-labelledby="current-reading-title">
           <div className="sidepanel-context">
             <p className="sidepanel-kicker">当前阅读</p>
-            <h1 ref={currentReadingTitleRef} id="current-reading-title" tabIndex={-1} title={currentHost}>{currentHost}</h1>
+            <h1 id="current-reading-title" title={currentHost}>{currentHost}</h1>
             <span title={lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : undefined}>
               {refreshLabel}
             </span>
@@ -396,23 +305,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
               : formatCurrentPageEmptyState(siteAccess, siteAccessFailed, currentPageFailed)}
           </p>
 
-          {showEnableCurrentSite ? (
-            <ActionButton
-              className="sidepanel-enable"
-              type="button"
-              icon={Globe2}
-              variant="primary"
-              disabled={enableBusy}
-              aria-busy={enableBusy}
-              onClick={() => void enableSite()}
-            >
-              {enableBusy ? '启用中...' : '启用当前网站'}
-            </ActionButton>
-          ) : null}
-          {enableDenied ? <InlineNotice tone="warning">权限未授予，此网站尚未启用。</InlineNotice> : null}
-          {currentTabInjectionMissed ? (
-            <InlineNotice tone="warning">已为后续页面启用；刷新当前标签后开始记录。</InlineNotice>
-          ) : null}
           {siteAccessFailed ? <InlineNotice tone="danger">当前页面状态暂时不可用。</InlineNotice> : null}
           {currentPageFailed ? <InlineNotice tone="danger">本页数据暂时未更新。</InlineNotice> : null}
         </section>
@@ -547,11 +439,9 @@ function formatStatusText(
   siteAccessFailed: boolean,
   summary: TodayReadingSummary | undefined,
   loadFailed: boolean,
-  currentTabInjectionMissed = false,
 ): string {
   if (siteAccessFailed) return '状态未知';
-  if (currentTabInjectionMissed) return '待刷新';
-  if (siteAccess?.supported && !siteAccess.enabled) return '未启用';
+  if (siteAccess?.supported && !siteAccess.enabled) return '访问受限';
   if (siteAccess?.supported && siteAccess.collectorState === 'recording') return '记录中';
   if (siteAccess?.supported && siteAccess.collectorState === 'idle') return '未检测到英文';
   if (siteAccess?.supported) return '已启用';
@@ -567,10 +457,8 @@ function getStatusTone(
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   loadFailed: boolean,
-  currentTabInjectionMissed = false,
 ): StatusTone {
   if (siteAccessFailed) return 'danger';
-  if (currentTabInjectionMissed) return 'warning';
   if (siteAccess?.supported && siteAccess.enabled && siteAccess.collectorState === 'recording') return 'positive';
   if (siteAccess?.supported && !siteAccess.enabled) return 'warning';
   if (loadFailed) return 'danger';
@@ -596,9 +484,9 @@ function formatCurrentPageEmptyState(
   if (!siteAccess) return '正在读取当前页面';
   if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
   if (!siteAccess.supported) return '暂时无法确认当前页面';
-  if (!siteAccess.enabled) return '启用后显示本页阅读';
+  if (!siteAccess.enabled) return 'Chrome 已限制此网站的访问权限';
   if (siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容';
-  if (!siteAccess.collectorState) return '网站已启用，正在确认页面采集状态';
+  if (!siteAccess.collectorState) return '正在确认页面采集状态';
   return '等待当前页面产生有效阅读';
 }
 

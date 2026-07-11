@@ -116,10 +116,6 @@ type SupportedSiteAccess = Extract<
   Awaited<ReturnType<PopupAppDependencies['getCurrentTabSiteAccess']>>,
   { supported: true }
 >;
-type SuccessfulSiteEnable = Extract<
-  Awaited<ReturnType<PopupAppDependencies['enableCurrentTabSite']>>,
-  { supported: true }
->;
 type ReadingPaceSummaryFixture = Awaited<ReturnType<DashboardAppDependencies['getReadingPaceSummary']>>;
 
 function createSupportedSiteAccess(
@@ -133,18 +129,7 @@ function createSupportedSiteAccess(
     host: 'example.com',
     granted: true,
     enabled: true,
-    starterSite: false,
     ...overrides,
-  };
-}
-
-function createSuccessfulSiteEnable(
-  overrides: Partial<SuccessfulSiteEnable> = {},
-): SuccessfulSiteEnable {
-  const { injected = true, ...accessOverrides } = overrides;
-  return {
-    ...createSupportedSiteAccess(accessOverrides),
-    injected,
   };
 }
 
@@ -166,9 +151,6 @@ function createPopupDependencies(
   return {
     getTodayReadingSummary: async () => createTodayReadingSummary(),
     getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
-    listEnabledSites: async () => [],
-    enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
-    disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
     openDashboard: async () => undefined,
     openSidePanel: async () => undefined,
     ...overrides,
@@ -239,12 +221,6 @@ function createSidePanelDependencies(
       coveredWords: 0,
       effectiveMinutes: 0,
       hasData: false,
-    }),
-    enableCurrentTabSite: async () => createSuccessfulSiteEnable({
-      url: 'https://docs.example.com/article',
-      origin: 'https://docs.example.com/*',
-      host: 'docs.example.com',
-      collectorState: 'recording',
     }),
     subscribeToRefresh: () => () => undefined,
     openDashboard: async () => undefined,
@@ -362,7 +338,6 @@ describe('extension UI entrypoint smoke rendering', () => {
         hasData: true,
       }),
       getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
-      listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
     });
 
     const text = container.textContent ?? '';
@@ -373,14 +348,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(text).toContain('今日有效阅读');
     expect(text).toContain('打开侧栏');
     expect(text).toContain('查看仪表盘');
-    expect(text.indexOf('当前站点')).toBeLessThan(text.indexOf('已启用网站'));
+    expect(text).not.toContain('启用当前网站');
+    expect(text).not.toContain('已启用网站');
     expect(container.querySelector('.popup-current-site__detail')?.hasAttribute('aria-live')).toBe(false);
     expect(container.querySelector('.popup-metrics')?.hasAttribute('aria-live')).toBe(false);
-
-    const enabledSitesToggle = container.querySelector<HTMLButtonElement>('.popup-sites__toggle');
-    expect(enabledSitesToggle?.getAttribute('aria-controls')).toBeNull();
-    await clickButton(enabledSitesToggle ?? undefined);
-    expect(enabledSitesToggle?.getAttribute('aria-controls')).toBe('popup-enabled-sites');
   });
 
   it('renders the side panel around current reading, vocabulary, and highlights', async () => {
@@ -415,7 +386,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(idle.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('未检测到英文');
     expect(idle.textContent).toContain('当前页面未检测到可记录的英文内容');
     expect(unconfirmed.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('已启用');
-    expect(unconfirmed.textContent).toContain('网站已启用，正在确认页面采集状态');
+    expect(unconfirmed.textContent).toContain('正在确认页面采集状态');
   });
 
   it('distinguishes hidden tab metadata from a page that is truly unsupported', async () => {
@@ -480,7 +451,6 @@ describe('extension UI entrypoint smoke rendering', () => {
         hasData: true,
       }),
       getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
-      listEnabledSites: async () => [{ origin: 'https://example.com/*', host: 'example.com' }],
     });
 
     expect(container.textContent).toContain('阅量 Yuel');
@@ -534,52 +504,19 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('正在读取当前标签');
   });
 
-  it('does not show popup enabled-sites empty state while persisted sites are loading', async () => {
-    const container = await renderPopup({
-      listEnabledSites: () => new Promise(() => undefined),
-    });
-
-    expect(container.textContent).toContain('已启用网站 读取中');
-    expect(container.textContent).not.toContain('还没有手动启用的网站');
-  });
-
-  it('keeps an action-refreshed popup site list when the initial request resolves last', async () => {
-    const initialSites = createDeferred<Awaited<ReturnType<PopupAppDependencies['listEnabledSites']>>>();
-    const listEnabledSites = vi
-      .fn()
-      .mockImplementationOnce(() => initialSites.promise)
-      .mockResolvedValueOnce([{ origin: 'https://fresh.example/*', host: 'fresh.example' }]);
+  it('shows Chrome site restrictions without offering a manual enable flow', async () => {
     const container = await renderPopup({
       getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        url: 'https://current.example/article',
-        origin: 'https://current.example/*',
-        host: 'current.example',
         granted: false,
         enabled: false,
       }),
-      listEnabledSites,
-      enableCurrentTabSite: async () => createSuccessfulSiteEnable({
-        url: 'https://current.example/article',
-        origin: 'https://current.example/*',
-        host: 'current.example',
-      }),
     });
 
-    expect(listEnabledSites).toHaveBeenCalledOnce();
-    await clickButton(findButton(container, '启用当前网站'));
-    await flushReactMicrotasks(4);
-
-    expect(listEnabledSites).toHaveBeenCalledTimes(2);
-    await clickButton(container.querySelector<HTMLButtonElement>('.popup-sites__toggle') ?? undefined);
-    expect(container.querySelector('.popup-sites__list')?.textContent).toContain('fresh.example');
-
-    await act(async () => {
-      initialSites.resolve([{ origin: 'https://stale.example/*', host: 'stale.example' }]);
-      await initialSites.promise;
-    });
-
-    expect(container.querySelector('.popup-sites__list')?.textContent).toContain('fresh.example');
-    expect(container.querySelector('.popup-sites__list')?.textContent).not.toContain('stale.example');
+    expect(container.textContent).toContain('访问受限');
+    expect(container.textContent).toContain('Chrome 已限制此网站的访问权限。');
+    expect(container.textContent).not.toContain('启用当前网站');
+    expect(container.textContent).not.toContain('暂停记录');
+    expect(container.textContent).not.toContain('已启用网站');
   });
 
   it('opens the side panel companion from the popup action', async () => {
@@ -606,258 +543,6 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(openDashboard).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('仪表盘暂时不可用');
-  });
-
-  it('keeps the popup enable action stable and single-shot while permission is pending', async () => {
-    const enableResult = createDeferred<Awaited<ReturnType<PopupAppDependencies['enableCurrentTabSite']>>>();
-    const enableCurrentTabSite = vi.fn(() => enableResult.promise);
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        granted: false,
-        enabled: false,
-      }),
-      enableCurrentTabSite,
-    });
-
-    const enableButton = findButton(container, '启用当前网站');
-    await clickButton(enableButton);
-
-    const pendingButton = findButton(container, '启用中...');
-    expect(pendingButton?.disabled).toBe(true);
-    expect(pendingButton?.getAttribute('aria-busy')).toBe('true');
-    expect(container.textContent).not.toContain('打开侧栏');
-
-    await act(async () => {
-      pendingButton?.click();
-    });
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-
-    await act(async () => {
-      enableResult.resolve(createSuccessfulSiteEnable({
-        collectorState: 'recording',
-      }));
-      await enableResult.promise;
-    });
-
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('打开侧栏');
-  });
-
-  it('keeps the popup pause action stable and disabled while removal is pending', async () => {
-    const disableResult = createDeferred<Awaited<ReturnType<PopupAppDependencies['disableEnabledSite']>>>();
-    const disableEnabledSite = vi.fn(() => disableResult.promise);
-    const getCurrentTabSiteAccess = vi
-      .fn()
-      .mockResolvedValueOnce(createSupportedSiteAccess())
-      .mockResolvedValueOnce(createSupportedSiteAccess({
-        granted: false,
-        enabled: false,
-      }));
-    const container = await renderPopup({
-      getCurrentTabSiteAccess,
-      listEnabledSites: vi
-        .fn()
-        .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }])
-        .mockResolvedValueOnce([]),
-      disableEnabledSite,
-    });
-
-    const pauseButton = findButton(container, '暂停记录');
-    pauseButton?.focus();
-    expect(document.activeElement).toBe(pauseButton);
-    await clickButton(pauseButton);
-
-    const pendingButton = findButton(container, '暂停中...');
-    expect(pendingButton?.disabled).toBe(true);
-    expect(pendingButton?.getAttribute('aria-busy')).toBe('true');
-
-    await act(async () => {
-      pendingButton?.click();
-    });
-    expect(disableEnabledSite).toHaveBeenCalledOnce();
-
-    await act(async () => {
-      disableResult.resolve({ removed: true, remainingOrigins: [] });
-      await disableResult.promise;
-    });
-
-    expect(disableEnabledSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('未启用');
-    expect(document.activeElement).toBe(container.querySelector('.popup-sites__toggle'));
-    await clickButton(container.querySelector<HTMLButtonElement>('.popup-sites__toggle') ?? undefined);
-    expect(container.querySelector('.popup-sites')?.textContent).toContain('还没有手动启用的网站');
-    expect(container.querySelector('.popup-sites')?.textContent).not.toContain('example.com');
-  });
-
-  it('shows an origin that another context re-enables after a popup pause completes', async () => {
-    const currentAccess = createSupportedSiteAccess({
-      collectorState: 'recording' as const,
-    });
-    const listEnabledSites = vi.fn(async () => [{ origin: currentAccess.origin, host: currentAccess.host }]);
-    const getCurrentTabSiteAccess = vi.fn(async () => currentAccess);
-    const container = await renderPopup({
-      getCurrentTabSiteAccess,
-      listEnabledSites,
-      disableEnabledSite: async () => ({ removed: true, remainingOrigins: [] }),
-    });
-
-    await clickButton(findButton(container, '暂停记录'));
-    await flushReactMicrotasks(4);
-
-    expect(listEnabledSites).toHaveBeenCalledTimes(2);
-    expect(getCurrentTabSiteAccess).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('正在记录此网站的英文阅读');
-    await clickButton(container.querySelector<HTMLButtonElement>('.popup-sites__toggle') ?? undefined);
-    expect(container.querySelector('.popup-sites__list')?.textContent).toContain('example.com');
-  });
-
-  it('shows when current-site permission is denied from the popup', async () => {
-    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
-      granted: false,
-      enabled: false,
-      injected: false,
-    }));
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        granted: false,
-        enabled: false,
-      }),
-      enableCurrentTabSite,
-    });
-
-    await clickButton(findButton(container, '启用当前网站'));
-    await flushReactMicrotasks();
-
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('权限未授予');
-  });
-
-  it('tells the user to reload when enabling succeeds but current-tab injection fails', async () => {
-    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
-      injected: false,
-    }));
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        granted: false,
-        enabled: false,
-      }),
-      listEnabledSites: vi
-        .fn()
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ origin: 'https://example.com/*', host: 'example.com' }]),
-      enableCurrentTabSite,
-    });
-
-    await clickButton(findButton(container, '启用当前网站'));
-    await flushReactMicrotasks();
-
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('已为后续页面启用');
-    expect(container.textContent).not.toContain('正在记录此网站的英文阅读');
-  });
-
-  it('renders starter-site current access without asking for optional permission', async () => {
-    const enableCurrentTabSite = vi.fn();
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        url: 'https://developer.mozilla.org/en-US/docs/Web/API',
-        origin: 'https://developer.mozilla.org/*',
-        host: 'developer.mozilla.org',
-        granted: false,
-        starterSite: true,
-      }),
-      enableCurrentTabSite,
-    });
-
-    expect(container.textContent).toContain('developer.mozilla.org');
-    expect(container.textContent).toContain('默认记录站点');
-    expect(container.textContent).toContain('已启用');
-    expect(findButton(container, '打开侧栏')).toBeInstanceOf(HTMLButtonElement);
-    expect(findButton(container, '暂停记录')).toBeUndefined();
-    expect(findButton(container, '默认记录中')).toBeUndefined();
-    expect(enableCurrentTabSite).not.toHaveBeenCalled();
-  });
-
-  it('keeps starter-site current access enabled after removing a redundant custom grant', async () => {
-    const disableEnabledSite = vi.fn(async () => ({ removed: true, remainingOrigins: [] }));
-    const listEnabledSites = vi
-      .fn()
-      .mockResolvedValueOnce([{ origin: 'https://developer.mozilla.org/*', host: 'developer.mozilla.org' }])
-      .mockResolvedValueOnce([]);
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        url: 'https://developer.mozilla.org/en-US/docs/Web/API',
-        origin: 'https://developer.mozilla.org/*',
-        host: 'developer.mozilla.org',
-        starterSite: true,
-      }),
-      listEnabledSites,
-      disableEnabledSite,
-    });
-
-    const manageButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('已启用网站'));
-    expect(manageButton).toBeInstanceOf(HTMLButtonElement);
-
-    await act(async () => {
-      manageButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const removeButton = findButton(container, '移除');
-    removeButton?.focus();
-    expect(document.activeElement).toBe(removeButton);
-
-    await clickButton(removeButton);
-    await flushReactMicrotasks();
-
-    expect(disableEnabledSite).toHaveBeenCalledWith('https://developer.mozilla.org/*');
-    expect(container.textContent).toContain('默认记录站点');
-    expect(findButton(container, '打开侧栏')).toBeInstanceOf(HTMLButtonElement);
-    expect(findButton(container, '暂停记录')).toBeUndefined();
-    expect(findButton(container, '默认记录中')).toBeUndefined();
-    expect(findButton(container, '启用当前网站')).toBeUndefined();
-    expect(document.activeElement).toBe(container.querySelector('.popup-sites__toggle'));
-  });
-
-  it('shows when enabled-site removal fails without hiding current-site access', async () => {
-    const disableEnabledSite = vi.fn(async () => {
-      throw new Error('permission removal failed');
-    });
-    const listEnabledSites = vi.fn(async () => [{ origin: 'https://example.com/*', host: 'example.com' }]);
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        collectorState: 'recording',
-      }),
-      listEnabledSites,
-      disableEnabledSite,
-    });
-
-    await clickButton(findButton(container, '暂停记录'));
-    await flushReactMicrotasks();
-
-    expect(disableEnabledSite).toHaveBeenCalledWith('https://example.com/*');
-    expect(listEnabledSites).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('移除失败，此网站仍保持启用');
-    expect(container.textContent).toContain('正在记录此网站的英文阅读');
-    expect(container.textContent).not.toContain('权限状态不可用');
-  });
-
-  it('keeps current-site access visible when the enabled-site list fails to load', async () => {
-    const listEnabledSites = vi.fn(async () => {
-      throw new Error('enabled sites unavailable');
-    });
-    const container = await renderPopup({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        collectorState: 'recording',
-      }),
-      listEnabledSites,
-    });
-
-    expect(listEnabledSites).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('已启用网站 不可用');
-    expect(container.textContent).toContain('example.com');
-    expect(container.textContent).toContain('正在记录此网站的英文阅读');
-    expect(container.textContent).not.toContain('还没有手动启用的网站');
-    expect(container.textContent).not.toContain('权限状态不可用');
   });
 
   it('renders dashboard summary, recent pages, and vocabulary exposure from injected local services', async () => {
@@ -1508,23 +1193,17 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.querySelector('.sidepanel-page__measure')?.hasAttribute('aria-live')).toBe(false);
   });
 
-  it('asks for a tab refresh when side panel enablement succeeds but current-page injection misses', async () => {
-    const enableCurrentTabSite = vi.fn(async () => createSuccessfulSiteEnable({
-      injected: false,
-    }));
+  it('shows Chrome site restrictions in the side panel without a manual enable action', async () => {
     const container = await renderSidePanel({
       getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
         granted: false,
         enabled: false,
       }),
-      enableCurrentTabSite,
     });
 
-    await clickButton(findButton(container, '启用当前网站'));
-
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('待刷新');
-    expect(container.textContent).toContain('已为后续页面启用；刷新当前标签后开始记录');
+    expect(container.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('访问受限');
+    expect(container.textContent).toContain('Chrome 已限制此网站的访问权限');
+    expect(container.textContent).not.toContain('启用当前网站');
     expect(container.textContent).not.toContain('记录中');
   });
 
@@ -1776,195 +1455,6 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('1,540 词');
     expect(container.textContent).toContain('420 / 1,200 词');
     expect(container.querySelector('.sidepanel-page [role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('420');
-  });
-
-  it('keeps the side panel enable action stable and single-shot while permission is pending', async () => {
-    const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
-    const enableCurrentTabSite = vi.fn(() => enableResult.promise);
-    const container = await renderSidePanel({
-      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
-        granted: false,
-        enabled: false,
-      }),
-      enableCurrentTabSite,
-    });
-
-    const pendingEnableButton = findButton(container, '启用当前网站');
-    pendingEnableButton?.focus();
-    await clickButton(pendingEnableButton);
-
-    const pendingButton = findButton(container, '启用中...');
-    expect(pendingButton?.disabled).toBe(true);
-    expect(pendingButton?.getAttribute('aria-busy')).toBe('true');
-    await act(async () => {
-      pendingButton?.click();
-    });
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-
-    await act(async () => {
-      enableResult.resolve(createSuccessfulSiteEnable({
-        collectorState: 'recording',
-      }));
-      await enableResult.promise;
-    });
-
-    expect(enableCurrentTabSite).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('记录中');
-    expect(container.textContent).not.toContain('启用当前网站');
-    expect(document.activeElement).toBe(container.querySelector('#current-reading-title'));
-  });
-
-  it('releases a hung side-panel refresh when an enable action takes ownership', async () => {
-    let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
-    const staleDetails = createDeferred<SidePanelDetails>();
-    const getSidePanelReadingDetails = vi
-      .fn()
-      .mockImplementationOnce(() => staleDetails.promise)
-      .mockResolvedValue(createSidePanelDetails(createDashboardDetails(320, 'fresh.example').summary));
-    const getCurrentTabSiteAccess = vi.fn(async () => createSupportedSiteAccess({
-      granted: false,
-      enabled: false,
-    }));
-    const container = await renderSidePanel({
-      getSidePanelReadingDetails,
-      getCurrentTabSiteAccess,
-      enableCurrentTabSite: async () => createSuccessfulSiteEnable(),
-      subscribeToRefresh: (refresh) => {
-        requestRefresh = refresh;
-        return vi.fn();
-      },
-    });
-
-    expect(getSidePanelReadingDetails).toHaveBeenCalledOnce();
-    await clickButton(findButton(container, '启用当前网站'));
-    await act(async () => {
-      requestRefresh?.('tick');
-      for (let index = 0; index < 4; index += 1) await Promise.resolve();
-    });
-
-    expect(getSidePanelReadingDetails).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('320 词');
-
-    await act(async () => {
-      staleDetails.resolve(createSidePanelDetails());
-      await staleDetails.promise;
-    });
-  });
-
-  it('does not let a delayed enable page query overwrite a newer side-panel refresh', async () => {
-    let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
-    const delayedEnablePage = createDeferred<
-      Awaited<ReturnType<SidePanelAppDependencies['getCurrentPageReadingSummary']>>
-    >();
-    const currentAccess = createSupportedSiteAccess({
-      granted: false,
-      enabled: false,
-    });
-    const getCurrentPageReadingSummary = vi
-      .fn()
-      .mockResolvedValueOnce({
-        totalWords: 100,
-        effectiveWords: 10,
-        coveredWords: 10,
-        effectiveMinutes: 1,
-        confidence: 0.5,
-        hasData: true,
-      })
-      .mockImplementationOnce(() => delayedEnablePage.promise)
-      .mockResolvedValueOnce({
-        totalWords: 1_200,
-        effectiveWords: 420,
-        coveredWords: 420,
-        effectiveMinutes: 4,
-        confidence: 0.8,
-        hasData: true,
-      });
-    const container = await renderSidePanel({
-      getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(420).summary),
-      getCurrentTabSiteAccess: async () => currentAccess,
-      getCurrentPageReadingSummary,
-      enableCurrentTabSite: async () => createSuccessfulSiteEnable({
-        granted: true,
-        enabled: true,
-      }),
-      subscribeToRefresh: (refresh) => {
-        requestRefresh = refresh;
-        return vi.fn();
-      },
-    });
-
-    await clickButton(findButton(container, '启用当前网站'));
-    expect(getCurrentPageReadingSummary).toHaveBeenCalledTimes(2);
-
-    await act(async () => {
-      requestRefresh?.('tick');
-      for (let index = 0; index < 5; index += 1) await Promise.resolve();
-    });
-    expect(getCurrentPageReadingSummary).toHaveBeenCalledTimes(3);
-    expect(container.textContent).toContain('420 / 1,200 词');
-
-    await act(async () => {
-      delayedEnablePage.resolve({
-        totalWords: 200,
-        effectiveWords: 20,
-        coveredWords: 20,
-        effectiveMinutes: 1,
-        confidence: 0.4,
-        hasData: true,
-      });
-      await delayedEnablePage.promise;
-    });
-
-    expect(container.textContent).toContain('420 / 1,200 词');
-    expect(container.textContent).not.toContain('20 / 200 词');
-  });
-
-  it('ignores a pending enable result after the active tab changes', async () => {
-    let requestRefresh: ((reason?: SidePanelRefreshReason) => void) | undefined;
-    const enableResult = createDeferred<Awaited<ReturnType<SidePanelAppDependencies['enableCurrentTabSite']>>>();
-    const getCurrentTabSiteAccess = vi
-      .fn()
-      .mockResolvedValueOnce(createSupportedSiteAccess({
-        url: 'https://first.example/article',
-        origin: 'https://first.example/*',
-        host: 'first.example',
-        granted: false,
-        enabled: false,
-      }))
-      .mockResolvedValueOnce(createSupportedSiteAccess({
-        tabId: 2,
-        url: 'https://second.example/guide',
-        origin: 'https://second.example/*',
-        host: 'second.example',
-      }));
-    const container = await renderSidePanel({
-      getCurrentTabSiteAccess,
-      enableCurrentTabSite: () => enableResult.promise,
-      subscribeToRefresh: (refresh) => {
-        requestRefresh = refresh;
-        return vi.fn();
-      },
-    });
-
-    await clickButton(findButton(container, '启用当前网站'));
-    await act(async () => {
-      requestRefresh?.('tab');
-      for (let index = 0; index < 5; index += 1) await Promise.resolve();
-    });
-    expect(container.textContent).toContain('second.example');
-
-    await act(async () => {
-      enableResult.resolve(createSuccessfulSiteEnable({
-        url: 'https://first.example/article',
-        origin: 'https://first.example/*',
-        host: 'first.example',
-      }));
-      await enableResult.promise;
-    });
-
-    expect(container.textContent).toContain('second.example');
-    expect(container.textContent).not.toContain('first.example');
-    expect(container.textContent).not.toContain('启用中...');
   });
 
   it('renders side panel companion metrics from injected local services', async () => {

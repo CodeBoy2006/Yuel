@@ -18,7 +18,7 @@ import {
   type ReadingCollectorStatusResponse,
   type ReadingEventBatchMessage,
 } from '../../../src/messaging/contracts';
-import { STARTER_SITE_HOST } from './starterSite';
+import { READING_SITE_HOST } from './readingSite';
 
 const EXTENSION_PATH = path.resolve(process.cwd(), '.output/chrome-mv3');
 
@@ -46,7 +46,7 @@ export const test = base.extend<ExtensionFixtures>({
           `--load-extension=${EXTENSION_PATH}`,
           '--allow-insecure-localhost',
           '--ignore-certificate-errors',
-          `--host-resolver-rules=MAP ${STARTER_SITE_HOST} 127.0.0.1`,
+          `--host-resolver-rules=MAP ${READING_SITE_HOST} 127.0.0.1`,
         ],
       });
       await use(context);

@@ -4,7 +4,7 @@ import path from 'node:path';
 export interface ExtensionBuildManifest {
   manifest_version: number;
   permissions?: string[];
-  optional_host_permissions?: string[];
+  host_permissions?: string[];
   icons?: Record<string, string>;
   action?: {
     default_icon?: Record<string, string>;
@@ -18,6 +18,7 @@ export interface ExtensionBuildManifest {
   };
   content_scripts?: Array<{
     js?: string[];
+    matches?: string[];
   }>;
 }
 

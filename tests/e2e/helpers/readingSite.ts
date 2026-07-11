@@ -6,12 +6,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-export const STARTER_SITE_HOST = 'developer.mozilla.org';
+export const READING_SITE_HOST = 'reader.example.test';
 
 const execFileAsync = promisify(execFile);
 
-export async function withStarterSite<T>(runTest: (url: string) => Promise<T>): Promise<T> {
-  const certificateDir = await mkdtemp(path.join(tmpdir(), 'yuel-starter-site-cert-'));
+export async function withReadingSite<T>(runTest: (url: string) => Promise<T>): Promise<T> {
+  const certificateDir = await mkdtemp(path.join(tmpdir(), 'yuel-reading-site-cert-'));
   const keyPath = path.join(certificateDir, 'key.pem');
   const certPath = path.join(certificateDir, 'cert.pem');
 
@@ -20,12 +20,12 @@ export async function withStarterSite<T>(runTest: (url: string) => Promise<T>): 
     const [key, cert] = await Promise.all([readFile(keyPath), readFile(certPath)]);
     const server = createServer({ cert, key }, (_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(createStarterSiteHtml());
+      response.end(createReadingSiteHtml());
     });
 
     try {
       const port = await listenOnLocalhost(server);
-      return await runTest(`https://${STARTER_SITE_HOST}:${port}/en-US/docs/Yuel`);
+      return await runTest(`https://${READING_SITE_HOST}:${port}/article/yuel`);
     } finally {
       await closeServer(server);
     }
@@ -48,18 +48,18 @@ async function createSelfSignedCertificate(keyPath: string, certPath: string): P
     '-days',
     '1',
     '-subj',
-    `/CN=${STARTER_SITE_HOST}`,
+    `/CN=${READING_SITE_HOST}`,
     '-addext',
-    `subjectAltName=DNS:${STARTER_SITE_HOST}`,
+    `subjectAltName=DNS:${READING_SITE_HOST}`,
   ]);
 }
 
-function createStarterSiteHtml(): string {
+function createReadingSiteHtml(): string {
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Starter content script reading loop</title>
+    <title>All-site content script reading loop</title>
     <style>
       body { font-family: system-ui, sans-serif; margin: 40px; max-width: 760px; line-height: 1.7; }
       article { min-height: 1400px; }
@@ -69,13 +69,13 @@ function createStarterSiteHtml(): string {
   <body>
     <main>
       <article>
-        <h1>Starter content script reading loop</h1>
+        <h1>All-site content script reading loop</h1>
         <p>
           Local first browser extensions can measure careful reading behavior on documentation pages while keeping
           vocabulary exposure, architecture notes, and performance signals inside the user's browser database.
         </p>
         <p>
-          This starter site page gives the packaged content script a visible article block long enough to emit
+          This ordinary HTTPS page gives the packaged content script a visible article block long enough to emit
           exposure ticks, persist local reading events, and update the dashboard without manual runtime messages.
         </p>
       </article>
@@ -96,7 +96,7 @@ async function listenOnLocalhost(server: Server): Promise<number> {
 
   const address = server.address();
   if (!address || typeof address === 'string') {
-    throw new Error('Local starter site did not expose a TCP address');
+    throw new Error('Local reading site did not expose a TCP address');
   }
   return (address as AddressInfo).port;
 }

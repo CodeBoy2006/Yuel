@@ -8,7 +8,7 @@ import {
   test,
 } from './helpers/extension';
 import { createRuntimeReadingBatchMessage, RUNTIME_LOOP_DOMAIN } from './helpers/reading';
-import { STARTER_SITE_HOST, withStarterSite } from './helpers/starterSite';
+import { READING_SITE_HOST, withReadingSite } from './helpers/readingSite';
 
 test('loads the packaged extension pages', async ({ context, extensionId }) => {
   expect(extensionId).toMatch(/^[a-p]{32}$/);
@@ -61,31 +61,31 @@ test('updates the toolbar logo from daily progress through the completed state',
   });
 });
 
-test('records starter-site reading and reports the live collector state', async ({ context, extensionId, extensionWorker }) => {
-  await withStarterSite(async (starterSiteUrl) => {
-    const starterPage = await context.newPage();
-    await starterPage.goto(starterSiteUrl, { waitUntil: 'load' });
-    await expect(starterPage.locator('body')).toContainText('Starter content script reading loop');
+test('records reading on an arbitrary HTTPS site and reports the live collector state', async ({ context, extensionId, extensionWorker }) => {
+  await withReadingSite(async (readingSiteUrl) => {
+    const readingPage = await context.newPage();
+    await readingPage.goto(readingSiteUrl, { waitUntil: 'load' });
+    await expect(readingPage.locator('body')).toContainText('All-site content script reading loop');
     await expect.poll(() => readActiveTabCollectorStatus(extensionWorker)).toMatchObject({
       collecting: true,
-      url: starterSiteUrl,
+      url: readingSiteUrl,
     });
 
     // Hiding the page flushes the current batch. Let one viewport sample
     // complete first so the flushed batch contains effective reading evidence.
-    await starterPage.waitForTimeout(1_250);
+    await readingPage.waitForTimeout(1_250);
 
     let dashboardText = '';
     await expect.poll(async () => {
       dashboardText = await readExtensionPageText(context, extensionId, 'dashboard.html');
       return dashboardText;
-    }).toContain(STARTER_SITE_HOST);
+    }).toContain(READING_SITE_HOST);
     expect(dashboardText).not.toContain('从下一篇外语文章开始');
 
     const sidePanel = await openExtensionPage(context, extensionId, 'sidepanel.html');
-    await starterPage.bringToFront();
+    await readingPage.bringToFront();
     const sidePanelBody = sidePanel.locator('body');
-    await expect(sidePanelBody).toContainText(STARTER_SITE_HOST);
+    await expect(sidePanelBody).toContainText(READING_SITE_HOST);
     await expect(sidePanelBody).toContainText('记录中');
     await expect(sidePanelBody).not.toContainText('不可记录');
   });

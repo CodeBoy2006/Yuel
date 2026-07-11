@@ -13,7 +13,7 @@ export default defineConfig({
     version: '0.1.0',
     minimum_chrome_version: '116',
     permissions: ['activeTab', 'alarms', 'contextMenus', 'favicon', 'idle', 'sidePanel', 'scripting', 'storage', 'tabs'],
-    optional_host_permissions: ['http://*/*', 'https://*/*'],
+    host_permissions: ['http://*/*', 'https://*/*'],
     icons: {
       '16': 'icon/16.png',
       '24': 'icon/24.png',

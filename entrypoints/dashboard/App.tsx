@@ -92,7 +92,7 @@ export interface DashboardAppDependencies {
 const defaultDependencies: DashboardAppDependencies = {
   clearLocalReadingData,
   confirmClearLocalReadingData: () =>
-    window.confirm('清空所有阅量本地阅读数据？已启用网站和浏览器权限会保留。'),
+    window.confirm('清空所有阅量本地阅读数据？Chrome 中的网站访问设置会保留。'),
   copyTextToClipboard,
   exportSummaryCardPng: exportDashboardSummaryCardPng,
   getWebsiteFaviconUrl,

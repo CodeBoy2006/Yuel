@@ -36,17 +36,16 @@ Deferred:
 - Cross-device sync.
 - PDF/EPUB reading.
 - Pack marketplace and signature verification.
-- Full runtime whitelist UI.
 
 ## Permission Model
 
-The generated manifest uses mandatory permissions only for extension mechanics:
+The generated manifest uses these required extension permissions:
 
 ```text
 activeTab, alarms, contextMenus, favicon, idle, sidePanel, scripting, storage, tabs
 ```
 
-The required `tabs` permission lets the persistent side panel resolve the active tab URL after tab switches without granting access to page content. Broad host access remains under `optional_host_permissions`, and the first static content script is restricted to starter sites so the prototype can be loaded and tested without asking for every website.
+The required `tabs` permission lets the persistent side panel resolve the active tab URL after tab switches. Required host permissions cover `http://*/*` and `https://*/*`, and the static content script uses the same matches so reading collection starts without an application-level allowlist or manual enable action. Chrome still controls whether the extension can run globally or on an individual site; UI surfaces report that browser-controlled restriction without trying to request permission at runtime.
 
 ## Data Model
 

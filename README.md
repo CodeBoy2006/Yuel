@@ -1,6 +1,6 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on supported or user-enabled sites, stores the event stream and aggregates locally, and surfaces reading stats, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
+Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on HTTP and HTTPS pages where Chrome permits extension access, stores the event stream and aggregates locally, and surfaces reading stats, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
 
 ## Stack
 
@@ -41,18 +41,19 @@ CI=true pnpm build
 
 Then open `chrome://extensions`, enable developer mode, choose "Load unpacked", and select `.output/chrome-mv3/`.
 
-The extension can collect reading activity in two ways:
+The extension requests required host access for all HTTP and HTTPS pages:
 
-- Starter static matches: MDN, GitHub, Medium, Wikipedia, and arXiv load the content script without asking for broad host access.
-- User-enabled sites: open the popup on an `http` or `https` page, choose "Enable current site", and Yuel requests optional host permission only for that origin. Enabled sites are persisted and re-registered on startup.
+- `host_permissions`: `http://*/*` and `https://*/*`.
+- The static content script uses the same matches, so supported pages begin collecting without a Yuel-specific per-site enable step.
+- Chrome can still restrict extension access globally or for an individual site. The popup and side panel report that browser-controlled state as "Access restricted".
 
-Once enabled, the content script emits local reading events as visible text segments enter and leave view. It identifies English reading content from the actual candidate text instead of trusting page-level `lang` declarations, so English articles embedded in localized or translated pages remain eligible while non-English prose and localized technology keyword lists are skipped. It supports SPA-style dynamic pages by watching readable DOM mutations, debouncing same-route content refreshes such as infinite-scroll additions, and polling/listening for client-side route changes so React, Vue, and Next.js pages can rebuild page snapshots after `pushState`, hash, or popstate navigation. Viewport exposure uses the version 2 Budgeted Exposure Model: a one-second heartbeat creates one engagement-gated attention-time budget, then capped weighted water-filling distributes that time across sentence-aligned segments targeting 16–24 words, with an 8-word minimum, using additive Gaussian-weighted text geometry from `Range.getClientRects()`. Each segment converts its allocated attention time to effective words once, using the active reading pace and a local content-rate multiplier; code, headings, lists, and body prose therefore consume the same shared time without pretending they are read at the same word rate. Document visibility and window focus gate effective attention, and stale scroll velocity expires after a short quiet period. The storage layer uses the local reading pace profile when one exists, otherwise it falls back to 220 WPM. The background worker persists batches roughly every 15 seconds, retries failed collector flushes, applies segment-level session/day/lifetime caps, records raw viewport exposure separately from effective attention time, and tags matched vocabulary by effective segment coverage with the bundled Tech English Pack. Effective reading time is an explainable attention estimate, not a claim of exact eye-on-text dwell time.
+On an accessible HTTP or HTTPS page, the content script emits local reading events as visible text segments enter and leave view. It identifies English reading content from the actual candidate text instead of trusting page-level `lang` declarations, so English articles embedded in localized or translated pages remain eligible while non-English prose and localized technology keyword lists are skipped. It supports SPA-style dynamic pages by watching readable DOM mutations, debouncing same-route content refreshes such as infinite-scroll additions, and polling/listening for client-side route changes so React, Vue, and Next.js pages can rebuild page snapshots after `pushState`, hash, or popstate navigation. Viewport exposure uses the version 2 Budgeted Exposure Model: a one-second heartbeat creates one engagement-gated attention-time budget, then capped weighted water-filling distributes that time across sentence-aligned segments targeting 16–24 words, with an 8-word minimum, using additive Gaussian-weighted text geometry from `Range.getClientRects()`. Each segment converts its allocated attention time to effective words once, using the active reading pace and a local content-rate multiplier; code, headings, lists, and body prose therefore consume the same shared time without pretending they are read at the same word rate. Document visibility and window focus gate effective attention, and stale scroll velocity expires after a short quiet period. The storage layer uses the local reading pace profile when one exists, otherwise it falls back to 220 WPM. The background worker persists batches roughly every 15 seconds, retries failed collector flushes, applies segment-level session/day/lifetime caps, records raw viewport exposure separately from effective attention time, and tags matched vocabulary by effective segment coverage with the bundled Tech English Pack. Effective reading time is an explainable attention estimate, not a claim of exact eye-on-text dwell time.
 
 Users can intentionally store raw selected text by highlighting text on a page and choosing "Save selection to Yuel" from the browser context menu. This writes a local `savedItems` record with the selected text, source domain, and a `selection` tag, and increments local vocabulary saved counts for trackable English words; ordinary text selection events remain hashed telemetry and do not store raw text.
 
 ## MVP Surfaces
 
-- Popup: a current-site control center with the active site’s recording state first, a compact today summary, side-panel/dashboard launch actions, collapsed enabled-site management, and starter-site guidance only when useful.
+- Popup: a current-site control center with the active site’s recording or browser-restricted state first, a compact today summary, and side-panel/dashboard launch actions.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
 - Dashboard: a reading ledger with a compact today summary, configurable effective-word check-in goal and progress, a 13-week activity heatmap, effective-word trend, weekday rhythm, input-composition charts, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration, and quiet local-data management.
 - Context menu: explicit selected-text saving into the local saved-items table.
@@ -94,9 +95,9 @@ The browser DOM smoke suite also runs a source-module collector fixture with a `
 
 `test:real-pages` is an opt-in live-site benchmark. It opens a public English documentation/article corpus in Playwright-managed Chromium, injects a benchmark script generated from the current `src/content/extractBlocks.ts` source, and reports per-page text extraction time, range-geometry time, block count, and word count. It requires network access and can be tuned with `YUEL_REAL_PAGE_CONCURRENCY`, `YUEL_REAL_PAGE_SETTLE_MS`, and `YUEL_REAL_PAGE_TIMEOUT_MS`; set `YUEL_REAL_PAGE_REPORT_PATH=/tmp/yuel-real-pages.txt` to write the report to a file.
 
-`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, optional host permission boundary, context-menu capability, core extension pages, background worker, and content script artifacts.
+`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, required HTTP/HTTPS host permissions, all-site content-script matches, context-menu capability, core extension pages, background worker, and content script artifacts.
 
-`test:e2e` and `test:extension-browser-smoke` build the same output and run the packaged extension through Playwright Test. A custom fixture launches bundled Chromium with one isolated temporary profile per test, discovers the MV3 service worker and extension ID, verifies the popup, side panel, and dashboard pages, records a sample runtime batch, and serves a local HTTPS starter-site page to prove the packaged content script can auto-capture reading data. The runner uses one worker and retains a trace plus screenshot on failure. It runs headlessly by default; use `pnpm test:e2e:headed` or set `YUEL_BROWSER_SMOKE_HEADLESS=false` for an intentional visible run. The starter-site check needs `openssl` for its temporary self-signed certificate. Browser suites must run outside process sandboxes that block Chromium startup or localhost ports.
+`test:e2e` and `test:extension-browser-smoke` build the same output and run the packaged extension through Playwright Test. A custom fixture launches bundled Chromium with one isolated temporary profile per test, discovers the MV3 service worker and extension ID, verifies the popup, side panel, and dashboard pages, records a sample runtime batch, and serves a local HTTPS reading page to prove the packaged all-site content script can auto-capture reading data. The runner uses one worker and retains a trace plus screenshot on failure. It runs headlessly by default; use `pnpm test:e2e:headed` or set `YUEL_BROWSER_SMOKE_HEADLESS=false` for an intentional visible run. The local HTTPS check needs `openssl` for its temporary self-signed certificate. Browser suites must run outside process sandboxes that block Chromium startup or localhost ports.
 
 ## Architecture
 
@@ -116,13 +117,13 @@ Key boundaries:
 - `src/domain/` contains pure types, metrics, and Pack validation.
 - `src/analysis/` contains lightweight English tokenization.
 - `src/storage/` owns the Dexie schema, write repository, aggregate updates, and read-side stats queries.
-- `src/permissions/` owns optional host permission and dynamic content-script registration.
+- `src/permissions/` owns current-tab host access status and cleanup of legacy per-site permission state.
 - `src/packs/` contains declarative Pack data examples used for local vocabulary tagging.
 
 ## Privacy Posture
 
-The V0.1 manifest avoids mandatory `<all_urls>` access. Broad host access is optional, while the static starter content script covers MDN, GitHub, Medium, Wikipedia, and arXiv for early validation.
+The manifest requires access to all HTTP and HTTPS pages so reading collection starts without a Yuel-specific per-site enable step. Chrome remains the authority for browser-level extension site access and can restrict Yuel globally or for an individual site.
 
-By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text is stored only when the user explicitly chooses the Yuel context-menu save action. The dashboard can clear local reading data after confirmation without changing enabled-site permissions.
+By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text is stored only when the user explicitly chooses the Yuel context-menu save action. The dashboard can clear local reading data after confirmation without changing Chrome's extension site-access settings.
 
 Recent-page icons use Chrome's local favicon service through the manifest's `favicon` permission. Opening the dashboard does not fetch icon files directly from the recorded websites.

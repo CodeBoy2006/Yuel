@@ -2,8 +2,6 @@ import { browser } from 'wxt/browser';
 
 import { getDomain } from '../domain/events';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
-import { getEnabledSiteOrigins } from '../permissions/contentScriptRegistration';
-import { isStarterSiteUrl } from '../permissions/starterSites';
 
 export interface ReadingMessageSender {
   url?: string;
@@ -13,11 +11,6 @@ export interface ReadingMessageSender {
 export interface ReadingAccessRuntime {
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
-  };
-  storage: {
-    local: {
-      get: (key: string) => Promise<Record<string, unknown>>;
-    };
   };
 }
 
@@ -39,16 +32,10 @@ export async function canRecordReadingBatch(
   if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || getDomain(senderUrl) !== payload.page.domain) {
     return false;
   }
-  if (isStarterSiteUrl(senderUrl)) {
-    return true;
-  }
 
-  const origin = `${parsed.protocol}//${parsed.hostname}/*`;
-  const [granted, enabledOrigins] = await Promise.all([
-    runtime.permissions.contains({ origins: [origin] }),
-    getEnabledSiteOrigins(runtime),
-  ]);
-  return granted && enabledOrigins.includes(origin);
+  return runtime.permissions.contains({
+    origins: [`${parsed.protocol}//${parsed.hostname}/*`],
+  });
 }
 
 function parseUrl(url: string): URL | undefined {

@@ -53,7 +53,7 @@ describe('collectTextBlocks', () => {
     expect(blocks[0].chunkId).toContain(blocks[0].pageId);
   });
 
-  it('falls back to visible body paragraphs when user-enabled pages lack article wrappers', () => {
+  it('falls back to visible body paragraphs when generic pages lack article wrappers', () => {
     document.body.innerHTML = `
       <header><p>Skip tiny nav copy.</p></header>
       <p id="plain">Backward compatible defaults reduce migration risk while teams roll out analytics carefully.</p>

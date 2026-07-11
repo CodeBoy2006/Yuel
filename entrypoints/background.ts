@@ -9,8 +9,7 @@ import {
 } from '../src/background/readingToolbar';
 import { respondToReadingToolbarRuntimeMessage } from '../src/background/readingToolbarMessage';
 import { registerSaveSelectionClickHandler, registerSaveSelectionContextMenu } from '../src/background/saveSelectionMenu';
-import { registerEnabledSiteContentScripts } from '../src/permissions/contentScriptRegistration';
-import { handleHostPermissionsRemoved } from '../src/permissions/siteAccess';
+import { removeLegacySiteAccessState } from '../src/permissions/legacySiteAccess';
 
 export default defineBackground({
   type: 'module',
@@ -22,7 +21,7 @@ export default defineBackground({
       void browser.alarms.create(YUEL_MAINTENANCE_ALARM, { periodInMinutes: 60 });
       void enableSidePanelOnActionClick();
       void setupSaveSelectionContextMenu();
-      void rehydrateEnabledSiteContentScripts();
+      void cleanupLegacySiteAccess();
     });
 
     browser.alarms.onAlarm.addListener((alarm) => {
@@ -35,11 +34,7 @@ export default defineBackground({
 
     browser.runtime.onStartup.addListener(() => {
       void setupSaveSelectionContextMenu();
-      void rehydrateEnabledSiteContentScripts();
-    });
-
-    browser.permissions.onRemoved.addListener((permissions) => {
-      void syncRemovedHostPermissions(permissions);
+      void cleanupLegacySiteAccess();
     });
 
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -69,11 +64,11 @@ async function enableSidePanelOnActionClick(): Promise<void> {
   }
 }
 
-async function rehydrateEnabledSiteContentScripts(): Promise<void> {
+async function cleanupLegacySiteAccess(): Promise<void> {
   try {
-    await registerEnabledSiteContentScripts();
+    await removeLegacySiteAccessState();
   } catch (error) {
-    console.error('Failed to register Yuel enabled-site content scripts', error);
+    console.error('Failed to remove legacy Yuel site-access state', error);
   }
 }
 
@@ -113,13 +108,5 @@ async function scheduleNextReadingToolbarDayRollover(): Promise<void> {
     });
   } catch (error) {
     console.error('Failed to schedule Yuel reading toolbar rollover', error);
-  }
-}
-
-async function syncRemovedHostPermissions(permissions: { origins?: string[] }): Promise<void> {
-  try {
-    await handleHostPermissionsRemoved(permissions);
-  } catch (error) {
-    console.error('Failed to sync removed Yuel host permissions', error);
   }
 }
