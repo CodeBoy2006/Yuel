@@ -64,7 +64,7 @@ The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
 
 ### Chrome toolbar
 
-The pinned browser action is the smallest daily-progress surface. It uses 16 rasterized progress steps so each change maps to roughly one visible DIP: a green interior rises through a gray Logo, while a fine gray outline preserves the silhouette on light and dark Chrome themes. Incomplete states never render as fully filled. Completion replaces that outline with a bounded champagne-gold edge and glow, adds a `✓` badge, and exposes exact words through the accessible toolbar title. It remains static rather than simulating continuous animation.
+The pinned browser action is the smallest daily-progress surface. It uses 16 rasterized progress steps so each change maps to roughly one visible DIP: a green interior rises through a gray Logo, while a fine gray outline preserves the silhouette on light and dark Chrome themes. Incomplete states never render as fully filled. Completion replaces that outline with a champagne-gold edge and a broader layered glow whose opacity increases toward the mark, adds a `✓` badge, and exposes exact words through the accessible toolbar title. It remains static rather than simulating continuous animation.
 
 ### Popup
 

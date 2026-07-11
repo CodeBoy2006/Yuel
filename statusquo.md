@@ -1287,3 +1287,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The toolbar uses cached 16/24/32px `ImageData` generated from the canonical Logo geometry and keeps incomplete states visibly short of full fill. All 365 unit tests, TypeScript checks, production build, static extension smoke, four packaged-extension Playwright tests, whitespace checks, the Impeccable detector, and light/dark visual inspection pass.
+
+## [2026-07-11 09:01] Chrome Toolbar Completion Glow Amplification
+- **Changes:** Replaced the single soft completion stroke with a three-layer champagne-gold halo, increased the solid edge blur, and inset the completed Logo slightly so the wider falloff remains visible inside 16/24/32px bitmaps. Updated the design-system description to match.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The existing green and gold palette remains unchanged. The targeted toolbar tests, TypeScript checks, production build, whitespace validation, and light/dark visual inspection pass.

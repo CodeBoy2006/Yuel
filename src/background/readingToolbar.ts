@@ -27,6 +27,12 @@ const TOOLBAR_ICON_GREEN = '#077045';
 const TOOLBAR_ICON_GOLD = '#E0AF3B';
 const TOOLBAR_ICON_GOLD_SOFT = '#F7E3B0';
 const TOOLBAR_BADGE_TEXT = '#0F1F16';
+const TOOLBAR_ICON_COMPLETED_SCALE = 0.9;
+const TOOLBAR_ICON_GLOW_LAYERS = [
+  { alpha: 0.2, lineWidth: 120, shadowBlurRatio: 0.28 },
+  { alpha: 0.44, lineWidth: 84, shadowBlurRatio: 0.16 },
+  { alpha: 0.76, lineWidth: 56, shadowBlurRatio: 0.08 },
+] as const;
 
 // Toolbar icons must be raster ImageData, so the canonical logo geometry is
 // retained here for deterministic service-worker rendering without DOM access.
@@ -161,6 +167,13 @@ export function renderReadingToolbarIcon(
   context.translate(-LOGO_VIEWBOX_X, -LOGO_VIEWBOX_Y);
 
   const paths = getLogoPaths();
+  if (state.completed) {
+    const logoCenter = LOGO_VIEWBOX_X + LOGO_VIEWBOX_SIZE / 2;
+    context.translate(logoCenter, logoCenter);
+    context.scale(TOOLBAR_ICON_COMPLETED_SCALE, TOOLBAR_ICON_COMPLETED_SCALE);
+    context.translate(-logoCenter, -logoCenter);
+  }
+
   const renderedProgressRatio = state.completed
     ? 1
     : Math.min(
@@ -168,16 +181,20 @@ export function renderReadingToolbarIcon(
         Math.max(0, state.progressStep),
       ) / READING_TOOLBAR_PROGRESS_STEPS;
   if (state.completed) {
-    context.save();
-    context.globalAlpha = 0.72;
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-    context.lineWidth = 72;
-    context.strokeStyle = TOOLBAR_ICON_GOLD_SOFT;
-    context.shadowColor = TOOLBAR_ICON_GOLD_SOFT;
-    context.shadowBlur = size / 8;
-    strokeLogoPaths(context, paths);
-    context.restore();
+    // Layered strokes create a readable falloff at toolbar sizes. The mark is
+    // slightly inset above so the wider halo remains visible inside the bitmap.
+    for (const layer of TOOLBAR_ICON_GLOW_LAYERS) {
+      context.save();
+      context.globalAlpha = layer.alpha;
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      context.lineWidth = layer.lineWidth;
+      context.strokeStyle = TOOLBAR_ICON_GOLD_SOFT;
+      context.shadowColor = TOOLBAR_ICON_GOLD_SOFT;
+      context.shadowBlur = size * layer.shadowBlurRatio;
+      strokeLogoPaths(context, paths);
+      context.restore();
+    }
   }
 
   context.fillStyle = TOOLBAR_ICON_INACTIVE;
@@ -222,7 +239,7 @@ export function renderReadingToolbarIcon(
     context.lineWidth = 28;
     context.strokeStyle = TOOLBAR_ICON_GOLD;
     context.shadowColor = TOOLBAR_ICON_GOLD;
-    context.shadowBlur = size / 18;
+    context.shadowBlur = size / 10;
     strokeLogoPaths(context, paths);
     context.restore();
   }
