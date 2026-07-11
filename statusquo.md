@@ -1293,3 +1293,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The existing green and gold palette remains unchanged. The targeted toolbar tests, TypeScript checks, production build, whitespace validation, and light/dark visual inspection pass.
+
+## [2026-07-11 11:42] Required Tabs Permission
+- **Changes:** Added Chrome's `tabs` permission to the required extension manifest, updated the generated-manifest smoke assertion, and documented why the persistent side panel needs tab URL metadata.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Page-content access remains governed by per-site optional host permissions; `tabs` only removes the frequent unknown-current-page state caused by hidden tab URL metadata.

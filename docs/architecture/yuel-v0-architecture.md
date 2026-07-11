@@ -43,10 +43,10 @@ Deferred:
 The generated manifest uses mandatory permissions only for extension mechanics:
 
 ```text
-activeTab, alarms, contextMenus, idle, sidePanel, scripting, storage
+activeTab, alarms, contextMenus, favicon, idle, sidePanel, scripting, storage, tabs
 ```
 
-Broad host access is listed under `optional_host_permissions`. The first static content script is restricted to starter sites so the prototype can be loaded and tested without asking for every website.
+The required `tabs` permission lets the persistent side panel resolve the active tab URL after tab switches without granting access to page content. Broad host access remains under `optional_host_permissions`, and the first static content script is restricted to starter sites so the prototype can be loaded and tested without asking for every website.
 
 ## Data Model
 
