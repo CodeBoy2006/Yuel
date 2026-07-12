@@ -1311,3 +1311,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Other reading metrics retain their existing nearest-integer rounding. The two targeted test files pass with 50 tests, TypeScript checks pass, and whitespace validation is clean.
+
+## [2026-07-12 09:06] Heatmap Month Label Deduplication
+- **Changes:** Changed the 13-week heatmap to label a month only in the week containing its first calendar day, while preserving the initial visible month's fallback label. Added a fixed-date rendering regression test for the April-to-July 2026 range.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The previous `day <= 7` check labeled both a cross-month week and the following week for months beginning late in a week. All 324 unit/UI tests, TypeScript checks, the production build, and a packaged-extension Chromium screenshot verification pass.

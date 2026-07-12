@@ -370,7 +370,7 @@ function createHeatmapWeeks(history: ReadingHistoryDay[]): HeatmapDay[][] {
 }
 
 function getWeekMonthLabel(week: HeatmapDay[], weekIndex: number): string {
-  const monthStart = week.find((day) => parseLocalDate(day.date).getDate() <= 7);
+  const monthStart = week.find((day) => parseLocalDate(day.date).getDate() === 1);
   if (monthStart) return monthFormatter.format(parseLocalDate(monthStart.date));
   return weekIndex === 0 && week[0] ? monthFormatter.format(parseLocalDate(week[0].date)) : '';
 }
