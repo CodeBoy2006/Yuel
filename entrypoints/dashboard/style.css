@@ -822,6 +822,82 @@
   letter-spacing: 0;
 }
 
+.reading-toolbar-setting {
+  padding-top: 20px;
+}
+
+.profile-switch {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.profile-switch__status {
+  min-width: 42px;
+  color: var(--y-ink-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.profile-switch input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.profile-switch__track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid var(--y-control-line);
+  border-radius: 999px;
+  background: var(--y-surface-subtle);
+  transition:
+    border-color var(--y-duration) var(--y-ease),
+    background-color var(--y-duration) var(--y-ease);
+}
+
+.profile-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--y-surface);
+  box-shadow: 0 1px 3px rgb(15 31 22 / 24%);
+  transition: transform var(--y-duration) var(--y-ease);
+}
+
+.profile-switch input:checked + .profile-switch__track {
+  border-color: var(--y-accent);
+  background: var(--y-accent);
+}
+
+.profile-switch input:checked + .profile-switch__track .profile-switch__thumb {
+  transform: translateX(18px);
+}
+
+.profile-switch input:focus-visible + .profile-switch__track {
+  outline: 3px solid var(--y-focus);
+  outline-offset: 2px;
+}
+
+.profile-switch:has(input:disabled) {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .check-in-setting__form {
   width: min(100%, 520px);
 }
@@ -2304,6 +2380,11 @@
   .check-in-setting__form,
   .check-in-setting__input-row {
     width: 100%;
+  }
+
+  .reading-toolbar-setting .profile-switch {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .check-in-setting__value {

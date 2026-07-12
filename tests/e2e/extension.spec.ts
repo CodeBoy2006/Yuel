@@ -37,7 +37,7 @@ test('records reading data through the extension runtime', async ({ context, ext
   await expect(dashboardBody).not.toContainText('从下一篇外语文章开始');
 });
 
-test('updates the toolbar logo from daily progress through the completed state', async ({
+test('updates the toolbar logo through completion and supports static mode', async ({
   context,
   extensionId,
   extensionWorker,
@@ -59,6 +59,17 @@ test('updates the toolbar logo from daily progress through the completed state',
     title: expect.stringContaining('Yuel Reading · 今日已达标'),
     badgeText: '✓',
   });
+
+  const progressIconToggle = dashboard.locator('#reading-toolbar-progress-enabled');
+  await expect(progressIconToggle).toBeChecked();
+  await progressIconToggle.uncheck();
+  await expect.poll(() => readReadingToolbarActionState(extensionWorker)).toEqual({
+    title: 'Yuel Reading',
+    badgeText: '',
+  });
+
+  await dashboard.reload({ waitUntil: 'load' });
+  await expect(progressIconToggle).not.toBeChecked();
 });
 
 test('records reading on an arbitrary HTTPS site and reports the live collector state', async ({ context, extensionId, extensionWorker }) => {

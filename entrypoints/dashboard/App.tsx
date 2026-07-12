@@ -35,6 +35,12 @@ import {
   type ReadingPaceSummary,
 } from '../../src/storage/readingPace';
 import {
+  DEFAULT_READING_TOOLBAR_SETTINGS,
+  getReadingToolbarSettings,
+  saveReadingToolbarSettings,
+  type ReadingToolbarSettings,
+} from '../../src/storage/readingToolbarSettings';
+import {
   getReadingDashboardDetails,
   type ReadingDashboardDetails,
   type RecentPageSummary,
@@ -83,9 +89,11 @@ export interface DashboardAppDependencies {
   exportSummaryCardPng: (element: HTMLElement, filename: string) => Promise<unknown>;
   getWebsiteFaviconUrl: (domain: string) => string | undefined;
   getReadingPaceSummary: typeof getReadingPaceSummary;
+  getReadingToolbarSettings: typeof getReadingToolbarSettings;
   getShareCardSettings: typeof getShareCardSettings;
   saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
   saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
+  saveReadingToolbarSettings: typeof saveReadingToolbarSettings;
   saveShareCardSettings: typeof saveShareCardSettings;
   refreshReadingToolbarIcon: typeof requestReadingToolbarIconRefresh;
 }
@@ -99,10 +107,12 @@ const defaultDependencies: DashboardAppDependencies = {
   getWebsiteFaviconUrl,
   getReadingDashboardDetails,
   getReadingPaceSummary,
+  getReadingToolbarSettings,
   getShareCardSettings,
   refreshReadingToolbarIcon: requestReadingToolbarIconRefresh,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
+  saveReadingToolbarSettings,
   saveShareCardSettings,
 };
 
@@ -130,6 +140,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [checkInGoalEditing, setCheckInGoalEditing] = useState(false);
   const [checkInGoalInput, setCheckInGoalInput] = useState(String(DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS));
   const [checkInGoalSaveStatus, setCheckInGoalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'invalid' | 'failed'>('idle');
+  const [readingToolbarSettings, setReadingToolbarSettings] = useState<ReadingToolbarSettings>(
+    DEFAULT_READING_TOOLBAR_SETTINGS,
+  );
+  const [readingToolbarSettingsStatus, setReadingToolbarSettingsStatus] = useState<
+    'idle' | 'loading' | 'saving' | 'load-failed' | 'save-failed' | 'refresh-failed'
+  >('loading');
   const dashboardRootRef = useRef<HTMLElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const checkInGoalInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +158,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareActionBusyRef = useRef(false);
   const shareCardSettingsSequenceRef = useRef(0);
   const shareCardSettingsTouchedRef = useRef(false);
+  const readingToolbarSettingsSequenceRef = useRef(0);
+  const readingToolbarSettingsTouchedRef = useRef(false);
   const resumeRefreshScheduledRef = useRef(false);
   const clearBusyRef = useRef(false);
 
@@ -208,6 +226,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       shareActionSequenceRef.current += 1;
       shareActionBusyRef.current = false;
       shareCardSettingsSequenceRef.current += 1;
+      readingToolbarSettingsSequenceRef.current += 1;
       calibrationSessionRef.current += 1;
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
@@ -234,6 +253,27 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         setShareCardSettingsStatus('failed');
       });
   }, [dependencies.getShareCardSettings]);
+
+  useEffect(() => {
+    const requestId = ++readingToolbarSettingsSequenceRef.current;
+    setReadingToolbarSettingsStatus('loading');
+
+    void dependencies.getReadingToolbarSettings()
+      .then((settings) => {
+        if (
+          !mountedRef.current
+          || requestId !== readingToolbarSettingsSequenceRef.current
+          || readingToolbarSettingsTouchedRef.current
+        ) return;
+        setReadingToolbarSettings(settings);
+        setReadingToolbarSettingsStatus('idle');
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel reading toolbar settings', error);
+        if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
+        setReadingToolbarSettingsStatus('load-failed');
+      });
+  }, [dependencies.getReadingToolbarSettings]);
 
   useEffect(() => {
     if (!shareCardOpen || !details?.hasData || window.location.hash !== '#share-card') return;
@@ -305,6 +345,15 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const selectedShareCardTheme = shareCardSettings.theme;
   const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
   const insightHistory = details?.history ?? [];
+  const readingToolbarSettingsBusy = readingToolbarSettingsStatus === 'loading'
+    || readingToolbarSettingsStatus === 'saving';
+  const readingToolbarSettingsStateLabel = readingToolbarSettingsStatus === 'loading'
+    ? '读取中'
+    : readingToolbarSettingsStatus === 'saving'
+      ? '保存中'
+      : readingToolbarSettings.progressIconEnabled
+        ? '已开启'
+        : '已关闭';
 
   const retryLoading = () => {
     setDetails(undefined);
@@ -422,6 +471,45 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       // refreshed immediately; the background startup/rollover sync recovers it.
       console.error('Failed to refresh Yuel reading toolbar icon', error);
     }
+  };
+
+  const updateReadingToolbarProgressIcon = (progressIconEnabled: boolean) => {
+    if (readingToolbarSettingsBusy) return;
+
+    const previousSettings = readingToolbarSettings;
+    const nextSettings = { progressIconEnabled };
+    const requestId = ++readingToolbarSettingsSequenceRef.current;
+    readingToolbarSettingsTouchedRef.current = true;
+    setReadingToolbarSettings(nextSettings);
+    setReadingToolbarSettingsStatus('saving');
+
+    void (async () => {
+      let savedSettings: ReadingToolbarSettings;
+      try {
+        savedSettings = await dependencies.saveReadingToolbarSettings(nextSettings);
+      } catch (error) {
+        console.error('Failed to save Yuel reading toolbar settings', error);
+        if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
+        setReadingToolbarSettings(previousSettings);
+        setReadingToolbarSettingsStatus('save-failed');
+        return;
+      }
+
+      if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
+      setReadingToolbarSettings(savedSettings);
+
+      try {
+        await dependencies.refreshReadingToolbarIcon();
+      } catch (error) {
+        console.error('Failed to refresh Yuel reading toolbar icon', error);
+        if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
+        setReadingToolbarSettingsStatus('refresh-failed');
+        return;
+      }
+
+      if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
+      setReadingToolbarSettingsStatus('idle');
+    })();
   };
 
   const copyShareCard = async () => {
@@ -890,6 +978,42 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           </div>
           {checkInGoalSaveStatus === 'saved' ? (
             <InlineNotice tone="positive">打卡目标已保存，连续记录已重新计算。</InlineNotice>
+          ) : null}
+
+          <div className="check-in-setting reading-toolbar-setting">
+            <div className="check-in-setting__copy">
+              <h3>浏览器进度图标</h3>
+              <p id="reading-toolbar-progress-description">
+                工具栏 Logo 随当天阅读进度变化，达标后显示勾选徽标。
+              </p>
+            </div>
+            <label className="profile-switch" htmlFor="reading-toolbar-progress-enabled">
+              <span className="profile-switch__status" aria-live="polite">
+                {readingToolbarSettingsStateLabel}
+              </span>
+              <input
+                id="reading-toolbar-progress-enabled"
+                type="checkbox"
+                role="switch"
+                aria-label="浏览器图标随阅读进度变化"
+                aria-describedby="reading-toolbar-progress-description"
+                checked={readingToolbarSettings.progressIconEnabled}
+                disabled={readingToolbarSettingsBusy}
+                onChange={(event) => updateReadingToolbarProgressIcon(event.target.checked)}
+              />
+              <span className="profile-switch__track" aria-hidden="true">
+                <span className="profile-switch__thumb" />
+              </span>
+            </label>
+          </div>
+          {readingToolbarSettingsStatus === 'load-failed' ? (
+            <InlineNotice tone="danger">浏览器图标设置读取失败，当前按默认开启显示。</InlineNotice>
+          ) : null}
+          {readingToolbarSettingsStatus === 'save-failed' ? (
+            <InlineNotice tone="danger">浏览器图标设置保存失败，原设置未改变。</InlineNotice>
+          ) : null}
+          {readingToolbarSettingsStatus === 'refresh-failed' ? (
+            <InlineNotice tone="warning">设置已保存，浏览器图标将在下次后台刷新时生效。</InlineNotice>
           ) : null}
 
           {calibrationStep === 'idle' ? (

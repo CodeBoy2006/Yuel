@@ -7,6 +7,10 @@ import {
 import { formatLocalDate } from '../domain/localDate';
 import { getDailyCheckInThresholdWords } from '../storage/checkInSettings';
 import {
+  getReadingToolbarSettings,
+  type ReadingToolbarSettings,
+} from '../storage/readingToolbarSettings';
+import {
   db,
   type DailyStatRecord,
   type MetadataRecord,
@@ -17,6 +21,10 @@ export const READING_TOOLBAR_DAY_ROLLOVER_ALARM = 'yuel.readingToolbar.dayRollov
 export const READING_TOOLBAR_PROGRESS_STEPS = 16;
 export const READING_TOOLBAR_ICON_SIZES = [16, 24, 32] as const;
 
+const READING_TOOLBAR_DEFAULT_TITLE = 'Yuel Reading';
+const READING_TOOLBAR_STATIC_ICON_PATHS: Record<string, string> = Object.fromEntries(
+  READING_TOOLBAR_ICON_SIZES.map((size) => [String(size), `icon/${size}.png`]),
+);
 const LOGO_VIEWBOX_X = 177;
 const LOGO_VIEWBOX_Y = 177;
 const LOGO_VIEWBOX_SIZE = 900;
@@ -63,7 +71,10 @@ export interface ReadingToolbarIconState {
 }
 
 export interface ReadingToolbarAction {
-  setIcon: (details: { imageData: Record<string, ImageData> }) => Promise<void>;
+  setIcon: (details:
+    | { imageData: Record<string, ImageData> }
+    | { path: Record<string, string> }
+  ) => Promise<void>;
   setTitle: (details: { title: string }) => Promise<void>;
   setBadgeText: (details: { text: string }) => Promise<void>;
   setBadgeBackgroundColor: (details: { color: string }) => Promise<void>;
@@ -75,6 +86,7 @@ export interface ReadingToolbarSyncDependencies {
   store?: ReadingToolbarStore;
   now?: number;
   renderIcon?: typeof renderReadingToolbarIcon;
+  getSettings?: () => Promise<ReadingToolbarSettings>;
 }
 
 const renderedIconCache = new Map<string, ImageData>();
@@ -279,10 +291,31 @@ export async function applyReadingToolbarIconState(
   await action.setBadgeText({ text: state.badgeText });
 }
 
+export async function applyStaticReadingToolbarIcon(
+  action: ReadingToolbarAction = getDefaultToolbarAction(),
+): Promise<void> {
+  await Promise.all([
+    action.setIcon({ path: READING_TOOLBAR_STATIC_ICON_PATHS }),
+    action.setTitle({ title: READING_TOOLBAR_DEFAULT_TITLE }),
+  ]);
+  await action.setBadgeText({ text: '' });
+}
+
 export function syncReadingToolbarIcon(
   dependencies: ReadingToolbarSyncDependencies = {},
-): Promise<ReadingToolbarIconState> {
+): Promise<ReadingToolbarIconState | undefined> {
   const pending = syncQueue.then(async () => {
+    const settings = await (
+      dependencies.getSettings
+      ?? getReadingToolbarSettings
+    )();
+    if (!settings.progressIconEnabled) {
+      await applyStaticReadingToolbarIcon(
+        dependencies.action ?? getDefaultToolbarAction(),
+      );
+      return undefined;
+    }
+
     const state = await getReadingToolbarIconState(
       dependencies.store ?? db,
       dependencies.now ?? Date.now(),

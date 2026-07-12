@@ -168,6 +168,9 @@ function createDashboardDependencies(
     getWebsiteFaviconUrl: () => undefined,
     getReadingDashboardDetails: async () => createDashboardDetails(),
     getReadingPaceSummary: async () => createReadingPaceSummary(),
+    getReadingToolbarSettings: async () => ({
+      progressIconEnabled: true,
+    }),
     getShareCardSettings: async () => ({
       theme: 'forest',
       siteLimit: 3,
@@ -184,6 +187,7 @@ function createDashboardDependencies(
     }),
     refreshReadingToolbarIcon: async () => undefined,
     saveDailyCheckInThresholdWords: async (thresholdWords) => thresholdWords,
+    saveReadingToolbarSettings: async (settings) => ({ ...settings }),
     saveShareCardSettings: async (settings) => ({ ...settings }),
     ...overrides,
   };
@@ -683,6 +687,88 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('900 词 / 天');
     expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
+  });
+
+  it('loads and toggles the browser toolbar progress icon preference', async () => {
+    const getReadingToolbarSettings = vi.fn(async () => ({
+      progressIconEnabled: false,
+    }));
+    const saveReadingToolbarSettings = vi.fn(async (settings: {
+      progressIconEnabled: boolean;
+    }) => settings);
+    const refreshReadingToolbarIcon = vi.fn(async () => undefined);
+    const container = await renderDashboard({
+      getReadingToolbarSettings,
+      refreshReadingToolbarIcon,
+      saveReadingToolbarSettings,
+    });
+
+    const progressIconToggle = container.querySelector<HTMLInputElement>(
+      '#reading-toolbar-progress-enabled',
+    );
+    expect(progressIconToggle).toBeInstanceOf(HTMLInputElement);
+    expect(progressIconToggle?.checked).toBe(false);
+    expect(progressIconToggle?.getAttribute('role')).toBe('switch');
+    expect(container.textContent).toContain('已关闭');
+
+    await act(async () => {
+      progressIconToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(saveReadingToolbarSettings).toHaveBeenCalledWith({
+      progressIconEnabled: true,
+    });
+    expect(refreshReadingToolbarIcon).toHaveBeenCalledOnce();
+    expect(progressIconToggle?.checked).toBe(true);
+    expect(container.textContent).toContain('已开启');
+  });
+
+  it('restores the previous toolbar icon preference when saving fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderDashboard({
+      saveReadingToolbarSettings: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    const progressIconToggle = container.querySelector<HTMLInputElement>(
+      '#reading-toolbar-progress-enabled',
+    );
+
+    await act(async () => {
+      progressIconToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(progressIconToggle?.checked).toBe(true);
+    expect(container.textContent).toContain('浏览器图标设置保存失败，原设置未改变。');
+  });
+
+  it('keeps a saved toolbar preference when immediate browser refresh fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const saveReadingToolbarSettings = vi.fn(async (settings: {
+      progressIconEnabled: boolean;
+    }) => settings);
+    const container = await renderDashboard({
+      refreshReadingToolbarIcon: async () => {
+        throw new Error('background unavailable');
+      },
+      saveReadingToolbarSettings,
+    });
+    const progressIconToggle = container.querySelector<HTMLInputElement>(
+      '#reading-toolbar-progress-enabled',
+    );
+
+    await act(async () => {
+      progressIconToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(saveReadingToolbarSettings).toHaveBeenCalledWith({
+      progressIconEnabled: false,
+    });
+    expect(progressIconToggle?.checked).toBe(false);
+    expect(container.textContent).toContain('设置已保存，浏览器图标将在下次后台刷新时生效。');
   });
 
   it('keeps the side-panel card action locked before the daily goal is reached', async () => {

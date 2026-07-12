@@ -66,7 +66,7 @@ The daily check-in goal defaults to 500 effective words and can be changed in th
 
 Across the popup, side panel, and dashboard, the shared Yuel Logo also acts as a glanceable daily-goal indicator: unread capacity remains gray, effective reading fills the mark green from bottom to top, and reaching the goal adds a bounded champagne-gold completion glow. The same component exposes numeric progress semantics to assistive technology and keeps a static completed treatment when reduced motion is requested.
 
-The Chrome toolbar Logo mirrors the same local daily state in 16 legible progress steps sized for the 16-DIP browser action. Its tooltip exposes the exact effective-word total and active goal, while completion adds a static gold outline plus a `✓` badge so the state does not depend on color alone. The background refreshes this icon after stored reading batches, goal changes, data clearing, extension startup, and the next local-day rollover.
+The Chrome toolbar Logo mirrors the same local daily state in 16 legible progress steps sized for the 16-DIP browser action. Its tooltip exposes the exact effective-word total and active goal, while completion adds a static gold outline plus a `✓` badge so the state does not depend on color alone. The reading profile includes a local switch for this progress feedback; turning it off restores the static green Logo, default tooltip, and empty badge without changing reading collection. The preference survives local reading-data clearing. The background refreshes the active icon mode after stored reading batches, goal or toolbar-setting changes, data clearing, extension startup, and the next local-day rollover.
 
 ## Reading Pace Calibration
 

@@ -1317,3 +1317,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The previous `day <= 7` check labeled both a cross-month week and the following week for months beginning late in a week. All 324 unit/UI tests, TypeScript checks, the production build, and a packaged-extension Chromium screenshot verification pass.
+
+## [2026-07-12 16:36] Configurable Browser Progress Icon
+- **Changes:** Added a locally persisted browser-toolbar progress preference, a reading-profile switch with save and refresh feedback, static Logo/title/badge restoration when disabled, focused unit and UI coverage, packaged-extension coverage, and updated product documentation.
+- **Status:** Completed
+- **Next Steps:** Reload the unpacked extension before using the new setting.
+- **Context:** Progress feedback remains enabled by default and the preference survives local reading-data clearing. All 332 unit/UI tests, TypeScript checks, the production build, generated-extension smoke validation, and four packaged-extension Chromium tests pass; the E2E flow also verifies static-mode action state and preference persistence.

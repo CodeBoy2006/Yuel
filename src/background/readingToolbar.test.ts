@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   applyReadingToolbarIconState,
+  applyStaticReadingToolbarIcon,
   createReadingToolbarIconState,
   getNextReadingToolbarDayRolloverAt,
   getReadingToolbarIconState,
@@ -69,6 +70,22 @@ describe('reading toolbar icon state', () => {
 });
 
 describe('reading toolbar icon application', () => {
+  it('restores the static manifest icon, title, and an empty badge', async () => {
+    const action = createAction();
+
+    await applyStaticReadingToolbarIcon(action);
+
+    expect(action.setIcon).toHaveBeenCalledWith({
+      path: {
+        16: 'icon/16.png',
+        24: 'icon/24.png',
+        32: 'icon/32.png',
+      },
+    });
+    expect(action.setTitle).toHaveBeenCalledWith({ title: 'Yuel Reading' });
+    expect(action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+  });
+
   it('renders all toolbar densities, updates the tooltip, and clears a stale badge', async () => {
     const state = createReadingToolbarIconState('2026-07-11', 250, 500);
     const action = createAction();
@@ -130,6 +147,30 @@ describe('reading toolbar icon application', () => {
     expect(action.setTitle).toHaveBeenLastCalledWith({
       title: 'Yuel Reading · 今日 400 / 500 词',
     });
+  });
+
+  it('skips reading-state work and keeps the static icon when progress feedback is disabled', async () => {
+    const store = createStore(320, 500);
+    const action = createAction();
+    const renderIcon = vi.fn((size: number) => createImageDataFixture(size));
+
+    await expect(syncReadingToolbarIcon({
+      action,
+      store,
+      renderIcon,
+      getSettings: async () => ({ progressIconEnabled: false }),
+    })).resolves.toBeUndefined();
+
+    expect(store.dailyStats.get).not.toHaveBeenCalled();
+    expect(renderIcon).not.toHaveBeenCalled();
+    expect(action.setIcon).toHaveBeenCalledWith({
+      path: {
+        16: 'icon/16.png',
+        24: 'icon/24.png',
+        32: 'icon/32.png',
+      },
+    });
+    expect(action.setBadgeText).toHaveBeenCalledWith({ text: '' });
   });
 });
 
