@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MESSAGE_TYPES } from '../messaging/contracts';
+import { READING_RECORDING_SETTINGS_KEY } from '../storage/readingRecordingSettings';
 import {
   getCurrentTabSiteAccess,
   toHostOrigin,
@@ -16,6 +17,8 @@ function createRuntime({
   tabUrl = 'https://example.com/article?utm=1',
   tabId = 42,
   permissionGranted = true,
+  recordingEnabled = true,
+  excludedSiteDomains = [],
   hideTabUrls = false,
   collectorResponses = [],
 }: {
@@ -26,6 +29,8 @@ function createRuntime({
   tabUrl?: string;
   tabId?: number;
   permissionGranted?: boolean;
+  recordingEnabled?: boolean;
+  excludedSiteDomains?: string[];
   hideTabUrls?: boolean;
   collectorResponses?: unknown[];
 } = {}): SiteAccessRuntime & {
@@ -65,6 +70,21 @@ function createRuntime({
         return permissionGranted;
       },
     },
+    storage: {
+      local: {
+        async get() {
+          return {
+            [READING_RECORDING_SETTINGS_KEY]: {
+              recordingEnabled,
+              excludedSiteDomains,
+            },
+          };
+        },
+        async set() {
+          return undefined;
+        },
+      },
+    },
   };
 }
 
@@ -92,6 +112,8 @@ describe('getCurrentTabSiteAccess', () => {
       origin: 'https://example.com/*',
       host: 'example.com',
       granted: true,
+      globalRecordingEnabled: true,
+      siteRecordingEnabled: true,
       enabled: true,
     });
     expect(runtime.containedOrigins).toEqual([['https://example.com/*']]);
@@ -103,6 +125,33 @@ describe('getCurrentTabSiteAccess', () => {
     expect(access).toMatchObject({
       supported: true,
       granted: false,
+      disabledReason: 'browser-restricted',
+      enabled: false,
+    });
+  });
+
+  it('reports global and current-site pauses separately from browser access', async () => {
+    const globalPause = await getCurrentTabSiteAccess(createRuntime({
+      recordingEnabled: false,
+    }));
+    const sitePause = await getCurrentTabSiteAccess(createRuntime({
+      excludedSiteDomains: ['example.com'],
+    }));
+
+    expect(globalPause).toMatchObject({
+      supported: true,
+      granted: true,
+      globalRecordingEnabled: false,
+      siteRecordingEnabled: true,
+      disabledReason: 'global-paused',
+      enabled: false,
+    });
+    expect(sitePause).toMatchObject({
+      supported: true,
+      granted: true,
+      globalRecordingEnabled: true,
+      siteRecordingEnabled: false,
+      disabledReason: 'site-paused',
       enabled: false,
     });
   });

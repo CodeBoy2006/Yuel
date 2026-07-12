@@ -442,6 +442,8 @@ function formatStatusText(
   loadFailed: boolean,
 ): string {
   if (siteAccessFailed) return '状态未知';
+  if (siteAccess?.supported && siteAccess.disabledReason === 'global-paused') return '全部暂停';
+  if (siteAccess?.supported && siteAccess.disabledReason === 'site-paused') return '本站暂停';
   if (siteAccess?.supported && !siteAccess.enabled) return '访问受限';
   if (siteAccess?.supported && siteAccess.collectorState === 'recording') return '记录中';
   if (siteAccess?.supported && siteAccess.collectorState === 'idle') return '未检测到英文';
@@ -461,7 +463,7 @@ function getStatusTone(
 ): StatusTone {
   if (siteAccessFailed) return 'danger';
   if (siteAccess?.supported && siteAccess.enabled && siteAccess.collectorState === 'recording') return 'positive';
-  if (siteAccess?.supported && !siteAccess.enabled) return 'warning';
+  if (siteAccess?.supported && siteAccess.disabledReason === 'browser-restricted') return 'warning';
   if (loadFailed) return 'danger';
   return 'neutral';
 }
@@ -485,6 +487,8 @@ function formatCurrentPageEmptyState(
   if (!siteAccess) return '正在读取当前页面';
   if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
   if (!siteAccess.supported) return '暂时无法确认当前页面';
+  if (siteAccess.disabledReason === 'global-paused') return '全部网站的自动记录已暂停';
+  if (siteAccess.disabledReason === 'site-paused') return '此网站的自动记录已暂停';
   if (!siteAccess.enabled) return 'Chrome 已限制此网站的访问权限';
   if (siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容';
   if (!siteAccess.collectorState) return '正在确认页面采集状态';

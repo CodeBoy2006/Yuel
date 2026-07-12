@@ -128,6 +128,8 @@ function createSupportedSiteAccess(
     origin: 'https://example.com/*',
     host: 'example.com',
     granted: true,
+    globalRecordingEnabled: true,
+    siteRecordingEnabled: true,
     enabled: true,
     ...overrides,
   };
@@ -151,6 +153,10 @@ function createPopupDependencies(
   return {
     getTodayReadingSummary: async () => createTodayReadingSummary(),
     getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
+    setSiteReadingRecordingEnabled: async (_url, enabled) => ({
+      recordingEnabled: true,
+      excludedSiteDomains: enabled ? [] : ['example.com'],
+    }),
     openDashboard: async () => undefined,
     openSidePanel: async () => undefined,
     ...overrides,
@@ -168,6 +174,10 @@ function createDashboardDependencies(
     getWebsiteFaviconUrl: () => undefined,
     getReadingDashboardDetails: async () => createDashboardDetails(),
     getReadingPaceSummary: async () => createReadingPaceSummary(),
+    getReadingRecordingSettings: async () => ({
+      recordingEnabled: true,
+      excludedSiteDomains: [],
+    }),
     getReadingToolbarSettings: async () => ({
       progressIconEnabled: true,
     }),
@@ -185,10 +195,15 @@ function createDashboardDependencies(
       hasProfile: true,
       calibrationAccepted: true,
     }),
+    resetReadingPaceCalibration: async () => createReadingPaceSummary(),
     refreshReadingToolbarIcon: async () => undefined,
     saveDailyCheckInThresholdWords: async (thresholdWords) => thresholdWords,
     saveReadingToolbarSettings: async (settings) => ({ ...settings }),
     saveShareCardSettings: async (settings) => ({ ...settings }),
+    setGlobalReadingRecordingEnabled: async (recordingEnabled) => ({
+      recordingEnabled,
+      excludedSiteDomains: [],
+    }),
     ...overrides,
   };
 }
@@ -534,6 +549,76 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('已启用网站');
   });
 
+  it('pauses recording for only the current site from the popup', async () => {
+    const setSiteReadingRecordingEnabled = vi.fn(async () => ({
+      recordingEnabled: true,
+      excludedSiteDomains: ['example.com'],
+    }));
+    const container = await renderPopup({
+      setSiteReadingRecordingEnabled,
+    });
+    const siteToggle = container.querySelector<HTMLInputElement>(
+      '#popup-site-recording-enabled',
+    );
+
+    expect(siteToggle).toBeInstanceOf(HTMLInputElement);
+    expect(siteToggle?.checked).toBe(true);
+    await act(async () => {
+      siteToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(setSiteReadingRecordingEnabled).toHaveBeenCalledWith(
+      'https://example.com/article',
+      false,
+    );
+    expect(siteToggle?.checked).toBe(false);
+    expect(container.textContent).toContain('本站暂停');
+    expect(container.textContent).toContain('网站记录设置已保存。');
+  });
+
+  it('preserves the current-site preference while global recording is paused', async () => {
+    const setSiteReadingRecordingEnabled = vi.fn();
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
+        globalRecordingEnabled: false,
+        siteRecordingEnabled: true,
+        enabled: false,
+        disabledReason: 'global-paused',
+      }),
+      setSiteReadingRecordingEnabled,
+    });
+    const siteToggle = container.querySelector<HTMLInputElement>(
+      '#popup-site-recording-enabled',
+    );
+
+    expect(siteToggle?.checked).toBe(true);
+    expect(siteToggle?.disabled).toBe(true);
+    expect(container.textContent).toContain('全部暂停');
+    expect(container.textContent).toContain('全局记录已暂停，可在仪表盘的阅读档案中恢复。');
+    expect(setSiteReadingRecordingEnabled).not.toHaveBeenCalled();
+  });
+
+  it('keeps the popup site preference when saving fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderPopup({
+      setSiteReadingRecordingEnabled: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    const siteToggle = container.querySelector<HTMLInputElement>(
+      '#popup-site-recording-enabled',
+    );
+
+    await act(async () => {
+      siteToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(siteToggle?.checked).toBe(true);
+    expect(container.textContent).toContain('网站记录设置保存失败，原设置未改变。');
+  });
+
   it('opens the side panel companion from the popup action', async () => {
     const openSidePanel = vi.fn(async () => undefined);
     const container = await renderPopup({
@@ -724,6 +809,58 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('已开启');
   });
 
+  it('loads and toggles the global reading recording preference', async () => {
+    const getReadingRecordingSettings = vi.fn(async () => ({
+      recordingEnabled: false,
+      excludedSiteDomains: ['docs.example.com'],
+    }));
+    const setGlobalReadingRecordingEnabled = vi.fn(async (recordingEnabled: boolean) => ({
+      recordingEnabled,
+      excludedSiteDomains: ['docs.example.com'],
+    }));
+    const container = await renderDashboard({
+      getReadingRecordingSettings,
+      setGlobalReadingRecordingEnabled,
+    });
+    const recordingToggle = container.querySelector<HTMLInputElement>(
+      '#reading-recording-enabled',
+    );
+
+    expect(recordingToggle).toBeInstanceOf(HTMLInputElement);
+    expect(recordingToggle?.checked).toBe(false);
+    expect(container.textContent).toContain('自动记录阅读');
+    expect(container.textContent).toContain('已暂停');
+
+    await act(async () => {
+      recordingToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(setGlobalReadingRecordingEnabled).toHaveBeenCalledWith(true);
+    expect(recordingToggle?.checked).toBe(true);
+    expect(container.textContent).toContain('已开启');
+  });
+
+  it('restores the previous global recording preference when saving fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderDashboard({
+      setGlobalReadingRecordingEnabled: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    const recordingToggle = container.querySelector<HTMLInputElement>(
+      '#reading-recording-enabled',
+    );
+
+    await act(async () => {
+      recordingToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(recordingToggle?.checked).toBe(true);
+    expect(container.textContent).toContain('自动记录设置保存失败，原设置未改变。');
+  });
+
   it('restores the previous toolbar icon preference when saving fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const container = await renderDashboard({
@@ -883,6 +1020,29 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
 
     nowSpy.mockRestore();
+  });
+
+  it('restores the default reading pace and removes the reset action', async () => {
+    const resetReadingPaceCalibration = vi.fn(async () => createReadingPaceSummary());
+    const container = await renderDashboard({
+      getReadingPaceSummary: async () => createReadingPaceSummary({
+        baseWordsPerMinute: 248,
+        sampleCount: 3,
+        source: 'adaptive',
+        hasProfile: true,
+      }),
+      resetReadingPaceCalibration,
+    });
+
+    expect(container.textContent).toContain('248 WPM');
+    await clickButton(findButton(container, '恢复默认速度'));
+    await flushReactMicrotasks(2);
+
+    expect(resetReadingPaceCalibration).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('220 WPM');
+    expect(findButton(container, '恢复默认速度')).toBeUndefined();
+    expect(container.textContent).toContain('已恢复默认阅读速度');
+    expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
   });
 
   it('keeps an in-flight dashboard details load valid when pace calibration is saved', async () => {
@@ -1302,6 +1462,27 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('Chrome 已限制此网站的访问权限');
     expect(container.textContent).not.toContain('启用当前网站');
     expect(container.textContent).not.toContain('记录中');
+  });
+
+  it('distinguishes Yuel recording pauses from Chrome restrictions in the side panel', async () => {
+    const globalPause = await renderSidePanelWithAccess(createSupportedSiteAccess({
+      globalRecordingEnabled: false,
+      enabled: false,
+      disabledReason: 'global-paused',
+    }));
+    const sitePause = await renderSidePanelWithAccess(createSupportedSiteAccess({
+      tabId: 2,
+      siteRecordingEnabled: false,
+      enabled: false,
+      disabledReason: 'site-paused',
+    }));
+
+    expect(globalPause.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('全部暂停');
+    expect(globalPause.textContent).toContain('全部网站的自动记录已暂停');
+    expect(globalPause.textContent).not.toContain('Chrome 已限制');
+    expect(sitePause.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('本站暂停');
+    expect(sitePause.textContent).toContain('此网站的自动记录已暂停');
+    expect(sitePause.textContent).not.toContain('Chrome 已限制');
   });
 
   it('clears stale side panel host and page metrics while navigation access is pending', async () => {

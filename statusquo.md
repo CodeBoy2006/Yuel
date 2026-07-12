@@ -1323,3 +1323,9 @@
 - **Status:** Completed
 - **Next Steps:** Reload the unpacked extension before using the new setting.
 - **Context:** Progress feedback remains enabled by default and the preference survives local reading-data clearing. All 332 unit/UI tests, TypeScript checks, the production build, generated-extension smoke validation, and four packaged-extension Chromium tests pass; the E2E flow also verifies static-mode action state and preference persistence.
+
+## [2026-07-12 18:44] Reading Recording Controls and Pace Reset
+- **Changes:** Added a locally persisted global automatic-recording switch, normalized current-site exclusions in the popup, distinct Chrome/global/site status reporting, content-script and background write-time enforcement, and a reading-speed reset that removes the active profile plus unfinished adaptive episodes. Added a shared switch primitive, focused storage/content/access/UI tests, packaged-extension coverage, and updated README/design documentation.
+- **Status:** Completed
+- **Next Steps:** Reload the unpacked extension so already installed development builds use the new content script and settings UI.
+- **Context:** Global pause preserves site preferences and existing local data; site pause does not change Chrome permissions or explicit selection saving. All 350 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, four packaged-extension Chromium tests, whitespace checks, the Impeccable detector, and desktop/mobile visual inspection pass.

@@ -107,6 +107,44 @@ body {
   overflow-wrap: anywhere;
 }
 
+.popup-current-site__control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  border-top: 1px solid color-mix(in oklch, var(--y-line) 82%, transparent);
+  padding-top: 12px;
+}
+
+.popup-current-site__control > div {
+  min-width: 0;
+}
+
+.popup-current-site__control h2 {
+  margin: 0;
+  color: var(--y-ink);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 1.35;
+}
+
+.popup-current-site__control p {
+  margin: 4px 0 0;
+  color: var(--y-ink-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.popup-current-site__control .yuel-switch {
+  flex: 0 0 auto;
+}
+
+.popup-current-site__control .yuel-switch__status {
+  min-width: 0;
+}
+
 .popup-today {
   padding: 13px 14px 12px;
 }

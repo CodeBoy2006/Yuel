@@ -358,6 +358,82 @@ summary:focus-visible {
   color: var(--y-ink);
 }
 
+.yuel-switch {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.yuel-switch__status {
+  min-width: 42px;
+  color: var(--y-ink-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.yuel-switch input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.yuel-switch__track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid var(--y-control-line);
+  border-radius: 999px;
+  background: var(--y-surface-subtle);
+  transition:
+    border-color var(--y-duration) var(--y-ease),
+    background-color var(--y-duration) var(--y-ease);
+}
+
+.yuel-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--y-surface);
+  box-shadow: 0 1px 3px rgb(15 31 22 / 24%);
+  transition: transform var(--y-duration) var(--y-ease);
+}
+
+.yuel-switch input:checked + .yuel-switch__track {
+  border-color: var(--y-accent);
+  background: var(--y-accent);
+}
+
+.yuel-switch input:checked + .yuel-switch__track .yuel-switch__thumb {
+  transform: translateX(18px);
+}
+
+.yuel-switch input:focus-visible + .yuel-switch__track {
+  outline: 3px solid var(--y-focus);
+  outline-offset: 2px;
+}
+
+.yuel-switch:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.yuel-switch[data-busy="true"] {
+  cursor: wait;
+}
+
 .yuel-button--danger {
   border-color: color-mix(in oklch, var(--y-danger) 24%, var(--y-line));
   background: var(--y-danger-soft);

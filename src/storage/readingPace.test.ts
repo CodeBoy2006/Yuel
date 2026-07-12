@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getReadingPaceSummary, saveOnboardingReadingPaceCalibration, type ReadingPaceStore } from './readingPace';
+import {
+  getReadingPaceSummary,
+  resetReadingPaceCalibration,
+  saveOnboardingReadingPaceCalibration,
+  type ReadingPaceResetStore,
+} from './readingPace';
 import type { ReadingPaceProfileRecord } from './schema';
 
-function createStore(existingProfile?: ReadingPaceProfileRecord): ReadingPaceStore {
+function createStore(existingProfile?: ReadingPaceProfileRecord): ReadingPaceResetStore {
   const records = new Map<string, ReadingPaceProfileRecord>();
   if (existingProfile) {
     records.set(existingProfile.id, existingProfile);
@@ -15,6 +20,12 @@ function createStore(existingProfile?: ReadingPaceProfileRecord): ReadingPaceSto
       put: vi.fn(async (record: ReadingPaceProfileRecord) => {
         records.set(record.id, record);
       }),
+      delete: vi.fn(async (id: string) => {
+        records.delete(id);
+      }),
+    },
+    readingPaceEpisodes: {
+      clear: vi.fn(async () => undefined),
     },
   };
 }
@@ -103,6 +114,34 @@ describe('reading pace storage', () => {
       source: 'adaptive',
       hasProfile: true,
       calibrationAccepted: false,
+    });
+  });
+
+  it('restores the default pace and clears unfinished adaptive episodes', async () => {
+    const existingProfile: ReadingPaceProfileRecord = {
+      id: 'en:general',
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 248,
+      sampleCount: 3,
+      source: 'adaptive',
+      updatedAt: 500,
+    };
+    const store = createStore(existingProfile);
+
+    await expect(resetReadingPaceCalibration(store)).resolves.toEqual({
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 220,
+      sampleCount: 0,
+      source: 'default',
+      hasProfile: false,
+    });
+    expect(store.readingPaceProfiles.delete).toHaveBeenCalledWith('en:general');
+    expect(store.readingPaceEpisodes.clear).toHaveBeenCalledOnce();
+    await expect(getReadingPaceSummary(store)).resolves.toMatchObject({
+      baseWordsPerMinute: 220,
+      hasProfile: false,
     });
   });
 });

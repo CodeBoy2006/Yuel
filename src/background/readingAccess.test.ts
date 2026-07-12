@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createPageId } from '../domain/events';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
+import { READING_RECORDING_SETTINGS_KEY } from '../storage/readingRecordingSettings';
 import { canRecordReadingBatch, type ReadingAccessRuntime } from './readingAccess';
 
 function createPayload(url: string): ReadingEventBatchPayload {
@@ -20,11 +21,30 @@ function createPayload(url: string): ReadingEventBatchPayload {
   };
 }
 
-function createRuntime(granted: boolean): ReadingAccessRuntime {
+function createRuntime(
+  granted: boolean,
+  settings: {
+    recordingEnabled: boolean;
+    excludedSiteDomains: string[];
+  } = {
+    recordingEnabled: true,
+    excludedSiteDomains: [],
+  },
+): ReadingAccessRuntime {
   return {
     permissions: {
       async contains() {
         return granted;
+      },
+    },
+    storage: {
+      local: {
+        async get() {
+          return { [READING_RECORDING_SETTINGS_KEY]: settings };
+        },
+        async set() {
+          return undefined;
+        },
       },
     },
   };
@@ -78,11 +98,43 @@ describe('canRecordReadingBatch', () => {
     ).resolves.toBe(true);
   });
 
+  it('rejects batches while global recording is paused', async () => {
+    const url = 'https://docs.example.com/article';
+
+    await expect(canRecordReadingBatch(
+      createPayload(url),
+      { url },
+      createRuntime(true, {
+        recordingEnabled: false,
+        excludedSiteDomains: [],
+      }),
+    )).resolves.toBe(false);
+  });
+
+  it('rejects batches from an excluded site without affecting other domains', async () => {
+    const settings = {
+      recordingEnabled: true,
+      excludedSiteDomains: ['docs.example.com'],
+    };
+
+    await expect(canRecordReadingBatch(
+      createPayload('https://docs.example.com/article'),
+      { url: 'https://docs.example.com/article' },
+      createRuntime(true, settings),
+    )).resolves.toBe(false);
+    await expect(canRecordReadingBatch(
+      createPayload('https://other.example.com/article'),
+      { url: 'https://other.example.com/article' },
+      createRuntime(true, settings),
+    )).resolves.toBe(true);
+  });
+
   it('allows trusted extension-page smoke messages', async () => {
     await expect(
       canRecordReadingBatch(
         createPayload('https://runtime.example/article'),
         { url: 'chrome-extension://id/dashboard.html' },
+        createRuntime(true),
       ),
     ).resolves.toBe(true);
   });

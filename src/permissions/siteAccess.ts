@@ -6,9 +6,16 @@ import {
   type ReadingCollectorStatusRequest,
   type ReadingCollectorStatusResponse,
 } from '../messaging/contracts';
+import {
+  getReadingRecordingSettings,
+  getReadingSiteDomain,
+  type ReadingRecordingSettings,
+  type ReadingRecordingSettingsStore,
+} from '../storage/readingRecordingSettings';
 
 export type ReadingCollectorState = 'recording' | 'idle';
 export type SiteAccessUnavailableReason = 'unsupported-page' | 'tab-unavailable';
+export type SiteAccessDisabledReason = 'browser-restricted' | 'global-paused' | 'site-paused';
 
 export interface SiteAccessTab {
   id?: number;
@@ -30,6 +37,9 @@ export interface SiteAccessRuntime {
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
   };
+  storage?: {
+    local: ReadingRecordingSettingsStore;
+  };
 }
 
 export interface SupportedSiteAccessState {
@@ -39,7 +49,10 @@ export interface SupportedSiteAccessState {
   origin: string;
   host: string;
   granted: boolean;
+  globalRecordingEnabled: boolean;
+  siteRecordingEnabled: boolean;
   enabled: boolean;
+  disabledReason?: SiteAccessDisabledReason;
   collectorState?: ReadingCollectorState;
 }
 
@@ -78,17 +91,54 @@ export async function getCurrentTabSiteAccess(
     return { supported: false, reason: 'unsupported-page' };
   }
 
-  const granted = await runtime.permissions.contains({ origins: [origin] });
+  const [granted, recordingSettings] = await Promise.all([
+    runtime.permissions.contains({ origins: [origin] }),
+    getReadingRecordingSettings(runtime.storage?.local),
+  ]);
 
-  return {
+  return applyReadingRecordingSettingsToSiteAccess({
     supported: true,
     tabId: tab.id,
     url,
     origin,
     host: new URL(url).hostname,
     granted,
+    globalRecordingEnabled: true,
+    siteRecordingEnabled: true,
     enabled: granted,
     ...(tab.collectorState ? { collectorState: tab.collectorState } : {}),
+  }, recordingSettings);
+}
+
+export function applyReadingRecordingSettingsToSiteAccess(
+  siteAccess: SiteAccessState,
+  settings: ReadingRecordingSettings,
+): SiteAccessState {
+  if (!siteAccess.supported) return siteAccess;
+
+  const domain = getReadingSiteDomain(siteAccess.url);
+  const siteRecordingEnabled = domain
+    ? !settings.excludedSiteDomains.includes(domain)
+    : false;
+  const disabledReason = !siteAccess.granted
+    ? 'browser-restricted'
+    : !settings.recordingEnabled
+      ? 'global-paused'
+      : !siteRecordingEnabled
+        ? 'site-paused'
+        : undefined;
+  const collectorState = siteAccess.collectorState;
+  const baseAccess = { ...siteAccess };
+  delete baseAccess.disabledReason;
+  delete baseAccess.collectorState;
+
+  return {
+    ...baseAccess,
+    globalRecordingEnabled: settings.recordingEnabled,
+    siteRecordingEnabled,
+    enabled: disabledReason === undefined,
+    ...(disabledReason ? { disabledReason } : {}),
+    ...(!disabledReason && collectorState ? { collectorState } : {}),
   };
 }
 

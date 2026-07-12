@@ -31,9 +31,16 @@ import { saveDailyCheckInThresholdWords } from '../../src/storage/checkInSetting
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
   getReadingPaceSummary,
+  resetReadingPaceCalibration,
   saveOnboardingReadingPaceCalibration,
   type ReadingPaceSummary,
 } from '../../src/storage/readingPace';
+import {
+  DEFAULT_READING_RECORDING_SETTINGS,
+  getReadingRecordingSettings,
+  setGlobalReadingRecordingEnabled,
+  type ReadingRecordingSettings,
+} from '../../src/storage/readingRecordingSettings';
 import {
   DEFAULT_READING_TOOLBAR_SETTINGS,
   getReadingToolbarSettings,
@@ -70,6 +77,7 @@ import {
   ProgressBar,
   SectionHeader,
   StatusPill,
+  SwitchControl,
 } from '../../src/ui/primitives';
 import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/shareCardImage';
 import { createShareCardContent, createShareCardCopyText } from '../../src/ui/shareCardContent';
@@ -89,10 +97,13 @@ export interface DashboardAppDependencies {
   exportSummaryCardPng: (element: HTMLElement, filename: string) => Promise<unknown>;
   getWebsiteFaviconUrl: (domain: string) => string | undefined;
   getReadingPaceSummary: typeof getReadingPaceSummary;
+  getReadingRecordingSettings: typeof getReadingRecordingSettings;
   getReadingToolbarSettings: typeof getReadingToolbarSettings;
   getShareCardSettings: typeof getShareCardSettings;
   saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
+  resetReadingPaceCalibration: typeof resetReadingPaceCalibration;
   saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
+  setGlobalReadingRecordingEnabled: typeof setGlobalReadingRecordingEnabled;
   saveReadingToolbarSettings: typeof saveReadingToolbarSettings;
   saveShareCardSettings: typeof saveShareCardSettings;
   refreshReadingToolbarIcon: typeof requestReadingToolbarIconRefresh;
@@ -101,19 +112,22 @@ export interface DashboardAppDependencies {
 const defaultDependencies: DashboardAppDependencies = {
   clearLocalReadingData,
   confirmClearLocalReadingData: () =>
-    window.confirm('清空所有阅量本地阅读数据？Chrome 中的网站访问设置会保留。'),
+    window.confirm('清空所有阅量本地阅读数据？自动记录开关、网站偏好和 Chrome 访问设置会保留。'),
   copyTextToClipboard,
   exportSummaryCardPng: exportDashboardSummaryCardPng,
   getWebsiteFaviconUrl,
   getReadingDashboardDetails,
   getReadingPaceSummary,
+  getReadingRecordingSettings,
   getReadingToolbarSettings,
   getShareCardSettings,
   refreshReadingToolbarIcon: requestReadingToolbarIconRefresh,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
+  resetReadingPaceCalibration,
   saveReadingToolbarSettings,
   saveShareCardSettings,
+  setGlobalReadingRecordingEnabled,
 };
 
 type DashboardViewState = 'loading' | 'error' | 'empty' | 'ready';
@@ -137,6 +151,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
   const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'rejected' | 'failed'>('idle');
+  const [paceResetStatus, setPaceResetStatus] = useState<'idle' | 'resetting' | 'reset' | 'failed'>('idle');
   const [checkInGoalEditing, setCheckInGoalEditing] = useState(false);
   const [checkInGoalInput, setCheckInGoalInput] = useState(String(DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS));
   const [checkInGoalSaveStatus, setCheckInGoalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'invalid' | 'failed'>('idle');
@@ -145,6 +160,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   );
   const [readingToolbarSettingsStatus, setReadingToolbarSettingsStatus] = useState<
     'idle' | 'loading' | 'saving' | 'load-failed' | 'save-failed' | 'refresh-failed'
+  >('loading');
+  const [readingRecordingSettings, setReadingRecordingSettings] = useState<ReadingRecordingSettings>(
+    DEFAULT_READING_RECORDING_SETTINGS,
+  );
+  const [readingRecordingSettingsStatus, setReadingRecordingSettingsStatus] = useState<
+    'idle' | 'loading' | 'saving' | 'load-failed' | 'save-failed'
   >('loading');
   const dashboardRootRef = useRef<HTMLElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
@@ -160,6 +181,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareCardSettingsTouchedRef = useRef(false);
   const readingToolbarSettingsSequenceRef = useRef(0);
   const readingToolbarSettingsTouchedRef = useRef(false);
+  const readingRecordingSettingsSequenceRef = useRef(0);
+  const readingRecordingSettingsTouchedRef = useRef(false);
   const resumeRefreshScheduledRef = useRef(false);
   const clearBusyRef = useRef(false);
 
@@ -227,6 +250,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       shareActionBusyRef.current = false;
       shareCardSettingsSequenceRef.current += 1;
       readingToolbarSettingsSequenceRef.current += 1;
+      readingRecordingSettingsSequenceRef.current += 1;
       calibrationSessionRef.current += 1;
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
@@ -276,6 +300,27 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   }, [dependencies.getReadingToolbarSettings]);
 
   useEffect(() => {
+    const requestId = ++readingRecordingSettingsSequenceRef.current;
+    setReadingRecordingSettingsStatus('loading');
+
+    void dependencies.getReadingRecordingSettings()
+      .then((settings) => {
+        if (
+          !mountedRef.current
+          || requestId !== readingRecordingSettingsSequenceRef.current
+          || readingRecordingSettingsTouchedRef.current
+        ) return;
+        setReadingRecordingSettings(settings);
+        setReadingRecordingSettingsStatus('idle');
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel reading recording settings', error);
+        if (!mountedRef.current || requestId !== readingRecordingSettingsSequenceRef.current) return;
+        setReadingRecordingSettingsStatus('load-failed');
+      });
+  }, [dependencies.getReadingRecordingSettings]);
+
+  useEffect(() => {
     if (!shareCardOpen || !details?.hasData || window.location.hash !== '#share-card') return;
     window.requestAnimationFrame?.(() => {
       dashboardRootRef.current?.querySelector<HTMLElement>('#share-card')?.scrollIntoView({ block: 'start' });
@@ -294,7 +339,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         ?.scrollIntoView({ block: 'start' });
     }
     dashboardRootRef.current?.querySelector<HTMLElement>(`#${pendingFocus.id}`)?.focus({ preventScroll: true });
-  }, [calibrationSaveStatus, calibrationStep]);
+  }, [calibrationSaveStatus, calibrationStep, paceResetStatus]);
 
   const summary = details?.summary;
   const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
@@ -354,6 +399,16 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       : readingToolbarSettings.progressIconEnabled
         ? '已开启'
         : '已关闭';
+  const readingRecordingSettingsBusy = readingRecordingSettingsStatus === 'loading'
+    || readingRecordingSettingsStatus === 'saving';
+  const readingRecordingSettingsStateLabel = readingRecordingSettingsStatus === 'loading'
+    ? '读取中'
+    : readingRecordingSettingsStatus === 'saving'
+      ? '保存中'
+      : readingRecordingSettings.recordingEnabled
+        ? '已开启'
+        : '已暂停';
+  const paceActionBusy = calibrationSaveStatus === 'saving' || paceResetStatus === 'resetting';
 
   const retryLoading = () => {
     setDetails(undefined);
@@ -432,6 +487,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setDownloadStatus('idle');
     shareActionSequenceRef.current += 1;
     shareActionBusyRef.current = false;
+    setPaceResetStatus('idle');
     resetCalibration();
 
     try {
@@ -510,6 +566,29 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       if (!mountedRef.current || requestId !== readingToolbarSettingsSequenceRef.current) return;
       setReadingToolbarSettingsStatus('idle');
     })();
+  };
+
+  const updateGlobalReadingRecording = (recordingEnabled: boolean) => {
+    if (readingRecordingSettingsBusy) return;
+
+    const previousSettings = readingRecordingSettings;
+    const requestId = ++readingRecordingSettingsSequenceRef.current;
+    readingRecordingSettingsTouchedRef.current = true;
+    setReadingRecordingSettings({ ...previousSettings, recordingEnabled });
+    setReadingRecordingSettingsStatus('saving');
+
+    void dependencies.setGlobalReadingRecordingEnabled(recordingEnabled)
+      .then((savedSettings) => {
+        if (!mountedRef.current || requestId !== readingRecordingSettingsSequenceRef.current) return;
+        setReadingRecordingSettings(savedSettings);
+        setReadingRecordingSettingsStatus('idle');
+      })
+      .catch((error) => {
+        console.error('Failed to save Yuel reading recording settings', error);
+        if (!mountedRef.current || requestId !== readingRecordingSettingsSequenceRef.current) return;
+        setReadingRecordingSettings(previousSettings);
+        setReadingRecordingSettingsStatus('save-failed');
+      });
   };
 
   const copyShareCard = async () => {
@@ -598,6 +677,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setCalibrationAnswers({});
     setCalibrationStep('reading');
     setCalibrationSaveStatus('idle');
+    setPaceResetStatus('idle');
   };
 
   function resetCalibration(restoreFocus = false) {
@@ -651,10 +731,33 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       setCalibrationStartedAt(undefined);
       setCalibrationReadingFinishedAt(undefined);
       setCalibrationSaveStatus(nextPaceSummary.calibrationAccepted === false ? 'rejected' : 'saved');
+      setPaceResetStatus('idle');
     } catch (error) {
       console.error('Failed to save Yuel reading pace calibration', error);
       if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
       setCalibrationSaveStatus('failed');
+    }
+  };
+
+  const restoreDefaultReadingPace = async () => {
+    if (!paceSummary?.hasProfile || paceActionBusy) return;
+
+    const sessionId = ++calibrationSessionRef.current;
+    paceRefreshSequenceRef.current += 1;
+    setPaceResetStatus('resetting');
+    setCalibrationSaveStatus('idle');
+
+    try {
+      const nextPaceSummary = await dependencies.resetReadingPaceCalibration();
+      if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
+      paceRefreshSequenceRef.current += 1;
+      setPaceSummary(nextPaceSummary);
+      setPaceResetStatus('reset');
+      pendingCalibrationFocusRef.current = { id: 'pace-calibration-trigger' };
+    } catch (error) {
+      console.error('Failed to reset Yuel reading pace calibration', error);
+      if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
+      setPaceResetStatus('failed');
     }
   };
 
@@ -903,6 +1006,31 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <span id="reading-profile-title" tabIndex={-1}>阅读档案</span>
           </SectionHeader>
 
+          <div className="check-in-setting reading-recording-setting">
+            <div className="check-in-setting__copy">
+              <h3>自动记录阅读</h3>
+              <p id="reading-recording-description">
+                在 Chrome 允许访问的网页中自动记录英文阅读；暂停后保留已有本地数据和各网站偏好。
+              </p>
+            </div>
+            <SwitchControl
+              id="reading-recording-enabled"
+              label="自动记录英文阅读"
+              describedBy="reading-recording-description"
+              checked={readingRecordingSettings.recordingEnabled}
+              disabled={readingRecordingSettingsBusy}
+              busy={readingRecordingSettingsBusy}
+              status={readingRecordingSettingsStateLabel}
+              onChange={updateGlobalReadingRecording}
+            />
+          </div>
+          {readingRecordingSettingsStatus === 'load-failed' ? (
+            <InlineNotice tone="danger">自动记录设置读取失败，当前按默认开启处理。</InlineNotice>
+          ) : null}
+          {readingRecordingSettingsStatus === 'save-failed' ? (
+            <InlineNotice tone="danger">自动记录设置保存失败，原设置未改变。</InlineNotice>
+          ) : null}
+
           <div className="check-in-setting">
             <div className="check-in-setting__copy">
               <h3>每日打卡目标</h3>
@@ -968,7 +1096,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   id="check-in-goal-trigger"
                   type="button"
                   icon={SlidersHorizontal}
-                  disabled={clearBusy || calibrationSaveStatus === 'saving'}
+                  disabled={clearBusy || paceActionBusy}
                   onClick={openCheckInGoalEditor}
                 >
                   调整目标
@@ -987,24 +1115,16 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 工具栏 Logo 随当天阅读进度变化，达标后显示勾选徽标。
               </p>
             </div>
-            <label className="profile-switch" htmlFor="reading-toolbar-progress-enabled">
-              <span className="profile-switch__status" aria-live="polite">
-                {readingToolbarSettingsStateLabel}
-              </span>
-              <input
-                id="reading-toolbar-progress-enabled"
-                type="checkbox"
-                role="switch"
-                aria-label="浏览器图标随阅读进度变化"
-                aria-describedby="reading-toolbar-progress-description"
-                checked={readingToolbarSettings.progressIconEnabled}
-                disabled={readingToolbarSettingsBusy}
-                onChange={(event) => updateReadingToolbarProgressIcon(event.target.checked)}
-              />
-              <span className="profile-switch__track" aria-hidden="true">
-                <span className="profile-switch__thumb" />
-              </span>
-            </label>
+            <SwitchControl
+              id="reading-toolbar-progress-enabled"
+              label="浏览器图标随阅读进度变化"
+              describedBy="reading-toolbar-progress-description"
+              checked={readingToolbarSettings.progressIconEnabled}
+              disabled={readingToolbarSettingsBusy}
+              busy={readingToolbarSettingsBusy}
+              status={readingToolbarSettingsStateLabel}
+              onChange={updateReadingToolbarProgressIcon}
+            />
           </div>
           {readingToolbarSettingsStatus === 'load-failed' ? (
             <InlineNotice tone="danger">浏览器图标设置读取失败，当前按默认开启显示。</InlineNotice>
@@ -1019,9 +1139,28 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           {calibrationStep === 'idle' ? (
             <div className="reading-profile__summary">
               <p>{readingPaceLabel}</p>
-              <ActionButton id="pace-calibration-trigger" icon={Play} onClick={startPaceCalibration}>
-                {paceSummary?.hasProfile ? '重新校准' : '开始校准'}
-              </ActionButton>
+              <div className="reading-profile__actions">
+                <ActionButton
+                  id="pace-calibration-trigger"
+                  icon={Play}
+                  disabled={paceActionBusy}
+                  onClick={startPaceCalibration}
+                >
+                  {paceSummary?.hasProfile ? '重新校准' : '开始校准'}
+                </ActionButton>
+                {paceSummary?.hasProfile ? (
+                  <ActionButton
+                    type="button"
+                    variant="quiet"
+                    icon={RotateCcw}
+                    disabled={paceActionBusy}
+                    aria-busy={paceResetStatus === 'resetting'}
+                    onClick={() => void restoreDefaultReadingPace()}
+                  >
+                    {paceResetStatus === 'resetting' ? '恢复中...' : '恢复默认速度'}
+                  </ActionButton>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -1113,6 +1252,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           {calibrationSaveStatus === 'saved' ? <InlineNotice tone="positive">校准已保存。</InlineNotice> : null}
           {calibrationSaveStatus === 'rejected' ? (
             <InlineNotice tone="neutral">理解题未达门槛，本次速度样本未写入。</InlineNotice>
+          ) : null}
+          {paceResetStatus === 'reset' ? (
+            <InlineNotice tone="positive">已恢复默认阅读速度；后续有效阅读仍可重新自适应。</InlineNotice>
+          ) : null}
+          {paceResetStatus === 'failed' ? (
+            <InlineNotice tone="danger">默认阅读速度恢复失败，原校准仍保留。</InlineNotice>
           ) : null}
         </section>
 

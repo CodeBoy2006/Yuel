@@ -82,6 +82,25 @@ test('records reading on an arbitrary HTTPS site and reports the live collector 
       url: readingSiteUrl,
     });
 
+    const dashboard = await openExtensionPage(context, extensionId, 'dashboard.html');
+    const globalRecordingToggle = dashboard.locator('#reading-recording-enabled');
+    await expect(globalRecordingToggle).toBeChecked();
+    await globalRecordingToggle.uncheck();
+    await readingPage.bringToFront();
+    await expect.poll(() => readActiveTabCollectorStatus(extensionWorker)).toMatchObject({
+      collecting: false,
+      url: readingSiteUrl,
+    });
+
+    await dashboard.bringToFront();
+    await globalRecordingToggle.check();
+    await readingPage.bringToFront();
+    await expect.poll(() => readActiveTabCollectorStatus(extensionWorker)).toMatchObject({
+      collecting: true,
+      url: readingSiteUrl,
+    });
+    await dashboard.close();
+
     // Hiding the page flushes the current batch. Let one viewport sample
     // complete first so the flushed batch contains effective reading evidence.
     await readingPage.waitForTimeout(1_250);

@@ -57,6 +57,7 @@ The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
 - `Metric`: compact label/value pair.
 - `SectionHeader`: title plus optional compact metadata.
 - `ProgressBar`: semantic progressbar with an accessible value.
+- `SwitchControl`: shared binary setting with visible state text, keyboard focus, and busy/disabled treatment.
 - `InlineNotice`: concise live status and recovery feedback.
 - `EmptyState`: one-line empty state with an optional next action.
 
@@ -68,7 +69,7 @@ The pinned browser action is the smallest daily-progress surface. It uses 16 ras
 
 ### Popup
 
-Current site status first, a compact daily snapshot second, then the two destinations. Enabled-site management remains collapsed and bounded.
+Current site status first, including an exact-site recording switch, a compact daily snapshot second, then the two destinations. A global Yuel pause keeps the saved site preference visible but temporarily disables the site control; Chrome restrictions remain a distinct warning state.
 
 ### Side panel
 
@@ -76,7 +77,7 @@ Current-page progress is the visual anchor. Daily totals, vocabulary, and the la
 
 ### Dashboard
 
-The page is organized as a reading ledger: today summary, goal-based check-in progress, a 13-week reading-rhythm view, recent reading, vocabulary, excerpts, and reading profile. The rhythm view combines a goal-relative activity heatmap with effective-word trends, weekday averages, and first-read/review composition without turning the page into a scoreboard. The reading profile owns the editable daily effective-word goal, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached; it keeps the streak quiet, presents up to three domains as a compact source list, and locally remembers the user's theme, source-count, favicon, and streak-display choices. Calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
+The page is organized as a reading ledger: today summary, goal-based check-in progress, a 13-week reading-rhythm view, recent reading, vocabulary, excerpts, and reading profile. The rhythm view combines a goal-relative activity heatmap with effective-word trends, weekday averages, and first-read/review composition without turning the page into a scoreboard. The reading profile owns the global automatic-recording switch, editable daily effective-word goal, toolbar progress preference, and reading-speed calibration/reset, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached; it keeps the streak quiet, presents up to three domains as a compact source list, and locally remembers the user's theme, source-count, favicon, and streak-display choices. Calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
 
 ## Accessibility baseline
 

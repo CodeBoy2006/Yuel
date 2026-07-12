@@ -2,6 +2,11 @@ import { browser } from 'wxt/browser';
 
 import { getDomain } from '../domain/events';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
+import {
+  getReadingRecordingSettings,
+  isReadingRecordingEnabledForDomain,
+  type ReadingRecordingSettingsStore,
+} from '../storage/readingRecordingSettings';
 
 export interface ReadingMessageSender {
   url?: string;
@@ -11,6 +16,9 @@ export interface ReadingMessageSender {
 export interface ReadingAccessRuntime {
   permissions: {
     contains: (permissions: { origins: string[] }) => Promise<boolean>;
+  };
+  storage?: {
+    local: ReadingRecordingSettingsStore;
   };
 }
 
@@ -26,6 +34,12 @@ export async function canRecordReadingBatch(
 
   const parsed = parseUrl(senderUrl);
   if (!parsed) return false;
+
+  const settings = await getReadingRecordingSettings(runtime.storage?.local);
+  if (!isReadingRecordingEnabledForDomain(settings, payload.page.domain)) {
+    return false;
+  }
+
   if (parsed.protocol === 'chrome-extension:' || parsed.protocol === 'moz-extension:') {
     return true;
   }

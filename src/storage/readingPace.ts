@@ -2,6 +2,7 @@ import {
   DEFAULT_READING_CONTENT_TYPE,
   DEFAULT_READING_LANGUAGE,
   createReadingPaceProfileId,
+  normalizeReadingPaceLanguage,
   resolveReadingPaceBaseWordsPerMinute,
   upsertOnboardingReadingPaceProfile,
   type OnboardingReadingPaceInput,
@@ -25,6 +26,15 @@ export interface ReadingPaceStore {
   readingPaceProfiles: {
     get: (id: string) => Promise<ReadingPaceProfileRecord | undefined>;
     put: (record: ReadingPaceProfileRecord) => Promise<unknown>;
+  };
+}
+
+export interface ReadingPaceResetStore extends ReadingPaceStore {
+  readingPaceProfiles: ReadingPaceStore['readingPaceProfiles'] & {
+    delete: (id: string) => Promise<unknown>;
+  };
+  readingPaceEpisodes: {
+    clear: () => Promise<unknown>;
   };
 }
 
@@ -60,6 +70,35 @@ export async function saveOnboardingReadingPaceCalibration(
     ...toReadingPaceSummary(nextProfile, nextProfile.language, nextProfile.contentType),
     calibrationAccepted: true,
   };
+}
+
+export async function resetReadingPaceCalibration(
+  store: ReadingPaceResetStore = db,
+  language = DEFAULT_READING_LANGUAGE,
+  contentType = DEFAULT_READING_CONTENT_TYPE,
+): Promise<ReadingPaceSummary> {
+  const profileId = createReadingPaceProfileId(language, contentType);
+  const reset = async () => {
+    await store.readingPaceProfiles.delete(profileId);
+    await store.readingPaceEpisodes.clear();
+  };
+  const transaction = (store as unknown as {
+    transaction?: (...args: unknown[]) => Promise<unknown>;
+  }).transaction;
+
+  if (typeof transaction === 'function') {
+    await transaction.call(
+      store,
+      'rw',
+      store.readingPaceProfiles,
+      store.readingPaceEpisodes,
+      reset,
+    );
+  } else {
+    await reset();
+  }
+
+  return toReadingPaceSummary(undefined, normalizeReadingPaceLanguage(language), contentType);
 }
 
 function toReadingPaceSummary(

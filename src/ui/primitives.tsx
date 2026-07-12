@@ -141,6 +141,54 @@ export function ActionButton({ children, className = '', icon: Icon, variant = '
   );
 }
 
+export interface SwitchControlProps {
+  id: string;
+  checked: boolean;
+  label: string;
+  status: ReactNode;
+  busy?: boolean;
+  className?: string;
+  describedBy?: string;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+export function SwitchControl({
+  id,
+  checked,
+  label,
+  status,
+  busy = false,
+  className = '',
+  describedBy,
+  disabled = false,
+  onChange,
+}: SwitchControlProps) {
+  return (
+    <label
+      className={`yuel-switch ${className}`.trim()}
+      htmlFor={id}
+      data-busy={busy ? 'true' : undefined}
+    >
+      <span className="yuel-switch__status" aria-live="polite">{status}</span>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        aria-describedby={describedBy}
+        aria-busy={busy || undefined}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="yuel-switch__track" aria-hidden="true">
+        <span className="yuel-switch__thumb" />
+      </span>
+    </label>
+  );
+}
+
 export function Metric({ icon: Icon, label, value }: { icon?: LucideIcon; label: string; value: string }) {
   return (
     <div className="yuel-metric">
