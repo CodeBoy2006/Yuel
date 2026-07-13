@@ -1365,3 +1365,9 @@
 - **Status:** Completed
 - **Next Steps:** Mount the model in the PDF reader lifecycle and translate visible chunk geometry, scroll motion, activity, idle state, and selection changes into the existing Yuel event batches.
 - **Context:** Extraction is cancellable and does not retain PDFium run payloads after each page is converted. PDF bytes remain outside storage, source rectangles remain independent of zoom, and malformed or non-English runs cannot create trackable chunks. All 394 unit/UI tests, focused PDF analytics tests, TypeScript checks, production build, and whitespace validation pass.
+
+## [2026-07-14 02:16] Shared Reading Session Runtime
+- **Changes:** Extracted the reading lifecycle, ordered batch delivery, visibility transitions, viewport exposure heartbeat, focus and idle state, scroll velocity, selection hashing, and source-neutral viewport geometry into `src/analytics/`; reduced the web collector to DOM extraction and browser-source adapters; and isolated runtime message delivery in a reusable client.
+- **Status:** Completed
+- **Next Steps:** Mount the PDF text model in the reader and provide projected chunk geometry, reader scroll metrics, visibility transitions, and selected text to the shared session runtime.
+- **Context:** Web event ordering and values remain covered by the existing collector suite, overlapping flushes now serialize so a delayed failed batch cannot be overtaken, and PDF resource/section metadata passes the existing message contract unchanged. All 403 unit/UI tests, TypeScript checks, production build, whitespace validation, and five packaged-extension Chromium tests pass.

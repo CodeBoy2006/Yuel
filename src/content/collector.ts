@@ -1,8 +1,16 @@
-import { browser } from 'wxt/browser';
-
-import { createEventId, createSessionId, hashText, type ReadingEvent, type TextChunkSnapshot } from '../domain/events';
-import { DEFAULT_BASE_WORDS_PER_MINUTE } from '../domain/metrics';
-import { MESSAGE_TYPES } from '../messaging/contracts';
+import {
+  READING_VISIBILITY_THRESHOLD,
+  startReadingSession,
+  type ReadingSessionController,
+  type ReadingSessionOptions,
+} from '../analytics/readingSession';
+import {
+  getRectsVisibleRatio,
+  measureViewportChunk,
+  type RectBounds,
+} from '../analytics/viewportGeometry';
+import { createSessionId } from '../domain/events';
+import { deliverReadingEventBatch } from '../messaging/readingEventsClient';
 import {
   collectTextBlocks,
   getDocumentPrimaryLanguage,
@@ -15,51 +23,15 @@ export interface CollectorController {
   stop: () => void;
 }
 
-interface CollectorOptions {
+interface CollectorOptions extends ReadingSessionOptions {
   dynamicRefreshDebounceMs?: number;
-  flushIntervalMs?: number;
-  idleTimeoutMs?: number;
   routeCheckIntervalMs?: number;
-  sampleIntervalMs?: number;
-  scrollSpeedExpiryMs?: number;
 }
 
 interface CollectorRunController {
   readonly collecting: boolean;
   stop: (options?: { emitPageHidden?: boolean }) => void;
 }
-
-interface VisibleBlockState {
-  block: TextBlockCandidate;
-}
-
-interface BlockVisibilityTransition {
-  block: TextBlockCandidate;
-  kind: 'TextBlockVisible' | 'TextBlockHidden';
-  visibleRatio: number;
-}
-
-interface ScrollVelocitySample {
-  scrollY: number;
-  sampledAt: number;
-}
-
-interface ScrollVelocityMeasurement extends ScrollVelocitySample {
-  scrollDeltaPx: number;
-  scrollDirection: -1 | 1;
-  elapsedMs: number;
-  scrollSpeedWordsPerMinute: number;
-}
-
-type EmitReadingEvent = (
-  id: ReadingEvent['id'],
-  kind: ReadingEvent['kind'],
-  occurredAt: ReadingEvent['occurredAt'],
-  details: Omit<ReadingEvent, 'id' | 'sessionId' | 'pageId' | 'kind' | 'occurredAt'>,
-) => void;
-
-const VIEWPORT_ATTENTION_MEAN = 0.492;
-const VIEWPORT_ATTENTION_STANDARD_DEVIATION = 0.201;
 
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
   if (getDocumentPrimaryLanguage(document) !== 'en') {
@@ -161,45 +133,17 @@ function startReadingCollectorRun(
     return createNoopCollectorRunController();
   }
 
-  const flushIntervalMs = options.flushIntervalMs ?? 15_000;
-  const idleTimeoutMs = options.idleTimeoutMs ?? 45_000;
-  const sampleIntervalMs = options.sampleIntervalMs ?? 1_000;
-  const scrollSpeedExpiryMs = options.scrollSpeedExpiryMs ?? 750;
   const blocks = collectTextBlocks();
   const page = summarizeCurrentPage(document, blocks);
+  const chunks = blocks.map(
+    ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, textRange: _textRange, ...chunk }) => chunk,
+  );
   const blocksByElement = groupBlocksByElement(blocks);
-  const visibleBlocks = new Map<string, VisibleBlockState>();
-  let latestScrollSpeedWordsPerMinute = 0;
-  let latestScrollDirection: -1 | 0 | 1 = 0;
-  let userIdle = false;
-  let pageHidden = document.visibilityState === 'hidden';
-  let windowFocused = !pageHidden && hasDocumentFocus();
-  let stopped = false;
-  let lastInteractionAt = Date.now();
-  let lastViewportTickAt = Date.now();
-  let idleStartedAt: number | undefined;
-  let scrollSpeedExpiryTimer: number | undefined;
-  let lastScrollSample: ScrollVelocitySample = {
-    scrollY: getCurrentScrollY(),
-    sampledAt: Date.now(),
-  };
-  const pendingEvents: ReadingEvent[] = [];
-  const emitEvent: EmitReadingEvent = (id, kind, occurredAt, details) => {
-    pendingEvents.push({
-      id,
-      sessionId,
-      pageId: page.pageId,
-      kind,
-      occurredAt,
-      ...details,
-    });
-  };
-  if (!pageHidden) {
-    emitEvent(createEventId('PageVisible'), 'PageVisible', Date.now(), { confidence: 'medium' });
-  }
+  const blocksByChunkId = new Map(blocks.map((block) => [block.chunkId, block]));
+  let session: ReadingSessionController | undefined;
 
   const observer = new IntersectionObserver((entries) => {
-    if (pageHidden) {
+    if (document.visibilityState === 'hidden' || !session) {
       return;
     }
 
@@ -208,298 +152,83 @@ function startReadingCollectorRun(
       if (!entryBlocks || entryBlocks.length === 0) continue;
 
       const now = Date.now();
-      const entryIsVisible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
-      const blockVisibility = entryBlocks.map((block) => ({
-        block,
-        visibleRatio: entryIsVisible ? getTextBlockVisibleRatio(block) : 0,
-      }));
-      const transitions = [
-        ...blockVisibility
-          .filter(({ block, visibleRatio }) => visibleRatio >= 0.15 && !visibleBlocks.has(block.chunkId))
-          .map<BlockVisibilityTransition>(({ block, visibleRatio }) => ({
-            block, kind: 'TextBlockVisible', visibleRatio,
-          })),
-        ...blockVisibility
-          .filter(({ block, visibleRatio }) => visibleRatio < 0.15 && visibleBlocks.has(block.chunkId))
-          .map<BlockVisibilityTransition>(({ block }) => ({
-            block, kind: 'TextBlockHidden',
-            visibleRatio: entryIsVisible ? 0 : entry.intersectionRatio,
-          })),
-      ];
-      if (transitions.length === 0) continue;
+      const entryIsVisible =
+        entry.isIntersecting && entry.intersectionRatio >= READING_VISIBILITY_THRESHOLD;
+      session.setChunkVisibilities(entryBlocks.map((block) => {
+        const visibleRatio = entryIsVisible ? getTextBlockVisibleRatio(block) : 0;
+        const visible = visibleRatio >= READING_VISIBILITY_THRESHOLD;
 
-      closeCurrentViewportInterval(now);
-      for (const transition of transitions) {
-        if (transition.kind === 'TextBlockVisible') {
-          visibleBlocks.set(transition.block.chunkId, { block: transition.block });
-        } else {
-          visibleBlocks.delete(transition.block.chunkId);
-        }
-        emitBlockVisibilityEvent(emitEvent, createEventId(transition.kind), transition, now);
-      }
+        return {
+          chunkId: block.chunkId,
+          visible,
+          visibleRatio: visible ? visibleRatio : entryIsVisible ? 0 : entry.intersectionRatio,
+        };
+      }), now);
     }
-  }, { threshold: [0.15, 0.35, 0.65, 0.9] });
+  }, { threshold: [READING_VISIBILITY_THRESHOLD, 0.35, 0.65, 0.9] });
+
+  const onScroll = () => {
+    session?.recordScroll();
+  };
+
+  const onSelectionChange = () => {
+    session?.recordSelection(document.getSelection()?.toString() ?? '');
+  };
+
+  session = startReadingSession({
+    page,
+    chunks,
+    deliverBatch: deliverReadingEventBatch,
+    getChunkMeasurement: (chunkId) => {
+      const block = blocksByChunkId.get(chunkId);
+      if (!block) {
+        return undefined;
+      }
+
+      const rects = getTextBlockClientRects(block);
+      return measureViewportChunk(
+        rects,
+        getWindowViewportBounds(rects[0]),
+        block.wordCount,
+        getContentRateMultiplier(block.element),
+      );
+    },
+    getRestorableChunkVisibilities: () => blocks.flatMap((block) => {
+      const visibleRatio = getTextBlockVisibleRatio(block);
+      return visibleRatio >= READING_VISIBILITY_THRESHOLD
+        ? [{ chunkId: block.chunkId, visible: true, visibleRatio }]
+        : [];
+    }),
+    getScrollMetrics: () => ({
+      offsetPx: getCurrentScrollY(),
+      scrollableExtentPx: Math.max(1, document.documentElement.scrollHeight - window.innerHeight),
+    }),
+    sessionId,
+    flushIntervalMs: options.flushIntervalMs,
+    idleTimeoutMs: options.idleTimeoutMs,
+    sampleIntervalMs: options.sampleIntervalMs,
+    scrollSpeedExpiryMs: options.scrollSpeedExpiryMs,
+  });
 
   for (const element of blocksByElement.keys()) {
     observer.observe(element);
   }
-
-  const flushNow = async (): Promise<boolean> => {
-    closeCurrentViewportInterval();
-    return flushEvents(page, blocks, pendingEvents);
-  };
-
-  const closeCurrentViewportInterval = (
-    now = Date.now(),
-    activeTab = document.visibilityState === 'visible' && windowFocused,
-    documentVisible = document.visibilityState === 'visible',
-  ) => {
-    appendViewportExposureTick(
-      emitEvent,
-      visibleBlocks,
-      lastViewportTickAt,
-      now,
-      latestScrollSpeedWordsPerMinute,
-      latestScrollDirection,
-      activeTab,
-      documentVisible,
-      now - lastInteractionAt,
-    );
-    lastViewportTickAt = now;
-  };
-
-  const flushTimer = window.setInterval(() => {
-    void flushNow();
-  }, flushIntervalMs);
-  const sampleTimer = window.setInterval(() => {
-    closeCurrentViewportInterval();
-  }, sampleIntervalMs);
-
-  let idleTimer = window.setTimeout(() => {
-    markUserIdle(Date.now());
-  }, idleTimeoutMs);
-
-  const resetIdleTimer = () => {
-    window.clearTimeout(idleTimer);
-    idleTimer = window.setTimeout(() => {
-      markUserIdle(Date.now());
-    }, idleTimeoutMs);
-  };
-
-  const markUserIdle = (now: number) => {
-    if (pageHidden || userIdle) {
-      return;
-    }
-
-    closeCurrentViewportInterval(now);
-    userIdle = true;
-    idleStartedAt = now;
-    emitEvent(createEventId('UserIdle', now), 'UserIdle', now, {
-      confidence: 'medium',
-      value: {
-        idleMs: now - lastInteractionAt,
-      },
-    });
-  };
-
-  const markUserActive = (now = Date.now()) => {
-    if (pageHidden) {
-      return;
-    }
-
-    if (userIdle) {
-      emitEvent(createEventId('UserActive', now), 'UserActive', now, {
-        confidence: 'medium',
-        value: {
-          idleMs: idleStartedAt ? now - idleStartedAt : 0,
-        },
-      });
-    }
-
-    userIdle = false;
-    idleStartedAt = undefined;
-    lastInteractionAt = now;
-    resetIdleTimer();
-  };
-
-  const appendPageHiddenOnce = () => {
-    if (pageHidden) {
-      return;
-    }
-
-    const now = Date.now();
-    emitEvent(createEventId('PageHidden', now), 'PageHidden', now, { confidence: 'medium' });
-    pageHidden = true;
-  };
-
-  const flushHiddenPage = () => {
-    closeCurrentViewportInterval(Date.now(), windowFocused, true);
-    if (scrollSpeedExpiryTimer !== undefined) {
-      window.clearTimeout(scrollSpeedExpiryTimer);
-      scrollSpeedExpiryTimer = undefined;
-    }
-    latestScrollSpeedWordsPerMinute = 0;
-    latestScrollDirection = 0;
-    visibleBlocks.clear();
-    appendPageHiddenOnce();
-
-    void flushNow();
-  };
-
-  const onVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
-      flushHiddenPage();
-      return;
-    }
-
-    if (pageHidden) {
-      pageHidden = false;
-      windowFocused = hasDocumentFocus();
-      const now = Date.now();
-      lastInteractionAt = now;
-      lastViewportTickAt = now;
-      resetIdleTimer();
-      emitEvent(createEventId('PageVisible', now), 'PageVisible', now, { confidence: 'medium' });
-      restoreVisibleBlocksFromLayout(emitEvent, blocks, visibleBlocks);
-    }
-  };
-
-  const onPageHide = () => {
-    flushHiddenPage();
-  };
-
-  const scheduleScrollSpeedExpiry = () => {
-    if (scrollSpeedExpiryTimer !== undefined) {
-      window.clearTimeout(scrollSpeedExpiryTimer);
-    }
-    scrollSpeedExpiryTimer = window.setTimeout(() => {
-      scrollSpeedExpiryTimer = undefined;
-      if (!pageHidden && latestScrollSpeedWordsPerMinute > 0) {
-        closeCurrentViewportInterval();
-      }
-      latestScrollSpeedWordsPerMinute = 0;
-      latestScrollDirection = 0;
-    }, scrollSpeedExpiryMs);
-  };
-
-  const onScroll = () => {
-    if (pageHidden) {
-      return;
-    }
-
-    const measurement = measureScrollVelocity(lastScrollSample, page.totalWords);
-    if (!measurement) {
-      markUserActive();
-      return;
-    }
-
-    closeCurrentViewportInterval(measurement.sampledAt);
-    markUserActive(measurement.sampledAt);
-    lastScrollSample = {
-      scrollY: measurement.scrollY,
-      sampledAt: measurement.sampledAt,
-    };
-    latestScrollSpeedWordsPerMinute = measurement.scrollSpeedWordsPerMinute;
-    latestScrollDirection = measurement.scrollDirection;
-    scheduleScrollSpeedExpiry();
-    emitEvent(createEventId('ScrollVelocityChanged', measurement.sampledAt), 'ScrollVelocityChanged', measurement.sampledAt, {
-      confidence: confidenceFromScrollSpeed(measurement.scrollSpeedWordsPerMinute),
-      value: {
-        scrollDeltaPx: measurement.scrollDeltaPx,
-        scrollDirection: measurement.scrollDirection,
-        elapsedMs: measurement.elapsedMs,
-        scrollSpeedWordsPerMinute: measurement.scrollSpeedWordsPerMinute,
-      },
-    });
-  };
-
-  const onSelectionChange = () => {
-    if (pageHidden) {
-      return;
-    }
-
-    const text = document.getSelection()?.toString().trim();
-    if (!text) return;
-
-    const now = Date.now();
-    closeCurrentViewportInterval(now);
-    markUserActive(now);
-    emitEvent(createEventId('TextSelected', now), 'TextSelected', now, {
-      confidence: 'high',
-      value: {
-        textHash: hashText(text),
-        characterCount: text.length,
-      },
-    });
-  };
-
-  const onUserActivity = () => {
-    const now = Date.now();
-    closeCurrentViewportInterval(now);
-    markUserActive(now);
-  };
-
-  const onWindowBlur = () => {
-    if (!windowFocused) return;
-    const now = Date.now();
-    closeCurrentViewportInterval(now, true, document.visibilityState === 'visible');
-    windowFocused = false;
-  };
-
-  const onWindowFocus = () => {
-    if (windowFocused || pageHidden) return;
-    const now = Date.now();
-    closeCurrentViewportInterval(now, false, document.visibilityState === 'visible');
-    windowFocused = true;
-    markUserActive(now);
-  };
-
-  document.addEventListener('visibilitychange', onVisibilityChange);
-  window.addEventListener('pagehide', onPageHide);
-  window.addEventListener('blur', onWindowBlur);
-  window.addEventListener('focus', onWindowFocus);
-  document.addEventListener('pointerdown', onUserActivity);
-  document.addEventListener('keydown', onUserActivity);
   window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('selectionchange', onSelectionChange);
 
-  void flushNow();
-
   return {
     get collecting() {
-      return !stopped;
+      return session?.collecting ?? false;
     },
     stop: ({ emitPageHidden = true }: { emitPageHidden?: boolean } = {}) => {
-      if (stopped) {
+      if (!session?.collecting) {
         return;
       }
 
-      stopped = true;
-      window.clearInterval(flushTimer);
-      window.clearInterval(sampleTimer);
-      window.clearTimeout(idleTimer);
-      if (scrollSpeedExpiryTimer !== undefined) {
-        window.clearTimeout(scrollSpeedExpiryTimer);
-      }
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', onPageHide);
-      window.removeEventListener('blur', onWindowBlur);
-      window.removeEventListener('focus', onWindowFocus);
-      document.removeEventListener('pointerdown', onUserActivity);
-      document.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
-      closeCurrentViewportInterval();
-      visibleBlocks.clear();
-      if (emitPageHidden) {
-        appendPageHiddenOnce();
-      }
-      void flushNow().then((delivered) => {
-        if (!delivered && pendingEvents.length > 0) {
-          void flushNow();
-        }
-      });
+      session.stop({ emitPageHidden });
     },
   };
 }
@@ -584,124 +313,9 @@ function groupBlocksByElement(blocks: TextBlockCandidate[]): Map<Element, TextBl
   return blocksByElement;
 }
 
-function emitBlockVisibilityEvent(
-  emitEvent: EmitReadingEvent,
-  id: ReadingEvent['id'],
-  { block, kind, visibleRatio }: BlockVisibilityTransition,
-  occurredAt: number,
-): void {
-  emitEvent(id, kind, occurredAt, {
-    chunkId: block.chunkId,
-    confidence: visibleRatio > 0.65 ? 'high' : 'medium',
-    value: { visibleRatio, wordCount: block.wordCount },
-  });
-}
-
-function restoreVisibleBlocksFromLayout(
-  emitEvent: EmitReadingEvent,
-  blocks: TextBlockCandidate[],
-  visibleBlocks: Map<string, VisibleBlockState>,
-): void {
-  const now = Date.now();
-  for (const block of blocks) {
-    if (visibleBlocks.has(block.chunkId)) {
-      continue;
-    }
-
-    const visibleRatio = getTextBlockVisibleRatio(block);
-    if (visibleRatio < 0.15) {
-      continue;
-    }
-
-    visibleBlocks.set(block.chunkId, { block });
-    emitBlockVisibilityEvent(
-      emitEvent,
-      createEventId('TextBlockVisible', now),
-      { block, kind: 'TextBlockVisible', visibleRatio },
-      now,
-    );
-  }
-}
-
-function appendViewportExposureTick(
-  emitEvent: EmitReadingEvent,
-  visibleBlocks: Map<string, VisibleBlockState>,
-  startedAt: number,
-  now: number,
-  scrollSpeedWordsPerMinute: number,
-  scrollDirection: -1 | 0 | 1,
-  activeTab: boolean,
-  documentVisible: boolean,
-  idleAgeMs: number,
-): void {
-  const tickMs = now - startedAt;
-  if (tickMs < 250 || visibleBlocks.size === 0) {
-    return;
-  }
-
-  const visibleChunks = Array.from(visibleBlocks.values()).flatMap((state) => {
-    const rects = getTextBlockClientRects(state.block);
-    const visibleRatio = getViewportRectsVisibleRatio(rects);
-    if (visibleRatio < 0.15) {
-      return [];
-    }
-
-    const contentMultiplier = getContentRateMultiplier(state.block.element);
-
-    return [
-      {
-        chunkId: state.block.chunkId,
-        wordCount: state.block.wordCount,
-        visibleRatio,
-        visibleWordCount: state.block.wordCount * visibleRatio,
-        centerDistance: getViewportRectCenterDistance(getBoundingRect(rects)),
-        viewportY: getViewportRectCenterY(getBoundingRect(rects)),
-        attentionMass: getTextBlockAttentionMass(state.block, rects),
-        contentMultiplier,
-        // Kept during the v2 event migration so older background workers can
-        // still validate and conservatively interpret a locally queued batch.
-        contentWeight: contentMultiplier,
-      },
-    ];
-  });
-
-  if (visibleChunks.length === 0) {
-    return;
-  }
-
-  emitEvent(createEventId('TextViewportExposureTick', now), 'TextViewportExposureTick', now, {
-    confidence: visibleChunks.some((chunk) => chunk.visibleRatio > 0.65) ? 'high' : 'medium',
-    value: {
-      tickMs,
-      baseWordsPerMinute: DEFAULT_BASE_WORDS_PER_MINUTE,
-      activeTab,
-      documentVisible,
-      scrollSpeedWordsPerMinute,
-      scrollDirection,
-      idleAgeMs: Math.max(0, idleAgeMs),
-      visibleChunks,
-    },
-  });
-}
-
 function getTextBlockVisibleRatio(block: TextBlockCandidate): number {
-  return getViewportRectsVisibleRatio(getTextBlockClientRects(block));
-}
-
-function getTextBlockAttentionMass(block: TextBlockCandidate, rects = getTextBlockClientRects(block)): number {
-  const totalArea = rects.reduce((sum, rect) => sum + getRectArea(rect), 0);
-  if (totalArea <= 0) return 0;
-
-  return rects.reduce((sum, rect) => {
-    const visibleArea = getViewportVisibleArea(rect);
-    if (visibleArea <= 0) return sum;
-
-    const visibleWordMass = block.wordCount * visibleArea / totalArea;
-    const viewportY = getVisibleRectCenterY(rect);
-    const normalizedDistance = (viewportY - VIEWPORT_ATTENTION_MEAN) / VIEWPORT_ATTENTION_STANDARD_DEVIATION;
-    const gaussianWeight = Math.exp(-0.5 * normalizedDistance * normalizedDistance);
-    return sum + visibleWordMass * gaussianWeight;
-  }, 0);
+  const rects = getTextBlockClientRects(block);
+  return getRectsVisibleRatio(rects, getWindowViewportBounds(rects[0]));
 }
 
 function getTextBlockClientRects(block: TextBlockCandidate): DOMRect[] {
@@ -750,85 +364,22 @@ function getFallbackTextBlockViewportRect(block: TextBlockCandidate): DOMRect {
   } as DOMRect;
 }
 
-function getViewportRectsVisibleRatio(rects: DOMRect[]): number {
-  const totalArea = rects.reduce((sum, rect) => sum + getRectArea(rect), 0);
-  if (totalArea <= 0) {
-    return 0;
-  }
-
-  const visibleArea = rects.reduce((sum, rect) => sum + getViewportVisibleArea(rect), 0);
-  return visibleArea / totalArea;
+function hasRectArea(rect: DOMRect): boolean {
+  return Math.max(0, rect.width) * Math.max(0, rect.height) > 0;
 }
 
-function getBoundingRect(rects: DOMRect[]): DOMRect {
-  const [firstRect] = rects;
-  if (!firstRect) {
-    return {
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
-      toJSON: () => ({}),
-    } as DOMRect;
-  }
-
-  const left = Math.min(...rects.map((rect) => rect.left));
-  const right = Math.max(...rects.map((rect) => rect.right));
-  const top = Math.min(...rects.map((rect) => rect.top));
-  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+function getWindowViewportBounds(fallbackRect?: RectBounds): RectBounds {
+  const width = window.innerWidth || document.documentElement.clientWidth || fallbackRect?.width || 1;
+  const height = window.innerHeight || document.documentElement.clientHeight || fallbackRect?.height || 1;
 
   return {
-    x: left,
-    y: top,
-    width: Math.max(0, right - left),
-    height: Math.max(0, bottom - top),
-    top,
-    right,
-    bottom,
-    left,
-    toJSON: () => ({}),
-  } as DOMRect;
-}
-
-function getViewportRectCenterDistance(rect: DOMRect): number {
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
-  const elementCenterY = rect.top + rect.height / 2;
-  const viewportCenterY = viewportHeight / 2;
-
-  return Math.max(0, Math.abs(elementCenterY - viewportCenterY) / Math.max(1, viewportHeight));
-}
-
-function getViewportRectCenterY(rect: DOMRect): number {
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
-  return (rect.top + rect.height / 2) / Math.max(1, viewportHeight);
-}
-
-function getVisibleRectCenterY(rect: DOMRect): number {
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height || 1;
-  const visibleTop = Math.max(0, Math.min(viewportHeight, rect.top));
-  const visibleBottom = Math.max(visibleTop, Math.min(viewportHeight, rect.bottom));
-  return (visibleTop + visibleBottom) / 2 / Math.max(1, viewportHeight);
-}
-
-function hasRectArea(rect: DOMRect): boolean {
-  return getRectArea(rect) > 0;
-}
-
-function getRectArea(rect: DOMRect): number {
-  return Math.max(0, rect.width) * Math.max(0, rect.height);
-}
-
-function getViewportVisibleArea(rect: DOMRect): number {
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.width;
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || rect.height;
-  const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
-  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
-
-  return visibleWidth * visibleHeight;
+    left: 0,
+    top: 0,
+    right: width,
+    bottom: height,
+    width,
+    height,
+  };
 }
 
 function getContentRateMultiplier(element: HTMLElement): number {
@@ -839,78 +390,6 @@ function getContentRateMultiplier(element: HTMLElement): number {
   return 1;
 }
 
-function measureScrollVelocity(previous: ScrollVelocitySample, totalWords: number): ScrollVelocityMeasurement | undefined {
-  const sampledAt = Date.now();
-  const scrollY = getCurrentScrollY();
-  const elapsedMs = sampledAt - previous.sampledAt;
-  const signedScrollDeltaPx = scrollY - previous.scrollY;
-  const scrollDeltaPx = Math.abs(signedScrollDeltaPx);
-
-  if (elapsedMs < 100 || scrollDeltaPx < 1) {
-    return undefined;
-  }
-
-  const scrollableHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-  const pageProgressPerMinute = (scrollDeltaPx / scrollableHeight) * (60_000 / elapsedMs);
-
-  return {
-    scrollY,
-    sampledAt,
-    scrollDeltaPx,
-    scrollDirection: signedScrollDeltaPx > 0 ? 1 : -1,
-    elapsedMs,
-    scrollSpeedWordsPerMinute: Math.round(Math.max(0, totalWords) * pageProgressPerMinute),
-  };
-}
-
 function getCurrentScrollY(): number {
   return Math.max(0, window.scrollY || window.pageYOffset || 0);
-}
-
-function hasDocumentFocus(): boolean {
-  return typeof document.hasFocus !== 'function' || document.hasFocus();
-}
-
-function confidenceFromScrollSpeed(scrollSpeedWordsPerMinute: number): ReadingEvent['confidence'] {
-  if (scrollSpeedWordsPerMinute <= 400) {
-    return 'high';
-  }
-  if (scrollSpeedWordsPerMinute <= 1_200) {
-    return 'medium';
-  }
-  return 'low';
-}
-
-async function flushEvents(
-  page: ReturnType<typeof summarizeCurrentPage>,
-  blocks: TextBlockCandidate[],
-  pendingEvents: ReadingEvent[],
-): Promise<boolean> {
-  if (pendingEvents.length === 0) {
-    return true;
-  }
-
-  const events = pendingEvents.splice(0, pendingEvents.length);
-  const chunks: TextChunkSnapshot[] = blocks.map(
-    ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, textRange: _textRange, ...chunk }) => chunk,
-  );
-
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: MESSAGE_TYPES.readingEventsBatch,
-      payload: { page, chunks, events },
-    });
-    if (!isSuccessfulReadingMessageResponse(response)) {
-      throw new Error('Yuel background rejected the reading event batch');
-    }
-    return true;
-  } catch (error) {
-    pendingEvents.unshift(...events);
-    console.warn('Failed to deliver Yuel reading events; will retry on the next flush', error);
-    return false;
-  }
-}
-
-function isSuccessfulReadingMessageResponse(value: unknown): value is { ok: true } {
-  return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === true;
 }

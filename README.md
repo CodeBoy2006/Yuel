@@ -116,7 +116,8 @@ Content script -> Reading events -> Background router -> IndexedDB -> UI pages
 Key boundaries:
 
 - `entrypoints/` contains WXT extension entrypoints only.
-- `src/content/` extracts DOM text blocks and emits reading events.
+- `src/content/` extracts DOM text blocks and adapts browser geometry, scrolling, and selection into the shared reading session.
+- `src/analytics/` owns the source-neutral reading session lifecycle, ordered batch delivery, visibility transitions, viewport exposure heartbeat, focus and idle state, scroll velocity, selection telemetry, and viewport geometry.
 - `src/domain/` contains pure types, metrics, and Pack validation.
 - `src/analysis/` contains lightweight English tokenization and the shared sentence-aligned 8–24 word chunking used by every reading source.
 - `src/storage/` owns the Dexie schema, write repository, aggregate updates, and read-side stats queries.
