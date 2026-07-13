@@ -1341,3 +1341,9 @@
 - **Status:** Completed
 - **Next Steps:** Add Popup and Side Panel launch actions, then implement the contextual thumbnail/search panel, text selection, and the PDF-to-Yuel reading analytics bridge.
 - **Context:** Remote PDFs still download completely before opening and remain capped by the source adapter; PDF bytes are not persisted and remote font fallback is disabled. The fixed Grid row placement is required so the optional activity banner cannot collapse the reader viewport. All 370 unit/UI tests, TypeScript checks, production build, five packaged-extension Chromium tests, three repeated PDF render runs, and whitespace validation pass.
+
+## [2026-07-14 01:12] PDF Reader Launch Actions
+- **Changes:** Added dedicated PDF reader launch actions to the Popup and Side Panel with independent busy and failure states, responsive full-width action placement, injected navigation dependencies, UI behavior coverage, and packaged-extension navigation coverage.
+- **Status:** Completed
+- **Next Steps:** Implement the reader's contextual thumbnail/search panel and text selection layer.
+- **Context:** Both entry surfaces open the same standalone `pdf-reader.html` tab and leave existing site access, statistics refresh, dashboard, share-card, and side-panel actions unchanged. All 56 entrypoint UI tests, TypeScript checks, production build, the packaged navigation test, and whitespace validation pass.

@@ -204,6 +204,10 @@ body {
   padding-inline: 10px;
 }
 
+.popup-destinations__pdf {
+  grid-column: 1 / -1;
+}
+
 .popup-shell > .yuel-notice {
   margin: -3px 14px 10px;
 }

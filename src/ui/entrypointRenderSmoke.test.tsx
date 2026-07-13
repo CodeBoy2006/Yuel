@@ -158,6 +158,7 @@ function createPopupDependencies(
       excludedSiteDomains: enabled ? [] : ['example.com'],
     }),
     openDashboard: async () => undefined,
+    openPdfReader: async () => undefined,
     openSidePanel: async () => undefined,
     ...overrides,
   };
@@ -243,6 +244,7 @@ function createSidePanelDependencies(
     }),
     subscribeToRefresh: () => () => undefined,
     openDashboard: async () => undefined,
+    openPdfReader: async () => undefined,
     ...overrides,
   };
 }
@@ -628,6 +630,32 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '打开侧栏'));
 
     expect(openSidePanel).toHaveBeenCalledOnce();
+  });
+
+  it('opens the PDF reader from the popup action', async () => {
+    const openPdfReader = vi.fn(async () => undefined);
+    const container = await renderPopup({
+      openPdfReader,
+    });
+
+    await clickButton(findButton(container, '打开 PDF 阅读器'));
+
+    expect(openPdfReader).toHaveBeenCalledOnce();
+  });
+
+  it('shows a popup PDF reader launch failure', async () => {
+    const openPdfReader = vi.fn(async () => {
+      throw new Error('tab creation failed');
+    });
+    const container = await renderPopup({
+      openPdfReader,
+    });
+
+    await clickButton(findButton(container, '打开 PDF 阅读器'));
+    await flushReactMicrotasks();
+
+    expect(openPdfReader).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('PDF 阅读器暂时不可用');
   });
 
   it('shows a popup dashboard launch failure', async () => {
@@ -1792,6 +1820,32 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '打开仪表盘'));
 
     expect(openDashboard).toHaveBeenCalledOnce();
+  });
+
+  it('opens the PDF reader from the side panel companion action', async () => {
+    const openPdfReader = vi.fn(async () => undefined);
+    const container = await renderSidePanel({
+      openPdfReader,
+    });
+
+    await clickButton(findButton(container, '打开 PDF 阅读器'));
+
+    expect(openPdfReader).toHaveBeenCalledOnce();
+  });
+
+  it('shows a side panel PDF reader launch failure', async () => {
+    const openPdfReader = vi.fn(async () => {
+      throw new Error('tab creation failed');
+    });
+    const container = await renderSidePanel({
+      openPdfReader,
+    });
+
+    await clickButton(findButton(container, '打开 PDF 阅读器'));
+    await flushReactMicrotasks();
+
+    expect(openPdfReader).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('PDF 阅读器暂时不可用');
   });
 
   it('shows a side panel dashboard launch failure', async () => {

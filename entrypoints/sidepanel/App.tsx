@@ -3,6 +3,7 @@ import {
   BookMarked,
   BookOpen,
   ExternalLink,
+  FileText,
   Languages,
   Quote,
   Sparkles,
@@ -47,6 +48,7 @@ export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 
 export interface SidePanelAppDependencies {
   openDashboard: (target?: 'share-card') => Promise<void>;
+  openPdfReader: () => Promise<void>;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
   getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
   getSidePanelReadingDetails: typeof getSidePanelReadingDetails;
@@ -65,6 +67,9 @@ const defaultDependencies: SidePanelAppDependencies = {
     }
     await browser.tabs.create({ url: url.toString() });
   },
+  openPdfReader: async () => {
+    await browser.tabs.create({ url: new URL('/pdf-reader.html', window.location.href).toString() });
+  },
 };
 
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
@@ -77,11 +82,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [shareCardBusy, setShareCardBusy] = useState(false);
   const [dashboardFailed, setDashboardFailed] = useState(false);
+  const [pdfReaderBusy, setPdfReaderBusy] = useState(false);
+  const [pdfReaderFailed, setPdfReaderFailed] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>();
   const mountedRef = useRef(false);
   const refreshSequenceRef = useRef(0);
   const dashboardActionSequenceRef = useRef(0);
   const dashboardActionBusyRef = useRef(false);
+  const pdfReaderBusyRef = useRef(false);
   const currentUrlRef = useRef<string | undefined>(undefined);
   const refreshInFlightRef = useRef(false);
   const activeRefreshTokenRef = useRef(0);
@@ -199,6 +207,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
       refreshSequenceRef.current += 1;
       dashboardActionSequenceRef.current += 1;
       dashboardActionBusyRef.current = false;
+      pdfReaderBusyRef.current = false;
       activeRefreshTokenRef.current += 1;
       refreshInFlightRef.current = false;
       pendingRefreshReasonRef.current = undefined;
@@ -260,8 +269,29 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     }
   };
 
+  const openPdfReader = async () => {
+    if (pdfReaderBusyRef.current) return;
+    pdfReaderBusyRef.current = true;
+    setPdfReaderBusy(true);
+    setPdfReaderFailed(false);
+
+    try {
+      await dependencies.openPdfReader();
+    } catch (error) {
+      console.error('Failed to open Yuel PDF reader from side panel', error);
+      if (mountedRef.current) setPdfReaderFailed(true);
+    } finally {
+      pdfReaderBusyRef.current = false;
+      if (mountedRef.current) setPdfReaderBusy(false);
+    }
+  };
+
   return (
-    <div className={`yuel-app sidepanel-app ${dashboardFailed ? 'sidepanel-app--action-error' : ''}`}>
+    <div
+      className={`yuel-app sidepanel-app ${
+        dashboardFailed || pdfReaderFailed ? 'sidepanel-app--action-error' : ''
+      }`}
+    >
       <header className="sidepanel-header">
         <BrandLockup
           compact
@@ -391,8 +421,20 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           >
             {dashboardBusy ? '打开中...' : '打开仪表盘'}
           </ActionButton>
+          <ActionButton
+            className="sidepanel-actions__reader"
+            type="button"
+            icon={FileText}
+            variant="secondary"
+            disabled={pdfReaderBusy}
+            aria-busy={pdfReaderBusy}
+            onClick={() => void openPdfReader()}
+          >
+            {pdfReaderBusy ? '打开中...' : '打开 PDF 阅读器'}
+          </ActionButton>
         </div>
         {dashboardFailed ? <InlineNotice tone="danger">仪表盘暂时不可用。</InlineNotice> : null}
+        {pdfReaderFailed ? <InlineNotice tone="danger">PDF 阅读器暂时不可用。</InlineNotice> : null}
       </footer>
     </div>
   );

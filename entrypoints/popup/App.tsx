@@ -1,6 +1,7 @@
 import {
   BookOpen,
   ExternalLink,
+  FileText,
   PanelRightOpen,
   ShieldCheck,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ export interface PopupAppDependencies {
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
   setSiteReadingRecordingEnabled: typeof setSiteReadingRecordingEnabled;
   openDashboard: () => Promise<void>;
+  openPdfReader: () => Promise<void>;
   openSidePanel: () => Promise<void>;
 }
 
@@ -41,6 +43,9 @@ const defaultDependencies: PopupAppDependencies = {
   setSiteReadingRecordingEnabled,
   openDashboard: async () => {
     await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
+  },
+  openPdfReader: async () => {
+    await browser.tabs.create({ url: new URL('/pdf-reader.html', window.location.href).toString() });
   },
   openSidePanel: openExtensionSidePanel,
 };
@@ -57,6 +62,8 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [sidePanelFailed, setSidePanelFailed] = useState(false);
   const [dashboardBusy, setDashboardBusy] = useState(false);
   const [dashboardFailed, setDashboardFailed] = useState(false);
+  const [pdfReaderBusy, setPdfReaderBusy] = useState(false);
+  const [pdfReaderFailed, setPdfReaderFailed] = useState(false);
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -130,6 +137,20 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       if (mountedRef.current) setDashboardFailed(true);
     } finally {
       if (mountedRef.current) setDashboardBusy(false);
+    }
+  };
+
+  const openPdfReader = async () => {
+    setPdfReaderBusy(true);
+    setPdfReaderFailed(false);
+
+    try {
+      await dependencies.openPdfReader();
+    } catch (error) {
+      console.error('Failed to open Yuel PDF reader from popup', error);
+      if (mountedRef.current) setPdfReaderFailed(true);
+    } finally {
+      if (mountedRef.current) setPdfReaderBusy(false);
     }
   };
 
@@ -272,9 +293,21 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           >
             {dashboardBusy ? '打开中...' : '查看仪表盘'}
           </ActionButton>
+          <ActionButton
+            className="popup-destinations__pdf"
+            type="button"
+            variant="secondary"
+            icon={FileText}
+            disabled={pdfReaderBusy}
+            aria-busy={pdfReaderBusy}
+            onClick={() => void openPdfReader()}
+          >
+            {pdfReaderBusy ? '打开中...' : '打开 PDF 阅读器'}
+          </ActionButton>
         </nav>
         {sidePanelFailed ? <InlineNotice tone="danger">侧栏暂时不可用。</InlineNotice> : null}
         {dashboardFailed ? <InlineNotice tone="danger">仪表盘暂时不可用。</InlineNotice> : null}
+        {pdfReaderFailed ? <InlineNotice tone="danger">PDF 阅读器暂时不可用。</InlineNotice> : null}
       </section>
     </main>
   );
