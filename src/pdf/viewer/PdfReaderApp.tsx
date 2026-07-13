@@ -39,6 +39,7 @@ export function PdfReaderApp({ wasmUrl }: { wasmUrl: string }) {
         <PdfReaderWorkspace
           activeDocument={activeDocument}
           activeDocumentId={activeDocumentId}
+          engine={engine}
           pluginsReady={pluginsReady}
         />
       )}

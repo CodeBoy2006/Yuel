@@ -1383,3 +1383,9 @@
 - **Status:** Completed
 - **Next Steps:** Mount the PDF analytics adapter in the loaded reader lifecycle and connect viewport, scroll, activity, and selection signals to sparse batch delivery.
 - **Context:** Existing web batches still require and deliver a complete page snapshot. Page-only PDF lifecycle batches carry no extracted text, event-linked chunks preserve source order, resource changes cannot inherit prior PDF coverage, and metric-model migration baselines remain bounded. All 416 unit/UI tests, TypeScript checks, production build, and whitespace validation pass.
+
+## [2026-07-14 02:54] PDF Reading Analytics Bridge
+- **Changes:** Mounted cancellable PDFium text extraction in the loaded reader lifecycle; bridged virtual page visibility, projected chunk measurements, reader scroll metrics, focus/idle handling, and selected text into the shared sparse reading session; refreshed geometry across scrolling, resizing, zoom, rotation, and virtual page mount changes; and extended packaged-extension coverage through dashboard persistence.
+- **Status:** Completed
+- **Next Steps:** Run final packaged-output and long-document memory checks, then review remaining reader polish and release readiness.
+- **Context:** PDF text rectangles are already top-left device coordinates in EmbedPDF 2.14.4 and require no Y-axis inversion. The shared session still batches roughly every 15 seconds or on lifecycle flush; PDF bytes and source rectangles remain outside IndexedDB. All 417 unit/UI tests, focused PDF analytics tests, TypeScript checks, production build, whitespace validation, and five packaged-extension Chromium tests pass.

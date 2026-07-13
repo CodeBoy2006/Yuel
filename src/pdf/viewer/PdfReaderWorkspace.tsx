@@ -25,6 +25,7 @@ import type {
 import { browser } from 'wxt/browser';
 
 import { BrandLockup } from '../../ui/primitives';
+import type { PdfTextRunsEngine } from '../analytics';
 import {
   isPdfSourceError,
   loadLocalPdfSource,
@@ -60,12 +61,14 @@ type SourceActivity =
 export interface PdfReaderWorkspaceProps {
   activeDocument: DocumentState | null;
   activeDocumentId: string | null;
+  engine: PdfTextRunsEngine;
   pluginsReady: boolean;
 }
 
 export function PdfReaderWorkspace({
   activeDocument,
   activeDocumentId,
+  engine,
   pluginsReady,
 }: PdfReaderWorkspaceProps) {
   const { provides: documentManager } = useDocumentManagerCapability();
@@ -410,8 +413,12 @@ export function PdfReaderWorkspace({
           {activeDocumentId ? (
             <PdfDocumentView
               documentId={activeDocumentId}
+              engine={engine}
               onCloseDocument={closeDocument}
               onOpenSearch={openSearchPanel}
+              sourceMetadata={sourceMetadata?.resourceId === activeDocumentId
+                ? sourceMetadata
+                : undefined}
             />
           ) : (
             <ReaderEmptyState

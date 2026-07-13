@@ -1,4 +1,8 @@
 export {
+  PdfReadingAnalytics,
+  type PdfReadingAnalyticsProps,
+} from './PdfReadingAnalytics';
+export {
   extractPdfReadingSnapshot,
   type PdfTextExtractionOptions,
   type PdfTextExtractionProgress,
@@ -25,6 +29,11 @@ export {
   type PdfReadingRuntimeModel,
   type PdfReadingVisibilityResult,
 } from './runtime';
+export {
+  startPdfReadingSessionBridge,
+  type PdfReadingSessionBridge,
+  type PdfReadingSessionBridgeOptions,
+} from './session';
 export type {
   CreatePdfReadingTextSectionInput,
   PdfReadingSnapshot,

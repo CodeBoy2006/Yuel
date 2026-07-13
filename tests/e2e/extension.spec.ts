@@ -43,7 +43,7 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
   await pdfReader.close();
 });
 
-test('renders a local PDF through packaged PDFium WASM and workers without remote requests', async ({
+test('renders a local PDF through packaged PDFium WASM and records analytics without remote requests', async ({
   context,
   extensionId,
 }) => {
@@ -213,6 +213,24 @@ test('renders a local PDF through packaged PDFium WASM and workers without remot
   expect(documentStageBox?.width).toBe(620);
   await sidebarBackdrop.click({ position: { x: 600, y: 400 } });
   await expect(sidebar).toBeHidden();
+
+  await pdfReader.waitForTimeout(1_250);
+  // Exercise the normal lifecycle flush without waiting for the 15-second batch timer.
+  await pdfReader.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+  });
+  const analyticsDashboard = await openExtensionPage(
+    context,
+    extensionId,
+    'dashboard.html',
+  );
+  await analyticsDashboard.bringToFront();
+  await expect.poll(async () => {
+    await analyticsDashboard.reload({ waitUntil: 'load' });
+    return analyticsDashboard.locator('body').innerText();
+  }, { timeout: 10_000 }).toContain('pdf.local');
+  await analyticsDashboard.close();
+  await pdfReader.bringToFront();
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);

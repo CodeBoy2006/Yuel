@@ -54,17 +54,26 @@ import type {
 } from 'react';
 
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
+import {
+  PdfReadingAnalytics,
+  type PdfTextRunsEngine,
+} from '../analytics';
+import type { PdfSourceMetadata } from '../source';
 
 interface PdfDocumentViewProps {
   documentId: string;
+  engine: PdfTextRunsEngine;
   onCloseDocument: () => Promise<void>;
   onOpenSearch: () => void;
+  sourceMetadata?: PdfSourceMetadata;
 }
 
 export function PdfDocumentView({
   documentId,
+  engine,
   onCloseDocument,
   onOpenSearch,
+  sourceMetadata,
 }: PdfDocumentViewProps) {
   return (
     <DocumentContent documentId={documentId}>
@@ -116,66 +125,78 @@ export function PdfDocumentView({
                 aria-label="PDF 连续阅读区"
               >
                 {isLoaded ? (
-                  <Scroller
-                    documentId={documentId}
-                    className="pdf-reader__scroller"
-                    renderPage={({ height, pageIndex, pageNumber, width }) => (
-                      <div
-                        className="pdf-reader__page-shell"
-                        data-page-number={pageNumber}
-                        aria-label={`第 ${pageNumber} 页`}
-                      >
-                        <Rotate
-                          documentId={documentId}
-                          pageIndex={pageIndex}
-                          style={{ height, width }}
+                  <>
+                    {documentState.document && sourceMetadata ? (
+                      <PdfReadingAnalytics
+                        document={documentState.document}
+                        documentId={documentId}
+                        documentRotation={documentState.rotation}
+                        engine={engine}
+                        metadata={sourceMetadata}
+                        scale={documentState.scale}
+                      />
+                    ) : null}
+                    <Scroller
+                      documentId={documentId}
+                      className="pdf-reader__scroller"
+                      renderPage={({ height, pageIndex, pageNumber, width }) => (
+                        <div
+                          className="pdf-reader__page-shell"
+                          data-page-number={pageNumber}
+                          aria-label={`第 ${pageNumber} 页`}
                         >
-                          <PagePointerProvider
+                          <Rotate
                             documentId={documentId}
                             pageIndex={pageIndex}
-                            className="pdf-reader__page-layers"
                             style={{ height, width }}
                           >
-                            <RenderLayer
+                            <PagePointerProvider
                               documentId={documentId}
                               pageIndex={pageIndex}
-                              scale={1}
-                              dpr={1}
-                              className="pdf-reader__base-page"
-                              draggable={false}
-                              aria-hidden="true"
-                            />
-                            <TilingLayer
-                              documentId={documentId}
-                              pageIndex={pageIndex}
-                              className="pdf-reader__tile-layer"
-                              aria-hidden="true"
-                            />
-                            <SearchLayer
-                              documentId={documentId}
-                              pageIndex={pageIndex}
-                              className="pdf-reader__search-layer"
-                              highlightColor="rgb(243 207 91 / 42%)"
-                              activeHighlightColor="rgb(233 165 58 / 58%)"
-                            />
-                            <SelectionLayer
-                              documentId={documentId}
-                              pageIndex={pageIndex}
-                              textStyle={{
-                                background: 'rgb(53 143 97 / 34%)',
-                              }}
-                              selectionMenu={(props) => (
-                                <PdfSelectionMenu
-                                  {...props}
-                                  documentId={documentId}
-                                />
-                              )}
-                            />
-                          </PagePointerProvider>
-                        </Rotate>
-                      </div>
-                    )}
-                  />
+                              className="pdf-reader__page-layers"
+                              style={{ height, width }}
+                            >
+                              <RenderLayer
+                                documentId={documentId}
+                                pageIndex={pageIndex}
+                                scale={1}
+                                dpr={1}
+                                className="pdf-reader__base-page"
+                                draggable={false}
+                                aria-hidden="true"
+                              />
+                              <TilingLayer
+                                documentId={documentId}
+                                pageIndex={pageIndex}
+                                className="pdf-reader__tile-layer"
+                                aria-hidden="true"
+                              />
+                              <SearchLayer
+                                documentId={documentId}
+                                pageIndex={pageIndex}
+                                className="pdf-reader__search-layer"
+                                highlightColor="rgb(243 207 91 / 42%)"
+                                activeHighlightColor="rgb(233 165 58 / 58%)"
+                              />
+                              <SelectionLayer
+                                documentId={documentId}
+                                pageIndex={pageIndex}
+                                textStyle={{
+                                  background: 'rgb(53 143 97 / 34%)',
+                                }}
+                                selectionMenu={(props) => (
+                                  <PdfSelectionMenu
+                                    {...props}
+                                    documentId={documentId}
+                                  />
+                                )}
+                              />
+                            </PagePointerProvider>
+                          </Rotate>
+                        </div>
+                      )}
+                    />
+                  </>
                 ) : null}
               </Viewport>
             </GlobalPointerProvider>
