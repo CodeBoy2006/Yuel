@@ -1359,3 +1359,9 @@
 - **Status:** Completed
 - **Next Steps:** Build PDFium text-run extraction into stable English chunks with page-coordinate geometry, then connect those chunks to the existing reading event collector semantics.
 - **Context:** Existing web batches remain valid without the optional fields, PDF batches require a stable resource identity and a section identity for every chunk, and no Dexie index or schema-version migration is needed. All 385 unit/UI tests, TypeScript checks, production build, and whitespace validation pass.
+
+## [2026-07-14 01:59] Stable PDF Text and Geometry Model
+- **Changes:** Added a source-neutral PDF analytics layer that serially extracts PDFium text runs, preserves renderer preemption between pages, joins font-split word runs, filters and chunks English text through the shared 8–24 word model, derives stable document/page/chunk identities, retains bounded source-coordinate rectangles, and projects geometry through intrinsic plus reader rotation.
+- **Status:** Completed
+- **Next Steps:** Mount the model in the PDF reader lifecycle and translate visible chunk geometry, scroll motion, activity, idle state, and selection changes into the existing Yuel event batches.
+- **Context:** Extraction is cancellable and does not retain PDFium run payloads after each page is converted. PDF bytes remain outside storage, source rectangles remain independent of zoom, and malformed or non-English runs cannot create trackable chunks. All 394 unit/UI tests, focused PDF analytics tests, TypeScript checks, production build, and whitespace validation pass.
