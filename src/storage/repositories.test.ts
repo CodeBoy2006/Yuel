@@ -240,6 +240,103 @@ describe('recordReadingEventBatch', () => {
     ]);
   });
 
+  it('stores page-only sparse PDF batches without requiring document chunks', async () => {
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      resourceType: 'pdf',
+      resourceId: 'pdf_abc123',
+      totalWords: 16,
+      metricModelVersion: 2,
+    };
+    payload.chunks = [];
+    payload.events = [{
+      id: 'PageVisible_event-1',
+      sessionId: 'session-1',
+      pageId: payload.page.pageId,
+      kind: 'PageVisible',
+      occurredAt: capturedAt,
+      confidence: 'medium',
+    }];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+        totalWords: 16,
+        coveredWords: 0,
+      }),
+    );
+    expect(mocks.textChunks.bulkPut).not.toHaveBeenCalled();
+  });
+
+  it('accumulates coverage across sparse batches for distinct chunks of the same PDF', async () => {
+    const firstPayload = createPayload();
+    firstPayload.page = {
+      ...firstPayload.page,
+      resourceType: 'pdf',
+      resourceId: 'pdf_abc123',
+      totalWords: 16,
+      metricModelVersion: 2,
+    };
+    firstPayload.chunks = firstPayload.chunks.map((chunk) => ({
+      ...chunk,
+      sectionId: 'pdf_abc123_page_1',
+    }));
+
+    await recordReadingEventBatch(firstPayload);
+
+    const firstPageRecord = mocks.pages.put.mock.calls[0][0];
+    mocks.pages.get.mockResolvedValueOnce(firstPageRecord);
+    const secondText = 'Budget visible reading accurately across independent PDF sections.';
+    const secondPayload: ReadingEventBatchPayload = {
+      page: firstPayload.page,
+      chunks: [{
+        chunkId: 'chunk-2',
+        pageId: firstPayload.page.pageId,
+        sectionId: 'pdf_abc123_page_2',
+        textHash: 'chunk-text-2',
+        text: secondText,
+        wordCount: 8,
+        sentenceCount: 1,
+        selector: 'pdf-page(2)::segment(1)',
+      }],
+      events: [{
+        ...firstPayload.events[0],
+        id: 'TextViewportExposureTick_event-2',
+        occurredAt: capturedAt + 30_000,
+        value: {
+          ...firstPayload.events[0].value,
+          visibleChunks: [{
+            chunkId: 'chunk-2',
+            wordCount: 8,
+            visibleRatio: 1,
+            centerDistance: 0,
+            contentWeight: 1,
+          }],
+        },
+      }],
+    };
+
+    await recordReadingEventBatch(secondPayload);
+
+    expect(mocks.pages.put.mock.calls.map(([record]) => record.coveredWords)).toEqual([
+      8,
+      16,
+    ]);
+    expect(mocks.pages.put).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+        totalWords: 16,
+        coveredWords: 16,
+        newWords: 16,
+      }),
+    );
+  });
+
   it('uses event time rather than delayed processing time for page and vocabulary recency', async () => {
     await recordReadingEventBatch(createPayload());
 

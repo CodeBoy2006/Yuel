@@ -128,7 +128,7 @@ Key boundaries:
 - `src/pdf/viewer/` owns the standalone reader workspace, document lifecycle, rendering and interaction layers, contextual thumbnail/search navigation, controls, and reader states.
 - `src/pdf/analytics/` owns sequential PDFium text-run extraction, stable document/page/chunk identities, shared English chunking, source-coordinate rectangles, rotation-aware projection, event-safe chunk snapshots, and the virtualized reader-layout adapter.
 
-Reading batches remain backward compatible with existing web snapshots while supporting resource-backed readers through optional `resourceType` and `resourceId` page metadata. One PDF document maps to one existing page-level reading aggregate; its physical pages are stable sections referenced by `sectionId` on text chunks. These fields are stored without new Dexie indexes or a database-version migration.
+Reading batches remain backward compatible with existing web snapshots while supporting resource-backed readers through optional `resourceType` and `resourceId` page metadata. Web batches keep carrying the full current-page chunk snapshot. PDF batches keep the document-level `totalWords` but may include only chunks referenced by that batch's visibility events, so long documents do not resend all extracted text on every flush; storage accumulates unique coverage only while the stable PDF resource identity matches. One PDF document maps to one existing page-level reading aggregate, and its physical pages are stable sections referenced by `sectionId` on text chunks. These fields are stored without new Dexie indexes or a database-version migration.
 
 ## Privacy Posture
 

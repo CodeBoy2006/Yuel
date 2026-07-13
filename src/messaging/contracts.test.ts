@@ -154,6 +154,39 @@ describe('isReadingEventBatchMessage', () => {
     })).toBe(true);
   });
 
+  it('accepts page-only PDF batches without repeating document text chunks', () => {
+    expect(isReadingEventBatchMessage(createMessageWithPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+      },
+      chunks: [],
+      events: [{
+        ...validMessage.payload.events[0],
+        id: 'PageVisible_event-1',
+        kind: 'PageVisible',
+        chunkId: undefined,
+        value: undefined,
+      }],
+    }))).toBe(true);
+  });
+
+  it('accepts PDF batches containing only the chunks referenced by their events', () => {
+    expect(isReadingEventBatchMessage(createMessageWithPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+        totalWords: validMessage.payload.page.totalWords * 2,
+      },
+      chunks: validMessage.payload.chunks.map((chunk) => ({
+        ...chunk,
+        sectionId: 'pdf_abc123_page_1',
+      })),
+    }))).toBe(true);
+  });
+
   it('rejects incomplete or unsupported resource identities', () => {
     expectInvalidPayload({
       page: {
@@ -257,12 +290,27 @@ describe('isReadingEventBatchMessage', () => {
     expectInvalidEvent({ occurredAt: -1 });
   });
 
-  it('rejects page total words that differ from the chunk word count total', () => {
+  it('continues to reject web page totals that differ from the batch chunk total', () => {
     expectInvalidPayload({
       page: {
         ...validMessage.payload.page,
         totalWords: validMessage.payload.chunks[0].wordCount + 1,
       },
+    });
+  });
+
+  it('rejects PDF batches whose chunk words exceed the document total', () => {
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+        totalWords: validMessage.payload.chunks[0].wordCount - 1,
+      },
+      chunks: validMessage.payload.chunks.map((chunk) => ({
+        ...chunk,
+        sectionId: 'pdf_abc123_page_1',
+      })),
     });
   });
 

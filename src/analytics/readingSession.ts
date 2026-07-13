@@ -26,6 +26,7 @@ export interface ReadingScrollMetrics {
 }
 
 export interface ReadingSessionOptions {
+  batchChunkStrategy?: 'all' | 'referenced';
   flushIntervalMs?: number;
   idleTimeoutMs?: number;
   sampleIntervalMs?: number;
@@ -63,7 +64,8 @@ type ReadingEventDetails = Omit<
 >;
 
 export function startReadingSession(config: ReadingSessionConfig): ReadingSessionController {
-  validateReadingSource(config.page, config.chunks);
+  const batchChunkStrategy = config.batchChunkStrategy ?? 'all';
+  validateReadingSource(config.page, config.chunks, batchChunkStrategy);
 
   const flushIntervalMs = config.flushIntervalMs ?? 15_000;
   const idleTimeoutMs = config.idleTimeoutMs ?? 45_000;
@@ -135,7 +137,11 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     const events = pendingEvents.splice(0, pendingEvents.length);
     const payload: ReadingEventBatchPayload = {
       page: config.page,
-      chunks: config.chunks,
+      chunks: selectBatchChunks(
+        config.chunks,
+        events,
+        batchChunkStrategy,
+      ),
       events,
     };
 
@@ -545,7 +551,15 @@ function appendViewportExposureTick(
   });
 }
 
-function validateReadingSource(page: PageSnapshot, chunks: TextChunkSnapshot[]): void {
+function validateReadingSource(
+  page: PageSnapshot,
+  chunks: TextChunkSnapshot[],
+  batchChunkStrategy: NonNullable<ReadingSessionOptions['batchChunkStrategy']>,
+): void {
+  if (batchChunkStrategy === 'referenced' && page.resourceType !== 'pdf') {
+    throw new Error('Referenced reading batches are only supported for PDF resources');
+  }
+
   const chunkIds = new Set<string>();
   let totalWords = 0;
 
@@ -563,6 +577,45 @@ function validateReadingSource(page: PageSnapshot, chunks: TextChunkSnapshot[]):
   if (totalWords !== page.totalWords) {
     throw new Error(`Reading page word count ${page.totalWords} does not match chunk total ${totalWords}`);
   }
+}
+
+function selectBatchChunks(
+  chunks: TextChunkSnapshot[],
+  events: ReadingEvent[],
+  strategy: NonNullable<ReadingSessionOptions['batchChunkStrategy']>,
+): TextChunkSnapshot[] {
+  if (strategy === 'all') {
+    return chunks;
+  }
+
+  const referencedChunkIds = new Set<string>();
+  for (const event of events) {
+    if (event.chunkId !== undefined) {
+      referencedChunkIds.add(event.chunkId);
+    }
+
+    if (event.kind !== 'TextViewportExposureTick') {
+      continue;
+    }
+
+    const visibleChunks = event.value?.visibleChunks;
+    if (!Array.isArray(visibleChunks)) {
+      continue;
+    }
+
+    for (const visibleChunk of visibleChunks) {
+      if (
+        typeof visibleChunk === 'object'
+        && visibleChunk !== null
+        && 'chunkId' in visibleChunk
+        && typeof visibleChunk.chunkId === 'string'
+      ) {
+        referencedChunkIds.add(visibleChunk.chunkId);
+      }
+    }
+  }
+
+  return chunks.filter((chunk) => referencedChunkIds.has(chunk.chunkId));
 }
 
 function readChunkMeasurement(

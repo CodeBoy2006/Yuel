@@ -1,6 +1,6 @@
 import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
-import type { ReadingEvent } from '../domain/events';
+import type { PageSnapshot, ReadingEvent } from '../domain/events';
 import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
 import { weightedAverageConfidence } from '../domain/metrics';
 import { matchPackRules, type YuelPack } from '../domain/packs';
@@ -187,6 +187,13 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       || payload.page.capturedAt >= storedSnapshotCapturedAt;
     const pageDomain = shouldUpdatePageSnapshot ? incomingPageDomain : existingPage?.domain ?? incomingPageDomain;
     measuredCurrentCoverage = Math.min(payload.page.totalWords, measuredCurrentCoverage);
+    const updatedPageCoverage = resolveUpdatedPageCoverage(
+      payload.page,
+      existingPage,
+      measuredCurrentCoverage,
+      migratedCoverageBaseline,
+      summary.pageNewWords,
+    );
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,
       domain: pageDomain,
@@ -205,10 +212,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
         : existingPage?.metricModelVersion ?? incomingMetricModelVersion,
       effectiveWords: (existingPage?.effectiveWords ?? 0) + summary.pageEffectiveWords,
       coveredWords: shouldUpdatePageSnapshot
-        ? Math.min(
-            payload.page.totalWords,
-            Math.max(measuredCurrentCoverage, migratedCoverageBaseline),
-          )
+        ? updatedPageCoverage
         : existingPage?.coveredWords,
       newWords: (existingPage?.newWords ?? 0) + summary.pageNewWords,
       reviewWords: (existingPage?.reviewWords ?? 0) + summary.pageReviewWords,
@@ -826,6 +830,33 @@ function mergePageConfidence(
   }
 
   return confidenceWeight > 0 ? weightedConfidence / confidenceWeight : existingPage?.confidence;
+}
+
+function resolveUpdatedPageCoverage(
+  page: PageSnapshot,
+  existingPage: PageRecord | undefined,
+  measuredCurrentCoverage: number,
+  migratedCoverageBaseline: number,
+  pageNewWords: number,
+): number {
+  const measuredCoverage = Math.max(measuredCurrentCoverage, migratedCoverageBaseline);
+  const continuingPdfResource = page.resourceType === 'pdf' && (
+    existingPage === undefined
+    || (
+      existingPage.resourceType === 'pdf'
+      && existingPage.resourceId === page.resourceId
+    )
+  );
+  if (!continuingPdfResource) {
+    return Math.min(page.totalWords, measuredCoverage);
+  }
+
+  const storedCoverage = existingPage
+    ? existingPage.coveredWords
+      ?? Math.min(existingPage.totalWords, existingPage.effectiveWords)
+    : 0;
+  const accumulatedCoverage = Math.max(storedCoverage, migratedCoverageBaseline) + pageNewWords;
+  return Math.min(page.totalWords, Math.max(measuredCoverage, accumulatedCoverage));
 }
 
 function readObject(value: unknown): Record<string, unknown> | undefined {

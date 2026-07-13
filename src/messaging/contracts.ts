@@ -133,7 +133,7 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
 
   return (
     chunkIds.size === chunks.length &&
-    page.totalWords === totalChunkWords &&
+    hasConsistentBatchWordTotal(page, totalChunkWords) &&
     eventIds.size === events.length &&
     eventSessionIds.size <= 1 &&
     hasChronologicalEvents(events) &&
@@ -168,6 +168,15 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       return false;
     })
   );
+}
+
+function hasConsistentBatchWordTotal(
+  page: PageSnapshot,
+  totalChunkWords: number,
+): boolean {
+  return page.resourceType === 'pdf'
+    ? totalChunkWords <= page.totalWords
+    : totalChunkWords === page.totalWords;
 }
 
 function hasConsistentResourceSections(page: PageSnapshot, chunks: TextChunkSnapshot[]): boolean {

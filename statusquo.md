@@ -1377,3 +1377,9 @@
 - **Status:** Completed
 - **Next Steps:** Mount the adapter in the loaded PDF document lifecycle, subscribe to viewport and selection events, and deliver PDF batches through the shared reading session.
 - **Context:** Only mounted current and neighboring pages are scanned on scroll; full-document source rectangles remain local to the reader and are never copied into runtime messages. All 408 unit/UI tests, focused geometry and virtualization tests, TypeScript checks, production build, and whitespace validation pass.
+
+## [2026-07-14 02:35] Sparse PDF Reading Event Batches
+- **Changes:** Added a PDF-only event-referenced chunk strategy to the shared reading session, allowed validated PDF batches to carry a subset of document chunks while preserving full document word totals, accumulated unique coverage across sparse batches for the same stable PDF resource, and documented the protocol boundary.
+- **Status:** Completed
+- **Next Steps:** Mount the PDF analytics adapter in the loaded reader lifecycle and connect viewport, scroll, activity, and selection signals to sparse batch delivery.
+- **Context:** Existing web batches still require and deliver a complete page snapshot. Page-only PDF lifecycle batches carry no extracted text, event-linked chunks preserve source order, resource changes cannot inherit prior PDF coverage, and metric-model migration baselines remain bounded. All 416 unit/UI tests, TypeScript checks, production build, and whitespace validation pass.

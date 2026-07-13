@@ -72,6 +72,103 @@ describe('startReadingSession', () => {
     vi.restoreAllMocks();
   });
 
+  it('omits document chunks from page-only PDF batches', async () => {
+    const source = createPdfSource();
+    const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);
+    const controller = startReadingSession({
+      ...source,
+      batchChunkStrategy: 'referenced',
+      deliverBatch,
+      getChunkMeasurement: () => undefined,
+    });
+
+    try {
+      await flushPromises();
+
+      expect(deliverBatch).toHaveBeenCalledOnce();
+      const payload = deliverBatch.mock.calls[0][0];
+      expect(payload.chunks).toEqual([]);
+      expect(payload.events.map((event) => event.kind)).toEqual(['PageVisible']);
+      expect(isReadingEventBatchMessage({
+        type: MESSAGE_TYPES.readingEventsBatch,
+        payload,
+      })).toBe(true);
+    } finally {
+      controller.stop({ emitPageHidden: false });
+      await flushPromises();
+    }
+  });
+
+  it('includes only chunks referenced by PDF visibility events and exposure ticks', async () => {
+    const source = createPdfSource();
+    const secondText =
+      'Independent PDF sections remain absent until their metrics reference them.';
+    const secondAnalysis = analyzeEnglishText(secondText);
+    const secondSourceKey = 'pdf-page(2)::segment(1)';
+    const secondChunk: TextChunkSnapshot = {
+      chunkId: createChunkId(source.page.pageId, secondText, secondSourceKey),
+      pageId: source.page.pageId,
+      sectionId: `${source.page.resourceId}_section_2`,
+      textHash: hashText(secondText),
+      text: secondText,
+      sourceKey: secondSourceKey,
+      wordCount: secondAnalysis.wordCount,
+      sentenceCount: secondAnalysis.sentenceCount,
+      selector: secondSourceKey,
+    };
+    const chunks = [...source.chunks, secondChunk];
+    const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);
+    const controller = startReadingSession({
+      page: {
+        ...source.page,
+        totalWords: chunks.reduce((total, chunk) => total + chunk.wordCount, 0),
+      },
+      chunks,
+      batchChunkStrategy: 'referenced',
+      deliverBatch,
+      getChunkMeasurement: (chunkId) => chunkId === source.chunks[0].chunkId
+        ? {
+            visibleRatio: 1,
+            visibleWordCount: source.chunks[0].wordCount,
+            centerDistance: 0,
+            viewportY: 0.5,
+            attentionMass: source.chunks[0].wordCount,
+            contentMultiplier: 1,
+          }
+        : undefined,
+    });
+
+    try {
+      await flushPromises();
+      deliverBatch.mockClear();
+
+      controller.setChunkVisibilities([{
+        chunkId: source.chunks[0].chunkId,
+        visible: true,
+        visibleRatio: 1,
+      }]);
+      await vi.advanceTimersByTimeAsync(500);
+      await controller.flush();
+
+      expect(deliverBatch).toHaveBeenCalledOnce();
+      const payload = deliverBatch.mock.calls[0][0];
+      expect(payload.chunks.map((chunk) => chunk.chunkId)).toEqual([
+        source.chunks[0].chunkId,
+      ]);
+      expect(payload.events.map((event) => event.kind)).toEqual([
+        'TextBlockVisible',
+        'TextViewportExposureTick',
+      ]);
+      expect(isReadingEventBatchMessage({
+        type: MESSAGE_TYPES.readingEventsBatch,
+        payload,
+      })).toBe(true);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('preserves source metadata while ordering exposure before visibility transitions', async () => {
     const source = createPdfSource();
     const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);
@@ -320,5 +417,20 @@ describe('startReadingSession', () => {
       deliverBatch: async () => true,
       getChunkMeasurement: () => undefined,
     })).toThrow(/does not match chunk total/);
+  });
+
+  it('rejects referenced batches for non-PDF reading sources', () => {
+    const source = createPdfSource();
+
+    expect(() => startReadingSession({
+      ...source,
+      page: {
+        ...source.page,
+        resourceType: 'web',
+      },
+      batchChunkStrategy: 'referenced',
+      deliverBatch: async () => true,
+      getChunkMeasurement: () => undefined,
+    })).toThrow(/only supported for PDF/);
   });
 });
