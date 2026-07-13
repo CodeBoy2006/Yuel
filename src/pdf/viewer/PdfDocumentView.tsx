@@ -4,21 +4,39 @@ import {
   DocumentContent,
   useDocumentManagerCapability,
 } from '@embedpdf/plugin-document-manager/react';
+import {
+  GlobalPointerProvider,
+  PagePointerProvider,
+} from '@embedpdf/plugin-interaction-manager/react';
+import { usePan } from '@embedpdf/plugin-pan/react';
 import { RenderLayer } from '@embedpdf/plugin-render/react';
 import { Rotate, useRotate } from '@embedpdf/plugin-rotate/react';
 import { Scroller, useScroll } from '@embedpdf/plugin-scroll/react';
+import { SearchLayer } from '@embedpdf/plugin-search/react';
+import {
+  SelectionLayer,
+  useSelectionCapability,
+} from '@embedpdf/plugin-selection/react';
+import type {
+  SelectionSelectionMenuProps,
+} from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
 import { useZoom, ZoomMode } from '@embedpdf/plugin-zoom/react';
 import {
   AlertCircle,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Eye,
   EyeOff,
+  Hand,
   LoaderCircle,
   LockKeyhole,
+  PanelLeft,
   RotateCw,
+  Search,
   X,
   ZoomIn,
   ZoomOut,
@@ -35,14 +53,18 @@ import type {
   ReactNode,
 } from 'react';
 
+import type { PdfReaderPanelMode } from './PdfReaderSidebar';
+
 interface PdfDocumentViewProps {
   documentId: string;
   onCloseDocument: () => Promise<void>;
+  onOpenSearch: () => void;
 }
 
 export function PdfDocumentView({
   documentId,
   onCloseDocument,
+  onOpenSearch,
 }: PdfDocumentViewProps) {
   return (
     <DocumentContent documentId={documentId}>
@@ -78,53 +100,85 @@ export function PdfDocumentView({
 
         return (
           <>
-            {isLoaded ? <DocumentKeyboardShortcuts documentId={documentId} /> : null}
-            <Viewport
+            {isLoaded ? (
+              <DocumentKeyboardShortcuts
+                documentId={documentId}
+                onOpenSearch={onOpenSearch}
+              />
+            ) : null}
+            <GlobalPointerProvider
               documentId={documentId}
-              className="pdf-reader__viewport"
-              aria-label="PDF 连续阅读区"
+              className="pdf-reader__pointer-surface"
             >
-              {isLoaded ? (
-                <Scroller
-                  documentId={documentId}
-                  className="pdf-reader__scroller"
-                  renderPage={({ height, pageIndex, pageNumber, width }) => (
-                    <div
-                      className="pdf-reader__page-shell"
-                      data-page-number={pageNumber}
-                      aria-label={`第 ${pageNumber} 页`}
-                    >
-                      <Rotate
-                        documentId={documentId}
-                        pageIndex={pageIndex}
-                        style={{ height, width }}
+              <Viewport
+                documentId={documentId}
+                className="pdf-reader__viewport"
+                aria-label="PDF 连续阅读区"
+              >
+                {isLoaded ? (
+                  <Scroller
+                    documentId={documentId}
+                    className="pdf-reader__scroller"
+                    renderPage={({ height, pageIndex, pageNumber, width }) => (
+                      <div
+                        className="pdf-reader__page-shell"
+                        data-page-number={pageNumber}
+                        aria-label={`第 ${pageNumber} 页`}
                       >
-                        <div
-                          className="pdf-reader__page-layers"
+                        <Rotate
+                          documentId={documentId}
+                          pageIndex={pageIndex}
                           style={{ height, width }}
                         >
-                          <RenderLayer
+                          <PagePointerProvider
                             documentId={documentId}
                             pageIndex={pageIndex}
-                            scale={1}
-                            dpr={1}
-                            className="pdf-reader__base-page"
-                            draggable={false}
-                            aria-hidden="true"
-                          />
-                          <TilingLayer
-                            documentId={documentId}
-                            pageIndex={pageIndex}
-                            className="pdf-reader__tile-layer"
-                            aria-hidden="true"
-                          />
-                        </div>
-                      </Rotate>
-                    </div>
-                  )}
-                />
-              ) : null}
-            </Viewport>
+                            className="pdf-reader__page-layers"
+                            style={{ height, width }}
+                          >
+                            <RenderLayer
+                              documentId={documentId}
+                              pageIndex={pageIndex}
+                              scale={1}
+                              dpr={1}
+                              className="pdf-reader__base-page"
+                              draggable={false}
+                              aria-hidden="true"
+                            />
+                            <TilingLayer
+                              documentId={documentId}
+                              pageIndex={pageIndex}
+                              className="pdf-reader__tile-layer"
+                              aria-hidden="true"
+                            />
+                            <SearchLayer
+                              documentId={documentId}
+                              pageIndex={pageIndex}
+                              className="pdf-reader__search-layer"
+                              highlightColor="rgb(243 207 91 / 42%)"
+                              activeHighlightColor="rgb(233 165 58 / 58%)"
+                            />
+                            <SelectionLayer
+                              documentId={documentId}
+                              pageIndex={pageIndex}
+                              textStyle={{
+                                background: 'rgb(53 143 97 / 34%)',
+                              }}
+                              selectionMenu={(props) => (
+                                <PdfSelectionMenu
+                                  {...props}
+                                  documentId={documentId}
+                                />
+                              )}
+                            />
+                          </PagePointerProvider>
+                        </Rotate>
+                      </div>
+                    )}
+                  />
+                ) : null}
+              </Viewport>
+            </GlobalPointerProvider>
             {isLoading ? (
               <ReaderDocumentState
                 icon={LoaderCircle}
@@ -142,10 +196,19 @@ export function PdfDocumentView({
   );
 }
 
-export function DocumentToolbarControls({ documentId }: { documentId: string }) {
+export function DocumentToolbarControls({
+  documentId,
+  panelMode,
+  onTogglePanel,
+}: {
+  documentId: string;
+  panelMode: PdfReaderPanelMode | null;
+  onTogglePanel: (mode: PdfReaderPanelMode) => void;
+}) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: rotate, rotation } = useRotate(documentId);
+  const { provides: pan, isPanning } = usePan(documentId);
   const [zoomDraft, setZoomDraft] = useState('100');
 
   useEffect(() => {
@@ -171,6 +234,42 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
 
   return (
     <div className="pdf-reader__document-tools">
+      <button
+        className="pdf-reader__icon-button pdf-reader__context-tool"
+        type="button"
+        aria-label="切换缩略图面板"
+        aria-controls="pdf-reader-context-panel"
+        aria-pressed={panelMode === 'thumbnails'}
+        title="缩略图"
+        onClick={() => onTogglePanel('thumbnails')}
+      >
+        <PanelLeft aria-hidden="true" />
+      </button>
+      <button
+        className="pdf-reader__icon-button pdf-reader__context-tool"
+        type="button"
+        aria-label="搜索 PDF"
+        aria-controls="pdf-reader-context-panel"
+        aria-pressed={panelMode === 'search'}
+        title="搜索 PDF · ⌘/Ctrl+F"
+        onClick={() => onTogglePanel('search')}
+      >
+        <Search aria-hidden="true" />
+      </button>
+      <button
+        className="pdf-reader__icon-button pdf-reader__context-tool"
+        type="button"
+        aria-label="切换拖拽浏览"
+        aria-pressed={isPanning}
+        title="拖拽浏览 · H"
+        disabled={!pan}
+        onClick={() => pan?.togglePan()}
+      >
+        <Hand aria-hidden="true" />
+      </button>
+
+      <span className="pdf-reader__toolbar-divider" aria-hidden="true" />
+
       <PageNumberControl
         currentPage={scrollState.currentPage}
         totalPages={scrollState.totalPages}
@@ -181,10 +280,13 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
         })}
       />
 
-      <span className="pdf-reader__toolbar-divider" aria-hidden="true" />
+      <span
+        className="pdf-reader__toolbar-divider pdf-reader__desktop-tool"
+        aria-hidden="true"
+      />
 
       <button
-        className="pdf-reader__icon-button"
+        className="pdf-reader__icon-button pdf-reader__desktop-tool"
         type="button"
         aria-label="缩小"
         title="缩小"
@@ -193,7 +295,10 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
       >
         <ZoomOut aria-hidden="true" />
       </button>
-      <label className="pdf-reader__zoom-input" title="自定义缩放比例">
+      <label
+        className="pdf-reader__zoom-input pdf-reader__desktop-tool"
+        title="自定义缩放比例"
+      >
         <span className="sr-only">缩放比例</span>
         <input
           inputMode="numeric"
@@ -208,7 +313,7 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
         <span aria-hidden="true">%</span>
       </label>
       <button
-        className="pdf-reader__icon-button"
+        className="pdf-reader__icon-button pdf-reader__desktop-tool"
         type="button"
         aria-label="放大"
         title="放大"
@@ -217,7 +322,7 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
       >
         <ZoomIn aria-hidden="true" />
       </button>
-      <label className="pdf-reader__fit-select">
+      <label className="pdf-reader__fit-select pdf-reader__desktop-tool">
         <span className="sr-only">页面适配方式</span>
         <select
           value={zoomMode}
@@ -236,10 +341,13 @@ export function DocumentToolbarControls({ documentId }: { documentId: string }) 
         </select>
       </label>
 
-      <span className="pdf-reader__toolbar-divider" aria-hidden="true" />
+      <span
+        className="pdf-reader__toolbar-divider pdf-reader__desktop-tool"
+        aria-hidden="true"
+      />
 
       <button
-        className="pdf-reader__icon-button"
+        className="pdf-reader__icon-button pdf-reader__desktop-tool"
         type="button"
         aria-label="顺时针旋转"
         title={`顺时针旋转 · 当前 ${rotation * 90}°`}
@@ -498,16 +606,38 @@ function PageNumberControl({
   );
 }
 
-function DocumentKeyboardShortcuts({ documentId }: { documentId: string }) {
+function DocumentKeyboardShortcuts({
+  documentId,
+  onOpenSearch,
+}: {
+  documentId: string;
+  onOpenSearch: () => void;
+}) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
   const { provides: zoom } = useZoom(documentId);
   const { provides: rotate } = useRotate(documentId);
+  const { provides: pan, isPanning } = usePan(documentId);
+  const { provides: selection } = useSelectionCapability();
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      const modifier = event.metaKey || event.ctrlKey;
+      if (modifier && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        onOpenSearch();
+        return;
+      }
+
       if (isEditableTarget(event.target)) return;
 
-      const modifier = event.metaKey || event.ctrlKey;
+      if (modifier && event.key.toLowerCase() === 'c') {
+        const selectionScope = selection?.forDocument(documentId);
+        if (selectionScope?.getState().selection) {
+          event.preventDefault();
+          selectionScope.copyToClipboard();
+        }
+        return;
+      }
       if (modifier && (event.key === '=' || event.key === '+')) {
         event.preventDefault();
         zoom?.zoomIn();
@@ -544,14 +674,98 @@ function DocumentKeyboardShortcuts({ documentId }: { documentId: string }) {
       } else if (event.key.toLowerCase() === 'r') {
         event.preventDefault();
         rotate?.rotateForward();
+      } else if (event.key.toLowerCase() === 'h') {
+        event.preventDefault();
+        pan?.togglePan();
+      } else if (event.key === '/') {
+        event.preventDefault();
+        onOpenSearch();
+      } else if (event.key === 'Escape' && isPanning) {
+        event.preventDefault();
+        pan?.disablePan();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [rotate, scroll, scrollState.totalPages, zoom]);
+  }, [
+    documentId,
+    isPanning,
+    onOpenSearch,
+    pan,
+    rotate,
+    scroll,
+    scrollState.totalPages,
+    selection,
+    zoom,
+  ]);
 
   return null;
+}
+
+function PdfSelectionMenu({
+  documentId,
+  menuWrapperProps,
+  placement,
+  rect,
+}: SelectionSelectionMenuProps & {
+  documentId: string;
+}) {
+  const { provides: selection } = useSelectionCapability();
+  const [copied, setCopied] = useState(false);
+  const resetTimerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [placement]);
+
+  useEffect(() => {
+    const scope = selection?.forDocument(documentId);
+    if (!scope) return;
+
+    return scope.onCopyToClipboard(() => {
+      setCopied(true);
+      if (resetTimerRef.current !== undefined) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+      resetTimerRef.current = window.setTimeout(() => {
+        scope.clear();
+        setCopied(false);
+      }, 900);
+    });
+  }, [documentId, selection]);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== undefined) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div {...menuWrapperProps}>
+      <div
+        className="pdf-reader__selection-menu"
+        style={{
+          top: placement.suggestTop ? -48 : rect.size.height + 8,
+        }}
+      >
+        <button
+          type="button"
+          data-no-interaction
+          aria-label="复制所选文本"
+          title="复制"
+          onClick={() => selection?.forDocument(documentId).copyToClipboard()}
+        >
+          {copied
+            ? <Check aria-hidden="true" />
+            : <Copy aria-hidden="true" />}
+          <span>{copied ? '已复制' : '复制'}</span>
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ReaderDocumentState({

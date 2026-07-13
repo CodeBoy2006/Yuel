@@ -1,5 +1,5 @@
 export function createPdfSmokeFixture(): Buffer {
-  const contentStream = [
+  const firstPageContent = [
     'BT',
     '/F1 24 Tf',
     '72 720 Td',
@@ -10,20 +10,40 @@ export function createPdfSmokeFixture(): Buffer {
     'ET',
     '',
   ].join('\n');
+  const secondPageContent = [
+    'BT',
+    '/F1 24 Tf',
+    '72 720 Td',
+    '(Yuel PDF Reader Page Two) Tj',
+    '0 -42 Td',
+    '/F1 14 Tf',
+    '(Thumbnail navigation reaches this page) Tj',
+    'ET',
+    '',
+  ].join('\n');
 
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>',
     [
       '<< /Type /Page',
       '   /Parent 2 0 R',
       '   /MediaBox [0 0 612 792]',
-      '   /Resources << /Font << /F1 4 0 R >> >>',
-      '   /Contents 5 0 R',
+      '   /Resources << /Font << /F1 5 0 R >> >>',
+      '   /Contents 6 0 R',
+      '>>',
+    ].join('\n'),
+    [
+      '<< /Type /Page',
+      '   /Parent 2 0 R',
+      '   /MediaBox [0 0 612 792]',
+      '   /Resources << /Font << /F1 5 0 R >> >>',
+      '   /Contents 7 0 R',
       '>>',
     ].join('\n'),
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(contentStream, 'ascii')} >>\nstream\n${contentStream}endstream`,
+    `<< /Length ${Buffer.byteLength(firstPageContent, 'ascii')} >>\nstream\n${firstPageContent}endstream`,
+    `<< /Length ${Buffer.byteLength(secondPageContent, 'ascii')} >>\nstream\n${secondPageContent}endstream`,
   ];
 
   let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';

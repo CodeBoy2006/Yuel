@@ -13,10 +13,15 @@ describe('PDF reader engine configuration', () => {
       'document-manager',
       'viewport',
       'scroll',
+      'interaction-manager',
       'zoom',
+      'pan',
       'rotate',
       'render',
       'tiling',
+      'selection',
+      'search',
+      'thumbnail',
     ]);
     expect(registrations[0]?.config).toMatchObject({
       maxDocuments: PDF_READER_RENDER_LIMITS.documentCount,
@@ -26,10 +31,18 @@ describe('PDF reader engine configuration', () => {
       defaultPageGap: PDF_READER_RENDER_LIMITS.pageGap,
       defaultStrategy: 'vertical',
     });
-    expect(registrations[6]?.config).toMatchObject({
+    expect(registrations[8]?.config).toMatchObject({
       tileSize: PDF_READER_RENDER_LIMITS.tileSize,
       overlapPx: PDF_READER_RENDER_LIMITS.tileOverlapPx,
       extraRings: PDF_READER_RENDER_LIMITS.tileExtraRings,
+    });
+    expect(registrations[9]?.config).toMatchObject({
+      marquee: { enabled: false },
+      maxCachedGeometries: PDF_READER_RENDER_LIMITS.selectionGeometryCache,
+    });
+    expect(registrations[11]?.config).toMatchObject({
+      buffer: PDF_READER_RENDER_LIMITS.thumbnailBufferSize,
+      width: PDF_READER_RENDER_LIMITS.thumbnailWidth,
     });
   });
 

@@ -1347,3 +1347,9 @@
 - **Status:** Completed
 - **Next Steps:** Implement the reader's contextual thumbnail/search panel and text selection layer.
 - **Context:** Both entry surfaces open the same standalone `pdf-reader.html` tab and leave existing site access, statistics refresh, dashboard, share-card, and side-panel actions unchanged. All 56 entrypoint UI tests, TypeScript checks, production build, the packaged navigation test, and whitespace validation pass.
+
+## [2026-07-14 01:33] Contextual PDF Navigation and Selection
+- **Changes:** Added exact EmbedPDF 2.14.4 interaction-manager, pan, search, selection, and thumbnail plugins; a single-context thumbnail/search sidebar; virtualized thumbnail navigation; debounced full-text search with flags, grouped results, coordinate-aware jumps, and page highlights; pointer-coordinate providers; text selection with copy feedback; hand-tool panning; search, copy, and pan shortcuts; and a narrow-screen overlay layout.
+- **Status:** Completed
+- **Next Steps:** Extract stable PDF page/text-block identities and connect PDF visibility, exposure, idle, scroll, and selection events to the existing Yuel reading analytics protocol.
+- **Context:** Search cancellation remains owned by the plugin, selection geometry is capped at 24 cached pages, thumbnail buffering is capped at two extra rows, and remote PDFs still use the bounded full-download source adapter. All 376 unit/UI tests, TypeScript checks, production build, whitespace validation, five packaged-extension Chromium tests, and desktop/mobile visual inspection pass.

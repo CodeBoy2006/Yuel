@@ -115,6 +115,79 @@ test('renders a local PDF through packaged PDFium WASM and workers without remot
   expect(pixelEvidence.height).toBeGreaterThan(100);
   expect(pixelEvidence.nonWhitePixels).toBeGreaterThan(20);
 
+  const thumbnailPanelButton = pdfReader.getByRole('button', {
+    name: '切换缩略图面板',
+  });
+  await thumbnailPanelButton.click();
+  await expect(thumbnailPanelButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
+  const firstPageThumbnail = pdfReader.getByRole('button', {
+    name: '前往第 1 页',
+  });
+  const secondPageThumbnail = pdfReader.getByRole('button', {
+    name: '前往第 2 页',
+  });
+  await expect(firstPageThumbnail).toBeVisible();
+  await expect(secondPageThumbnail).toBeVisible();
+  await expect(firstPageThumbnail.locator('img')).toBeVisible();
+  await expect(secondPageThumbnail.locator('img')).toBeVisible();
+  const toolbarPageInput = pdfReader.locator(
+    '.pdf-reader__document-tools .pdf-reader__page-control input',
+  );
+  await secondPageThumbnail.click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await firstPageThumbnail.click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
+  await pdfReader.getByRole('tab', { name: '搜索' }).click();
+  const searchInput = pdfReader.getByRole('searchbox', {
+    name: '搜索 PDF 内容',
+  });
+  await expect(searchInput).toBeFocused();
+  await searchInput.fill('Local PDFium');
+  await expect(pdfReader.locator('.pdf-reader__search-summary')).toContainText(
+    '1 个结果',
+  );
+  const searchResult = pdfReader.locator('.pdf-reader__search-result').first();
+  await expect(searchResult).toContainText('Local PDFium');
+  await searchResult.click();
+
+  const activeHighlight = pdfReader.locator('.pdf-reader__search-layer > div').first();
+  await expect(activeHighlight).toBeVisible();
+
+  const panButton = pdfReader.getByRole('button', { name: '切换拖拽浏览' });
+  await expect(panButton).toHaveAttribute('aria-pressed', 'false');
+  await panButton.click();
+  await expect(panButton).toHaveAttribute('aria-pressed', 'true');
+  await panButton.click();
+  await expect(panButton).toHaveAttribute('aria-pressed', 'false');
+
+  const highlightBox = await activeHighlight.boundingBox();
+  expect(highlightBox).not.toBeNull();
+  if (!highlightBox) throw new Error('Search highlight has no browser geometry');
+  const selectionY = highlightBox.y + highlightBox.height / 2;
+  await pdfReader.mouse.move(highlightBox.x + 2, selectionY);
+  await pdfReader.mouse.down();
+  await pdfReader.mouse.move(
+    highlightBox.x + Math.max(4, highlightBox.width - 2),
+    selectionY,
+    { steps: 8 },
+  );
+  await pdfReader.mouse.up();
+
+  const copySelectionButton = pdfReader.getByRole('button', {
+    name: '复制所选文本',
+  });
+  await expect(copySelectionButton).toBeVisible();
+  await copySelectionButton.click();
+  await expect(copySelectionButton).toContainText('已复制');
+
+  await pdfReader.getByRole('button', { name: '关闭导航面板' }).first().click();
+  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeHidden();
+  await pdfReader.locator('body').press('Control+f');
+  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
+  await expect(searchInput).toBeFocused();
+
   const zoomInput = pdfReader.locator('.pdf-reader__zoom-input input');
   const zoomBeforeRotation = Number(await zoomInput.inputValue());
   const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
@@ -127,6 +200,19 @@ test('renders a local PDF through packaged PDFium WASM and workers without remot
   const initialZoom = Number(await zoomInput.inputValue());
   await zoomInButton.click();
   await expect.poll(async () => Number(await zoomInput.inputValue())).toBeGreaterThan(initialZoom);
+
+  await pdfReader.setViewportSize({ width: 620, height: 900 });
+  const sidebar = pdfReader.locator('.pdf-reader__sidebar');
+  const sidebarBackdrop = pdfReader.locator('.pdf-reader__sidebar-backdrop');
+  await expect(sidebar).toBeVisible();
+  await expect(sidebarBackdrop).toBeVisible();
+  const sidebarBox = await sidebar.boundingBox();
+  const documentStageBox = await pdfReader.locator('.pdf-reader__document-stage').boundingBox();
+  expect(sidebarBox?.width).toBeLessThanOrEqual(280);
+  expect(sidebarBox?.x).toBe(0);
+  expect(documentStageBox?.width).toBe(620);
+  await sidebarBackdrop.click({ position: { x: 600, y: 400 } });
+  await expect(sidebar).toBeHidden();
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);

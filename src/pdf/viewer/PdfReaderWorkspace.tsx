@@ -43,6 +43,10 @@ import {
   DocumentToolbarControls,
   PdfDocumentView,
 } from './PdfDocumentView';
+import {
+  PdfReaderSidebar,
+  type PdfReaderPanelMode,
+} from './PdfReaderSidebar';
 
 export const LOCAL_PDF_MAX_BYTES = 256 * 1024 * 1024;
 export const REMOTE_PDF_MAX_BYTES = 96 * 1024 * 1024;
@@ -71,6 +75,8 @@ export function PdfReaderWorkspace({
   const [remoteUrl, setRemoteUrl] = useState('');
   const [statsBusy, setStatsBusy] = useState(false);
   const [statsFailed, setStatsFailed] = useState(false);
+  const [panelMode, setPanelMode] = useState<PdfReaderPanelMode | null>(null);
+  const [focusSearchRequest, setFocusSearchRequest] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
   const loadSequenceRef = useRef(0);
@@ -89,6 +95,35 @@ export function PdfReaderWorkspace({
       loadSequenceRef.current += 1;
       abortControllerRef.current?.abort();
     };
+  }, []);
+
+  useEffect(() => {
+    setPanelMode(null);
+  }, [activeDocumentId]);
+
+  const showPanel = useCallback((mode: PdfReaderPanelMode) => {
+    setPanelMode(mode);
+    if (mode === 'search') {
+      setFocusSearchRequest((request) => request + 1);
+    }
+  }, []);
+
+  const togglePanel = useCallback((mode: PdfReaderPanelMode) => {
+    if (panelMode === mode) {
+      setPanelMode(null);
+      return;
+    }
+    showPanel(mode);
+  }, [panelMode, showPanel]);
+
+  const openSearchPanel = useCallback(() => {
+    showPanel('search');
+  }, [showPanel]);
+
+  const closePanelAfterNarrowNavigation = useCallback(() => {
+    if (window.matchMedia?.('(max-width: 760px)').matches) {
+      setPanelMode(null);
+    }
   }, []);
 
   const openSource = useCallback(async (
@@ -202,6 +237,7 @@ export function PdfReaderWorkspace({
     abortControllerRef.current = undefined;
     setActivity({ kind: 'idle' });
     setSourceMetadata(undefined);
+    setPanelMode(null);
 
     if (documentManager) {
       await documentManager.closeAllDocuments().toPromise().catch(() => undefined);
@@ -260,7 +296,11 @@ export function PdfReaderWorkspace({
         </div>
 
         {documentLoaded && activeDocumentId ? (
-          <DocumentToolbarControls documentId={activeDocumentId} />
+          <DocumentToolbarControls
+            documentId={activeDocumentId}
+            panelMode={panelMode}
+            onTogglePanel={togglePanel}
+          />
         ) : (
           <div className="pdf-reader__toolbar-status" role="status">
             {pluginsReady ? '阅读器就绪' : '正在初始化'}
@@ -351,19 +391,36 @@ export function PdfReaderWorkspace({
         onDismiss={() => setActivity({ kind: 'idle' })}
       />
 
-      <main className="pdf-reader__workspace">
-        {activeDocumentId ? (
-          <PdfDocumentView
+      <main
+        className="pdf-reader__workspace"
+        data-panel-open={panelMode ? 'true' : 'false'}
+      >
+        {documentLoaded && activeDocumentId && panelMode ? (
+          <PdfReaderSidebar
             documentId={activeDocumentId}
-            onCloseDocument={closeDocument}
+            focusSearchRequest={focusSearchRequest}
+            mode={panelMode}
+            onClose={() => setPanelMode(null)}
+            onModeChange={showPanel}
+            onNavigate={closePanelAfterNarrowNavigation}
           />
-        ) : (
-          <ReaderEmptyState
-            ready={canOpenSource}
-            onOpenFile={() => fileInputRef.current?.click()}
-            onOpenRemote={() => setRemoteFormOpen(true)}
-          />
-        )}
+        ) : null}
+
+        <div className="pdf-reader__document-stage">
+          {activeDocumentId ? (
+            <PdfDocumentView
+              documentId={activeDocumentId}
+              onCloseDocument={closeDocument}
+              onOpenSearch={openSearchPanel}
+            />
+          ) : (
+            <ReaderEmptyState
+              ready={canOpenSource}
+              onOpenFile={() => fileInputRef.current?.click()}
+              onOpenRemote={() => setRemoteFormOpen(true)}
+            />
+          )}
+        </div>
       </main>
     </div>
   );
