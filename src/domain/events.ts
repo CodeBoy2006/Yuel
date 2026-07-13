@@ -1,4 +1,5 @@
 export type ReadingConfidence = 'low' | 'medium' | 'high';
+export type ReadingResourceType = 'web' | 'pdf';
 
 export type ReadingEventKind =
   | 'PageVisible'
@@ -14,6 +15,8 @@ export type ReadingEventKind =
 export interface PageSnapshot {
   pageId: string;
   domain: string;
+  resourceType?: ReadingResourceType;
+  resourceId?: string;
   titleHash: string;
   urlHash: string;
   language: string;
@@ -25,6 +28,7 @@ export interface PageSnapshot {
 export interface TextChunkSnapshot {
   chunkId: string;
   pageId: string;
+  sectionId?: string;
   textHash: string;
   text?: string;
   sourceKey?: string;

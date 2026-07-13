@@ -1,11 +1,13 @@
 import Dexie, { type Table } from 'dexie';
 
-import type { ReadingConfidence, ReadingEventKind } from '../domain/events';
+import type { ReadingConfidence, ReadingEventKind, ReadingResourceType } from '../domain/events';
 import type { ReadingContentType, ReadingPaceProfileSource } from '../domain/readingPace';
 
 export interface PageRecord {
   pageId: string;
   domain: string;
+  resourceType?: ReadingResourceType;
+  resourceId?: string;
   titleHash: string;
   urlHash: string;
   language: string;
@@ -26,6 +28,7 @@ export interface PageRecord {
 export interface TextChunkRecord {
   chunkId: string;
   pageId: string;
+  sectionId?: string;
   textHash: string;
   wordCount: number;
   metricModelVersion?: number;

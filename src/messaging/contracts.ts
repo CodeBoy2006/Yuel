@@ -6,6 +6,7 @@ import {
   type ReadingConfidence,
   type ReadingEvent,
   type ReadingEventKind,
+  type ReadingResourceType,
   type TextChunkSnapshot,
 } from '../domain/events';
 
@@ -53,6 +54,7 @@ const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextSelected',
 ]);
 const READING_CONFIDENCES = new Set<ReadingConfidence>(['low', 'medium', 'high']);
+const READING_RESOURCE_TYPES = new Set<ReadingResourceType>(['web', 'pdf']);
 const MIN_TEXT_CHUNK_WORD_COUNT = 8;
 const CHUNK_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockVisible',
@@ -135,6 +137,7 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
     eventIds.size === events.length &&
     eventSessionIds.size <= 1 &&
     hasChronologicalEvents(events) &&
+    hasConsistentResourceSections(page, chunks) &&
     chunks.every((chunk) => chunk.pageId === page.pageId) &&
     events.every((event) => {
       if (event.pageId !== page.pageId) {
@@ -165,6 +168,14 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       return false;
     })
   );
+}
+
+function hasConsistentResourceSections(page: PageSnapshot, chunks: TextChunkSnapshot[]): boolean {
+  if (page.resourceType === undefined) {
+    return chunks.every((chunk) => chunk.sectionId === undefined);
+  }
+
+  return page.resourceType !== 'pdf' || chunks.every((chunk) => chunk.sectionId !== undefined);
 }
 
 function hasConsistentViewportTickLinks(
@@ -202,6 +213,7 @@ function isPageSnapshot(value: unknown): value is PageSnapshot {
     isNonBlankString(value.pageId) &&
     isNonBlankString(value.domain) &&
     value.pageId.startsWith(`${value.domain}_`) &&
+    hasValidResourceIdentity(value) &&
     isNonBlankString(value.titleHash) &&
     isNonBlankString(value.urlHash) &&
     value.language === 'en' &&
@@ -219,6 +231,7 @@ function isTextChunkSnapshot(value: unknown): value is TextChunkSnapshot {
     isObject(value) &&
     isNonBlankString(value.chunkId) &&
     isNonBlankString(value.pageId) &&
+    (value.sectionId === undefined || isNonBlankString(value.sectionId)) &&
     isNonBlankString(value.textHash) &&
     isNonBlankString(value.text) &&
     (value.sourceKey === undefined || isNonBlankString(value.sourceKey)) &&
@@ -238,6 +251,18 @@ function hasConsistentChunkTextSnapshot(value: Record<string, unknown>, pageId: 
     (value.chunkId === createChunkId(pageId, text, sourceKey) || value.chunkId === createChunkId(pageId, text)) &&
     value.wordCount === analysis.wordCount &&
     value.sentenceCount === analysis.sentenceCount
+  );
+}
+
+function hasValidResourceIdentity(value: Record<string, unknown>): boolean {
+  if (value.resourceType === undefined && value.resourceId === undefined) {
+    return true;
+  }
+
+  return (
+    isNonBlankString(value.resourceType) &&
+    READING_RESOURCE_TYPES.has(value.resourceType as ReadingResourceType) &&
+    isNonBlankString(value.resourceId)
   );
 }
 

@@ -1353,3 +1353,9 @@
 - **Status:** Completed
 - **Next Steps:** Extract stable PDF page/text-block identities and connect PDF visibility, exposure, idle, scroll, and selection events to the existing Yuel reading analytics protocol.
 - **Context:** Search cancellation remains owned by the plugin, selection geometry is capped at 24 cached pages, thumbnail buffering is capped at two extra rows, and remote PDFs still use the bounded full-download source adapter. All 376 unit/UI tests, TypeScript checks, production build, whitespace validation, five packaged-extension Chromium tests, and desktop/mobile visual inspection pass.
+
+## [2026-07-14 01:45] Resource-Aware Reading Snapshot Protocol
+- **Changes:** Extracted the sentence-aligned 8–24 word splitter into a source-neutral analysis module; added backward-compatible resource and section identities to reading snapshots, message validation, and local storage records; and documented the one-document/physical-section mapping for PDF analytics.
+- **Status:** Completed
+- **Next Steps:** Build PDFium text-run extraction into stable English chunks with page-coordinate geometry, then connect those chunks to the existing reading event collector semantics.
+- **Context:** Existing web batches remain valid without the optional fields, PDF batches require a stable resource identity and a section identity for every chunk, and no Dexie index or schema-version migration is needed. All 385 unit/UI tests, TypeScript checks, production build, and whitespace validation pass.

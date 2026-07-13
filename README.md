@@ -118,13 +118,15 @@ Key boundaries:
 - `entrypoints/` contains WXT extension entrypoints only.
 - `src/content/` extracts DOM text blocks and emits reading events.
 - `src/domain/` contains pure types, metrics, and Pack validation.
-- `src/analysis/` contains lightweight English tokenization.
+- `src/analysis/` contains lightweight English tokenization and the shared sentence-aligned 8–24 word chunking used by every reading source.
 - `src/storage/` owns the Dexie schema, write repository, aggregate updates, and read-side stats queries.
 - `src/permissions/` combines current-tab Chrome host access with Yuel's global and exact-site recording state.
 - `src/packs/` contains declarative Pack data examples used for local vocabulary tagging.
 - `src/pdf/source/` owns bounded local-file and remote-URL acquisition, validation, progress, cancellation, and stable resource IDs.
 - `src/pdf/engine/` owns EmbedPDF plugin registration and the packaged PDFium WASM URL boundary.
 - `src/pdf/viewer/` owns the standalone reader workspace, document lifecycle, rendering and interaction layers, contextual thumbnail/search navigation, controls, and reader states.
+
+Reading batches remain backward compatible with existing web snapshots while supporting resource-backed readers through optional `resourceType` and `resourceId` page metadata. One PDF document maps to one existing page-level reading aggregate; its physical pages are stable sections referenced by `sectionId` on text chunks. These fields are stored without new Dexie indexes or a database-version migration.
 
 ## Privacy Posture
 

@@ -142,6 +142,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       const nextChunkRecord: TextChunkRecord = {
         chunkId: chunk.chunkId,
         pageId: chunk.pageId,
+        sectionId: chunk.sectionId ?? existingChunk?.sectionId,
         textHash: chunk.textHash,
         wordCount: chunk.wordCount,
         metricModelVersion: nextMetricModelVersion,
@@ -189,6 +190,12 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
     const pageRecord: PageRecord = {
       pageId: payload.page.pageId,
       domain: pageDomain,
+      resourceType: shouldUpdatePageSnapshot
+        ? payload.page.resourceType
+        : existingPage?.resourceType ?? payload.page.resourceType,
+      resourceId: shouldUpdatePageSnapshot
+        ? payload.page.resourceId
+        : existingPage?.resourceId ?? payload.page.resourceId,
       titleHash: shouldUpdatePageSnapshot ? payload.page.titleHash : existingPage?.titleHash ?? payload.page.titleHash,
       urlHash: shouldUpdatePageSnapshot ? payload.page.urlHash : existingPage?.urlHash ?? payload.page.urlHash,
       language: shouldUpdatePageSnapshot ? payload.page.language : existingPage?.language ?? payload.page.language,

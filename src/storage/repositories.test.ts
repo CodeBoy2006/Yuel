@@ -212,6 +212,34 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.chunkDays.bulkGet).toHaveBeenCalledWith(['2026-06-27:chunk-1']);
   });
 
+  it('persists PDF resource and physical section identities without changing table indexes', async () => {
+    const payload = createPayload();
+    payload.page = {
+      ...payload.page,
+      resourceType: 'pdf',
+      resourceId: 'pdf_abc123',
+    };
+    payload.chunks = payload.chunks.map((chunk) => ({
+      ...chunk,
+      sectionId: 'pdf_abc123_page_1',
+    }));
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.pages.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+      }),
+    );
+    expect(mocks.textChunks.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        chunkId: 'chunk-1',
+        sectionId: 'pdf_abc123_page_1',
+      }),
+    ]);
+  });
+
   it('uses event time rather than delayed processing time for page and vocabulary recency', async () => {
     await recordReadingEventBatch(createPayload());
 

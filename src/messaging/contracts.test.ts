@@ -136,6 +136,77 @@ describe('isReadingEventBatchMessage', () => {
     expect(isReadingEventBatchMessage(validMessage)).toBe(true);
   });
 
+  it('accepts a PDF resource with stable document and section identities', () => {
+    expect(isReadingEventBatchMessage({
+      ...validMessage,
+      payload: {
+        ...validMessage.payload,
+        page: {
+          ...validMessage.payload.page,
+          resourceType: 'pdf',
+          resourceId: 'pdf_abc123',
+        },
+        chunks: validMessage.payload.chunks.map((chunk) => ({
+          ...chunk,
+          sectionId: 'pdf_abc123_page_1',
+        })),
+      },
+    })).toBe(true);
+  });
+
+  it('rejects incomplete or unsupported resource identities', () => {
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+      },
+    });
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceId: 'pdf_abc123',
+      },
+    });
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'ebook',
+        resourceId: 'book_abc123',
+      },
+    });
+  });
+
+  it('requires every PDF text chunk to identify its physical section', () => {
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+      },
+    });
+
+    expectInvalidPayload({
+      page: {
+        ...validMessage.payload.page,
+        resourceType: 'pdf',
+        resourceId: 'pdf_abc123',
+      },
+      chunks: validMessage.payload.chunks.map((chunk) => ({
+        ...chunk,
+        sectionId: ' ',
+      })),
+    });
+  });
+
+  it('rejects section identities without a resource identity', () => {
+    expectInvalidPayload({
+      chunks: validMessage.payload.chunks.map((chunk) => ({
+        ...chunk,
+        sectionId: 'page_1',
+      })),
+    });
+  });
+
   it('rejects messages with the batch type but missing payload shape', () => {
     expect(isReadingEventBatchMessage({ type: MESSAGE_TYPES.readingEventsBatch, payload: {} })).toBe(false);
     expect(
