@@ -15,6 +15,16 @@ export {
   createPdfReadingTextSection,
   projectPdfReadingChunkRects,
 } from './textModel';
+export {
+  PDF_READING_PAGE_SELECTOR,
+  capturePdfReadingLayout,
+  collectPdfReadingVisibility,
+  createPdfReadingRuntimeModel,
+  measurePdfReadingChunk,
+  type PdfReadingLayoutSnapshot,
+  type PdfReadingRuntimeModel,
+  type PdfReadingVisibilityResult,
+} from './runtime';
 export type {
   CreatePdfReadingTextSectionInput,
   PdfReadingSnapshot,

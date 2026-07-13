@@ -1371,3 +1371,9 @@
 - **Status:** Completed
 - **Next Steps:** Mount the PDF text model in the reader and provide projected chunk geometry, reader scroll metrics, visibility transitions, and selected text to the shared session runtime.
 - **Context:** Web event ordering and values remain covered by the existing collector suite, overlapping flushes now serialize so a delayed failed batch cannot be overtaken, and PDF resource/section metadata passes the existing message contract unchanged. All 403 unit/UI tests, TypeScript checks, production build, whitespace validation, and five packaged-extension Chromium tests pass.
+
+## [2026-07-14 02:26] PDF Reading Runtime Adapter
+- **Changes:** Added a React-independent PDF runtime model that strips source geometry from message chunks, captures mounted virtual page bounds, projects stable PDF coordinates through zoom and rotation into the reader viewport, computes shared exposure measurements, and closes chunk visibility when buffered pages unmount.
+- **Status:** Completed
+- **Next Steps:** Mount the adapter in the loaded PDF document lifecycle, subscribe to viewport and selection events, and deliver PDF batches through the shared reading session.
+- **Context:** Only mounted current and neighboring pages are scanned on scroll; full-document source rectangles remain local to the reader and are never copied into runtime messages. All 408 unit/UI tests, focused geometry and virtualization tests, TypeScript checks, production build, and whitespace validation pass.

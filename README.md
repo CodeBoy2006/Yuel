@@ -126,7 +126,7 @@ Key boundaries:
 - `src/pdf/source/` owns bounded local-file and remote-URL acquisition, validation, progress, cancellation, and stable resource IDs.
 - `src/pdf/engine/` owns EmbedPDF plugin registration and the packaged PDFium WASM URL boundary.
 - `src/pdf/viewer/` owns the standalone reader workspace, document lifecycle, rendering and interaction layers, contextual thumbnail/search navigation, controls, and reader states.
-- `src/pdf/analytics/` owns sequential PDFium text-run extraction, stable document/page/chunk identities, shared English chunking, source-coordinate rectangles, and rotation-aware projection without depending on React viewer state.
+- `src/pdf/analytics/` owns sequential PDFium text-run extraction, stable document/page/chunk identities, shared English chunking, source-coordinate rectangles, rotation-aware projection, event-safe chunk snapshots, and the virtualized reader-layout adapter.
 
 Reading batches remain backward compatible with existing web snapshots while supporting resource-backed readers through optional `resourceType` and `resourceId` page metadata. One PDF document maps to one existing page-level reading aggregate; its physical pages are stable sections referenced by `sectionId` on text chunks. These fields are stored without new Dexie indexes or a database-version migration.
 
