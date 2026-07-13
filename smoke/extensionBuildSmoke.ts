@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ExtensionBuildManifest {
@@ -13,6 +13,9 @@ export interface ExtensionBuildManifest {
   side_panel?: {
     default_path?: string;
   };
+  content_security_policy?: {
+    extension_pages?: string;
+  };
   background?: {
     service_worker?: string;
   };
@@ -25,6 +28,7 @@ export interface ExtensionBuildManifest {
 export interface ExtensionBuildSmokeResult {
   manifest: ExtensionBuildManifest;
   requiredFiles: string[];
+  wasmFiles: string[];
 }
 
 const REQUIRED_FILES = [
@@ -32,6 +36,7 @@ const REQUIRED_FILES = [
   'background.js',
   'popup.html',
   'dashboard.html',
+  'pdf-reader.html',
   'sidepanel.html',
   'content-scripts/content.js',
   'logo.svg',
@@ -50,9 +55,15 @@ export async function validateChromeMv3Build(outputDir: string): Promise<Extensi
     await assertFileExists(path.join(outputDir, file));
   }
 
+  const wasmFiles = await findFilesWithExtension(outputDir, '.wasm');
+  if (wasmFiles.length === 0) {
+    throw new Error(`Chrome MV3 build does not contain a bundled WASM asset: ${outputDir}`);
+  }
+
   return {
     manifest,
     requiredFiles: [...REQUIRED_FILES],
+    wasmFiles,
   };
 }
 
@@ -65,4 +76,22 @@ async function readManifest(outputDir: string): Promise<ExtensionBuildManifest> 
 
 async function assertFileExists(filePath: string): Promise<void> {
   await access(filePath);
+}
+
+async function findFilesWithExtension(
+  rootDir: string,
+  extension: string,
+  currentDir = rootDir,
+): Promise<string[]> {
+  const entries = await readdir(currentDir, { withFileTypes: true });
+  const matches = await Promise.all(entries.map(async (entry) => {
+    const entryPath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      return findFilesWithExtension(rootDir, extension, entryPath);
+    }
+    if (!entry.isFile() || path.extname(entry.name) !== extension) return [];
+    return [path.relative(rootDir, entryPath)];
+  }));
+
+  return matches.flat().sort();
 }

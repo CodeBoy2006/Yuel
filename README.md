@@ -1,11 +1,12 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on HTTP and HTTPS pages where Chrome permits extension access and Yuel recording remains enabled, stores the event stream and aggregates locally, and surfaces reading stats, global and per-site recording controls, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages.
+Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on HTTP and HTTPS pages where Chrome permits extension access and Yuel recording remains enabled, stores the event stream and aggregates locally, and surfaces reading stats, global and per-site recording controls, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, saved selections, Pack tags, and copyable/downloadable summary cards in extension UI pages. It also includes a standalone PDF reader core that renders local or bounded remote documents through extension-packaged PDFium WASM workers.
 
 ## Stack
 
 - WXT 0.20 with Chrome MV3 output
 - React 19 for popup, side panel, and dashboard pages
+- EmbedPDF Headless 2.14.4 with locally packaged PDFium WASM workers
 - Shared CSS design tokens with entrypoint-specific styles
 - Dexie over IndexedDB for local reading data
 - Vitest for domain, storage, permission, content, and UI smoke tests
@@ -57,6 +58,7 @@ Users can intentionally store raw selected text by highlighting text on a page a
 - Popup: a current-site control center with an exact-site recording switch and distinct active, Yuel-paused, or browser-restricted state first, a compact today summary, and side-panel/dashboard launch actions.
 - Side panel: the current reading companion, showing current page progress when local page data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
 - Dashboard: a reading ledger with a compact today summary, a global automatic-recording switch, configurable effective-word check-in goal and progress, a 13-week activity heatmap, effective-word trend, weekday rhythm, input-composition charts, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, saved highlights, reading pace calibration/reset, and quiet local-data management.
+- PDF reader: a standalone workspace with local-file and bounded remote-URL loading, password retry, continuous scrolling, page navigation, fit-width/fit-page/custom zoom, rotation, keyboard controls, low-resolution base pages, high-resolution visible tiles, and locally packaged WASM/Worker execution. Search, thumbnails, text selection, and reading-event integration remain follow-up slices.
 - Context menu: explicit selected-text saving into the local saved-items table.
 
 Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
@@ -96,9 +98,9 @@ The browser DOM smoke suite also runs a source-module collector fixture with a `
 
 `test:real-pages` is an opt-in live-site benchmark. It opens a public English documentation/article corpus in Playwright-managed Chromium, injects a benchmark script generated from the current `src/content/extractBlocks.ts` source, and reports per-page text extraction time, range-geometry time, block count, and word count. It requires network access and can be tuned with `YUEL_REAL_PAGE_CONCURRENCY`, `YUEL_REAL_PAGE_SETTLE_MS`, and `YUEL_REAL_PAGE_TIMEOUT_MS`; set `YUEL_REAL_PAGE_REPORT_PATH=/tmp/yuel-real-pages.txt` to write the report to a file.
 
-`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, required HTTP/HTTPS host permissions, all-site content-script matches, context-menu capability, core extension pages, background worker, and content script artifacts.
+`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, required HTTP/HTTPS host permissions, all-site content-script matches, context-menu capability, core extension pages including `pdf-reader.html`, the PDFium-compatible extension CSP, the bundled WASM asset, background worker, and content script artifacts.
 
-`test:e2e` and `test:extension-browser-smoke` build the same output and run the packaged extension through Playwright Test. A custom fixture launches bundled Chromium with one isolated temporary profile per test, discovers the MV3 service worker and extension ID, verifies the popup, side panel, and dashboard pages, records a sample runtime batch, and serves a local HTTPS reading page to prove the packaged all-site content script can auto-capture reading data. The runner uses one worker and retains a trace plus screenshot on failure. It runs headlessly by default; use `pnpm test:e2e:headed` or set `YUEL_BROWSER_SMOKE_HEADLESS=false` for an intentional visible run. The local HTTPS check needs `openssl` for its temporary self-signed certificate. Browser suites must run outside process sandboxes that block Chromium startup or localhost ports.
+`test:e2e` and `test:extension-browser-smoke` build the same output and run the packaged extension through Playwright Test. A custom fixture launches bundled Chromium with one isolated temporary profile per test, discovers the MV3 service worker and extension ID, verifies the popup, side panel, dashboard, and PDF reader pages, renders a generated local PDF through packaged PDFium with pixel evidence and no remote requests, records a sample runtime batch, and serves a local HTTPS reading page to prove the packaged all-site content script can auto-capture reading data. The runner uses one worker and retains a trace plus screenshot on failure. It runs headlessly by default; use `pnpm test:e2e:headed` or set `YUEL_BROWSER_SMOKE_HEADLESS=false` for an intentional visible run. The local HTTPS check needs `openssl` for its temporary self-signed certificate. Browser suites must run outside process sandboxes that block Chromium startup or localhost ports.
 
 ## Architecture
 
@@ -120,6 +122,9 @@ Key boundaries:
 - `src/storage/` owns the Dexie schema, write repository, aggregate updates, and read-side stats queries.
 - `src/permissions/` combines current-tab Chrome host access with Yuel's global and exact-site recording state.
 - `src/packs/` contains declarative Pack data examples used for local vocabulary tagging.
+- `src/pdf/source/` owns bounded local-file and remote-URL acquisition, validation, progress, cancellation, and stable resource IDs.
+- `src/pdf/engine/` owns EmbedPDF plugin registration and the packaged PDFium WASM URL boundary.
+- `src/pdf/viewer/` owns the standalone reader workspace, document lifecycle, rendering layers, controls, and reader states.
 
 ## Privacy Posture
 
@@ -128,3 +133,5 @@ The manifest requires access to all HTTP and HTTPS pages so reading collection s
 By default, page title and URL are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text is stored only when the user explicitly chooses the Yuel context-menu save action. The dashboard can clear local reading data after confirmation without changing the global recording switch, exact-site preferences, or Chrome's extension site-access settings.
 
 Recent-page icons use Chrome's local favicon service through the manifest's `favicon` permission. Opening the dashboard does not fetch icon files directly from the recorded websites.
+
+PDF bytes remain in the reader page and worker lifecycle and are not written to the Yuel database. Remote PDF URLs currently download the complete file before PDFium opens it, with declared and measured size limits; true HTTP Range loading remains a separate future source adapter. PDFium WASM and executable workers are served from the extension package, and the reader disables remote font fallback.

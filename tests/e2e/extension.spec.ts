@@ -9,6 +9,7 @@ import {
 } from './helpers/extension';
 import { createRuntimeReadingBatchMessage, RUNTIME_LOOP_DOMAIN } from './helpers/reading';
 import { READING_SITE_HOST, withReadingSite } from './helpers/readingSite';
+import { createPdfSmokeFixture } from './helpers/pdf';
 
 test('loads the packaged extension pages', async ({ context, extensionId }) => {
   expect(extensionId).toMatch(/^[a-p]{32}$/);
@@ -23,6 +24,101 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
 
   const sidePanel = await openExtensionPage(context, extensionId, 'sidepanel.html');
   await expect(sidePanel.locator('body')).toContainText('当前阅读');
+  await sidePanel.close();
+
+  const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
+  await expect(pdfReader.locator('body')).toContainText('打开 PDF，继续你的阅读');
+  await pdfReader.close();
+});
+
+test('renders a local PDF through packaged PDFium WASM and workers without remote requests', async ({
+  context,
+  extensionId,
+}) => {
+  const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
+  const externalRequests: string[] = [];
+  const pageErrors: string[] = [];
+
+  pdfReader.on('request', (request) => {
+    const url = request.url();
+    if (
+      !url.startsWith(`chrome-extension://${extensionId}/`)
+      && !url.startsWith('blob:chrome-extension://')
+      && !url.startsWith('data:')
+    ) {
+      externalRequests.push(url);
+    }
+  });
+  pdfReader.on('pageerror', (error) => pageErrors.push(error.message));
+
+  const openFileButton = pdfReader.getByRole('button', { name: '打开文件' });
+  await expect(openFileButton).toBeEnabled();
+  await pdfReader.locator('input[type="file"]').setInputFiles({
+    name: 'yuel-reader-smoke.pdf',
+    mimeType: 'application/pdf',
+    buffer: createPdfSmokeFixture(),
+  });
+
+  const renderedPage = pdfReader.locator('.pdf-reader__page-shell').first();
+  const renderedImage = pdfReader.locator('.pdf-reader__base-page').first();
+  await expect(renderedPage).toBeVisible();
+  await expect(renderedImage).toBeVisible();
+  await expect(pdfReader.locator('.pdf-reader__document-name')).toContainText(
+    'yuel-reader-smoke.pdf',
+  );
+
+  await expect.poll(() => pdfReader.workers().length).toBeGreaterThanOrEqual(1);
+  expect(pdfReader.workers().every((worker) => worker.url().startsWith('blob:'))).toBe(true);
+
+  const pixelEvidence = await renderedImage.evaluate((image) => {
+    if (!(image instanceof HTMLImageElement)) {
+      throw new Error('Rendered PDF layer is not an image');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context || canvas.width === 0 || canvas.height === 0) {
+      return { height: canvas.height, nonWhitePixels: 0, width: canvas.width };
+    }
+
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let nonWhitePixels = 0;
+    for (let index = 0; index < pixels.length; index += 16) {
+      if (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245) {
+        nonWhitePixels += 1;
+      }
+    }
+
+    return {
+      height: canvas.height,
+      nonWhitePixels,
+      width: canvas.width,
+    };
+  });
+
+  expect(pixelEvidence.width).toBeGreaterThan(100);
+  expect(pixelEvidence.height).toBeGreaterThan(100);
+  expect(pixelEvidence.nonWhitePixels).toBeGreaterThan(20);
+
+  const zoomInput = pdfReader.locator('.pdf-reader__zoom-input input');
+  const zoomBeforeRotation = Number(await zoomInput.inputValue());
+  const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
+  await rotateButton.click();
+  await expect(rotateButton).toHaveAttribute('title', /当前 90°/);
+  await expect(renderedPage).toBeVisible();
+  await expect.poll(async () => Number(await zoomInput.inputValue())).not.toBe(zoomBeforeRotation);
+
+  const zoomInButton = pdfReader.getByRole('button', { name: '放大' }).first();
+  const initialZoom = Number(await zoomInput.inputValue());
+  await zoomInButton.click();
+  await expect.poll(async () => Number(await zoomInput.inputValue())).toBeGreaterThan(initialZoom);
+
+  expect(externalRequests).toEqual([]);
+  expect(pageErrors).toEqual([]);
+  await pdfReader.close();
 });
 
 test('records reading data through the extension runtime', async ({ context, extensionId }) => {

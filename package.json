@@ -23,6 +23,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@embedpdf/core": "2.14.4",
+    "@embedpdf/engines": "2.14.4",
+    "@embedpdf/models": "2.14.4",
+    "@embedpdf/pdfium": "2.14.4",
+    "@embedpdf/plugin-document-manager": "2.14.4",
+    "@embedpdf/plugin-render": "2.14.4",
+    "@embedpdf/plugin-rotate": "2.14.4",
+    "@embedpdf/plugin-scroll": "2.14.4",
+    "@embedpdf/plugin-tiling": "2.14.4",
+    "@embedpdf/plugin-viewport": "2.14.4",
+    "@embedpdf/plugin-zoom": "2.14.4",
     "dexie": "4.4.4",
     "html-to-image": "1.11.13",
     "lucide-react": "1.21.0",

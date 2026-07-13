@@ -270,7 +270,7 @@ async function renderSidePanelWithAccess(
 
 describe('extension UI entrypoint smoke rendering', () => {
   it('declares Simplified Chinese and the shared brand icon for every extension UI document', () => {
-    for (const entrypoint of ['popup', 'sidepanel', 'dashboard']) {
+    for (const entrypoint of ['popup', 'sidepanel', 'dashboard', 'pdf-reader']) {
       const html = readFileSync(`${process.cwd()}/entrypoints/${entrypoint}/index.html`, 'utf8');
       expect(html).toMatch(/<html\s+lang="zh-CN">/);
       expect(html).toContain('<link rel="icon" href="/logo.svg" type="image/svg+xml" />');

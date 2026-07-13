@@ -1335,3 +1335,9 @@
 - **Status:** Completed
 - **Next Steps:** Connect the validated source handle to the locally packaged EmbedPDF PDFium worker and the new reader entrypoint.
 - **Context:** Remote loading never delegates URL fetching to EmbedPDF, so the future Range Loader remains isolated behind the same source contract. All 362 unit/UI tests, the focused 12-case source suite, TypeScript checks, and whitespace validation pass.
+
+## [2026-07-14 01:07] Local PDFium Reader Core
+- **Changes:** Added the standalone `pdf-reader.html` workspace, exact EmbedPDF 2.14.4 engine/plugin registration, extension-packaged PDFium WASM and Blob workers, local and bounded remote source opening, password retry, virtualized continuous pages, base-plus-tile rendering, page/zoom/fit/rotate controls, keyboard navigation, floating controls, responsive states, MV3 WASM CSP, build-output validation, and packaged-browser pixel coverage.
+- **Status:** Completed
+- **Next Steps:** Add Popup and Side Panel launch actions, then implement the contextual thumbnail/search panel, text selection, and the PDF-to-Yuel reading analytics bridge.
+- **Context:** Remote PDFs still download completely before opening and remain capped by the source adapter; PDF bytes are not persisted and remote font fallback is disabled. The fixed Grid row placement is required so the optional activity banner cannot collapse the reader viewport. All 370 unit/UI tests, TypeScript checks, production build, five packaged-extension Chromium tests, three repeated PDF render runs, and whitespace validation pass.

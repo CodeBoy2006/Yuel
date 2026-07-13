@@ -25,6 +25,9 @@ describe('Chrome MV3 build output', () => {
       32: 'icon/32.png',
     });
     expect(result.manifest.side_panel?.default_path).toBe('sidepanel.html');
+    expect(result.manifest.content_security_policy?.extension_pages).toBe(
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+    );
     expect(result.manifest.content_scripts?.[0]?.js).toEqual(['content-scripts/content.js']);
     expect(result.manifest.content_scripts?.[0]?.matches).toEqual(['http://*/*', 'https://*/*']);
     expect(result.requiredFiles).toEqual([
@@ -32,6 +35,7 @@ describe('Chrome MV3 build output', () => {
       'background.js',
       'popup.html',
       'dashboard.html',
+      'pdf-reader.html',
       'sidepanel.html',
       'content-scripts/content.js',
       'logo.svg',
@@ -42,5 +46,7 @@ describe('Chrome MV3 build output', () => {
       'icon/96.png',
       'icon/128.png',
     ]);
+    expect(result.wasmFiles).toHaveLength(1);
+    expect(result.wasmFiles[0]).toMatch(/pdfium.*\.wasm$/);
   });
 });
