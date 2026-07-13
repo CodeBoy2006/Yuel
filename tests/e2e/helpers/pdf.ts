@@ -22,28 +22,88 @@ export function createPdfSmokeFixture(): Buffer {
     '',
   ].join('\n');
 
+  return createPdfFixture([firstPageContent, secondPageContent]);
+}
+
+export interface PdfStressFixture {
+  buffer: Buffer;
+  expectedWords: number;
+  linesPerPage: number;
+  pageCount: number;
+}
+
+export interface PdfStressFixtureOptions {
+  linesPerPage?: number;
+  pageCount?: number;
+}
+
+export function createPdfStressFixture({
+  linesPerPage = 6,
+  pageCount = 160,
+}: PdfStressFixtureOptions = {}): PdfStressFixture {
+  assertIntegerInRange(pageCount, 1, 1_000, 'PDF stress page count');
+  assertIntegerInRange(linesPerPage, 1, 20, 'PDF stress lines per page');
+
+  let expectedWords = 0;
+  const pageContents = Array.from({ length: pageCount }, (_, pageIndex) => {
+    const lines = Array.from({ length: linesPerPage }, (_, lineIndex) => {
+      const text = [
+        'Yuel PDF stress page',
+        String(pageIndex + 1),
+        'line',
+        String(lineIndex + 1),
+        'validates bounded virtual rendering and sequential analytics extraction',
+        'while preserving stable local reading measurements.',
+      ].join(' ');
+      expectedWords += countFixtureWords(text);
+      return text;
+    });
+
+    return [
+      'BT',
+      '/F1 11 Tf',
+      '72 720 Td',
+      ...lines.flatMap((line, lineIndex) => [
+        ...(lineIndex > 0 ? ['0 -24 Td'] : []),
+        `(${escapePdfString(line)}) Tj`,
+      ]),
+      'ET',
+      '',
+    ].join('\n');
+  });
+
+  return {
+    buffer: createPdfFixture(pageContents),
+    expectedWords,
+    linesPerPage,
+    pageCount,
+  };
+}
+
+function createPdfFixture(pageContents: string[]): Buffer {
+  const pageObjectIds = pageContents.map((_, index) => index + 3);
+  const fontObjectId = pageContents.length + 3;
+  const contentObjectIds = pageContents.map(
+    (_, index) => fontObjectId + index + 1,
+  );
+  const pageReferences = pageObjectIds
+    .map((objectId) => `${objectId} 0 R`)
+    .join(' ');
+
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>',
-    [
+    `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageContents.length} >>`,
+    ...pageObjectIds.map((_, index) => [
       '<< /Type /Page',
       '   /Parent 2 0 R',
       '   /MediaBox [0 0 612 792]',
-      '   /Resources << /Font << /F1 5 0 R >> >>',
-      '   /Contents 6 0 R',
+      `   /Resources << /Font << /F1 ${fontObjectId} 0 R >> >>`,
+      `   /Contents ${contentObjectIds[index]} 0 R`,
       '>>',
-    ].join('\n'),
-    [
-      '<< /Type /Page',
-      '   /Parent 2 0 R',
-      '   /MediaBox [0 0 612 792]',
-      '   /Resources << /Font << /F1 5 0 R >> >>',
-      '   /Contents 7 0 R',
-      '>>',
-    ].join('\n'),
+    ].join('\n')),
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(firstPageContent, 'ascii')} >>\nstream\n${firstPageContent}endstream`,
-    `<< /Length ${Buffer.byteLength(secondPageContent, 'ascii')} >>\nstream\n${secondPageContent}endstream`,
+    ...pageContents.map((content) =>
+      `<< /Length ${Buffer.byteLength(content, 'ascii')} >>\nstream\n${content}endstream`),
   ];
 
   let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
@@ -71,4 +131,26 @@ export function createPdfSmokeFixture(): Buffer {
   ].join('\n');
 
   return Buffer.from(pdf, 'binary');
+}
+
+function escapePdfString(text: string): string {
+  return text
+    .replaceAll('\\', '\\\\')
+    .replaceAll('(', '\\(')
+    .replaceAll(')', '\\)');
+}
+
+function countFixtureWords(text: string): number {
+  return text.match(/[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g)?.length ?? 0;
+}
+
+function assertIntegerInRange(
+  value: number,
+  minimum: number,
+  maximum: number,
+  label: string,
+): void {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new RangeError(`${label} must be an integer from ${minimum} to ${maximum}`);
+  }
 }

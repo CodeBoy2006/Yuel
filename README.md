@@ -21,6 +21,7 @@ CI=true pnpm test
 CI=true pnpm test:e2e
 CI=true pnpm test:browser-dom
 CI=true pnpm test:stress:large-text
+CI=true pnpm test:stress:pdf-reader
 CI=true pnpm test:real-pages
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
@@ -85,6 +86,7 @@ CI=true pnpm typecheck
 CI=true pnpm test:e2e
 CI=true pnpm test:browser-dom
 CI=true pnpm test:stress:large-text
+CI=true pnpm test:stress:pdf-reader
 CI=true pnpm test:real-pages
 CI=true pnpm test:extension-smoke
 CI=true pnpm test:extension-browser-smoke
@@ -95,6 +97,8 @@ CI=true pnpm test:extension-browser-smoke
 The browser DOM smoke suite also runs a source-module collector fixture with a `wxt/browser` runtime stub to verify SPA content injection and client-side route replacement in real Chromium.
 
 `test:stress:large-text` is an opt-in pressure test for large reading documents. It loads a generated 1,200-paragraph browser DOM fixture, verifies extraction and native `Range` geometry against roughly 97k words while filtering excluded page chrome, and runs a 2,000-tick aggregation batch with 80 visible chunks per tick. It uses the same Playwright-managed Chromium runtime as `test:browser-dom`.
+
+`test:stress:pdf-reader` builds the packaged extension and opens a generated 160-page local PDF by default. It waits for sequential PDFium analytics extraction, verifies that the virtual scroller keeps at most four page shells mounted at the beginning and after a last-page jump, bounds renderer DOM and retained JavaScript heap growth, confirms no remote requests, and flushes measured PDF exposure through the existing dashboard. Tune it with `YUEL_PDF_STRESS_PAGES`, `YUEL_PDF_STRESS_LINES`, or `YUEL_PDF_STRESS_MAX_HEAP_MB`.
 
 `test:real-pages` is an opt-in live-site benchmark. It opens a public English documentation/article corpus in Playwright-managed Chromium, injects a benchmark script generated from the current `src/content/extractBlocks.ts` source, and reports per-page text extraction time, range-geometry time, block count, and word count. It requires network access and can be tuned with `YUEL_REAL_PAGE_CONCURRENCY`, `YUEL_REAL_PAGE_SETTLE_MS`, and `YUEL_REAL_PAGE_TIMEOUT_MS`; set `YUEL_REAL_PAGE_REPORT_PATH=/tmp/yuel-real-pages.txt` to write the report to a file.
 

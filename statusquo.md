@@ -1389,3 +1389,9 @@
 - **Status:** Completed
 - **Next Steps:** Run final packaged-output and long-document memory checks, then review remaining reader polish and release readiness.
 - **Context:** PDF text rectangles are already top-left device coordinates in EmbedPDF 2.14.4 and require no Y-axis inversion. The shared session still batches roughly every 15 seconds or on lifecycle flush; PDF bytes and source rectangles remain outside IndexedDB. All 417 unit/UI tests, focused PDF analytics tests, TypeScript checks, production build, whitespace validation, and five packaged-extension Chromium tests pass.
+
+## [2026-07-14 03:06] Large PDF Reader Stress Baseline
+- **Changes:** Added a configurable generated multi-page PDF fixture and an opt-in packaged-extension pressure test that measures sequential analytics extraction, verifies bounded virtual page and image mounts at the document start and end, tracks renderer heap/DOM/document growth, rejects remote requests, and confirms large-PDF exposure reaches the existing dashboard.
+- **Status:** Completed
+- **Next Steps:** Review release readiness and keep true HTTP Range loading as a separate source-layer enhancement.
+- **Context:** The default 160-page / 20,160-word run extracted in 514 ms with pages 1–2 or 159–160 mounted, a 4.65 MiB renderer-heap increase, 248 additional DOM nodes, and no additional document objects. A 500-page / 63,000-word audit extracted in 2.03 s with only pages 1–2 or 499–500 mounted and a 6.55 MiB heap increase. All 417 unit/UI tests, TypeScript checks, production build, generated-output smoke validation, whitespace validation, five packaged-extension Chromium tests, and both PDF stress scales pass.

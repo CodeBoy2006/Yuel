@@ -16,6 +16,7 @@
     "test:browser:install": "playwright install chromium",
     "test:browser-dom": "vitest run --config vitest.browser-dom.config.ts",
     "test:stress:large-text": "vitest run --config vitest.large-text-stress.config.ts",
+    "test:stress:pdf-reader": "pnpm build && YUEL_PDF_READER_STRESS=1 playwright test tests/e2e/pdf-reader.stress.spec.ts",
     "test:real-pages": "YUEL_REAL_PAGE_CORPUS=1 vitest run --config vitest.real-pages.config.ts",
     "test:extension-browser-smoke": "pnpm build && playwright test tests/e2e/extension.spec.ts",
     "test:extension-smoke": "pnpm build && vitest run --config vitest.smoke.config.ts",
