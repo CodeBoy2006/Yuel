@@ -1329,3 +1329,9 @@
 - **Status:** Completed
 - **Next Steps:** Reload the unpacked extension so already installed development builds use the new content script and settings UI.
 - **Context:** Global pause preserves site preferences and existing local data; site pause does not change Chrome permissions or explicit selection saving. All 350 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, four packaged-extension Chromium tests, whitespace checks, the Impeccable detector, and desktop/mobile visual inspection pass.
+
+## [2026-07-14 00:11] Bounded PDF Source Loading
+- **Changes:** Added a source-neutral PDF loading boundary with local-file and remote-URL adapters, streamed progress, cancellation, declared and measured byte limits, HTTP and PDF-header validation, immutable metadata, content-derived SHA-256 resource IDs, and explicit buffer release.
+- **Status:** Completed
+- **Next Steps:** Connect the validated source handle to the locally packaged EmbedPDF PDFium worker and the new reader entrypoint.
+- **Context:** Remote loading never delegates URL fetching to EmbedPDF, so the future Range Loader remains isolated behind the same source contract. All 362 unit/UI tests, the focused 12-case source suite, TypeScript checks, and whitespace validation pass.
