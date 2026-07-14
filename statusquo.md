@@ -1407,3 +1407,9 @@
 - **Status:** Completed
 - **Next Steps:** Read PDF bookmarks from PDFium and add a hierarchical chapter-outline mode to the existing navigation panel.
 - **Context:** The session record contains only stable resource/page identifiers, display name, source domain, and update time; PDF bytes remain in memory. Ninety-four focused unit/UI tests, TypeScript checks, production build, whitespace validation, and the packaged PDF reader test pass. The side-panel bundle keeps the new shared session chunk to 2.85 KB rather than importing the full analytics surface.
+
+## [2026-07-14 09:14] PDF Chapter Outline Navigation
+- **Changes:** Added a hierarchical chapter-outline mode backed by PDFium bookmarks, local destination and fit-mode mapping, active-page styling, empty/error states, nested bookmark fixture generation, and packaged-extension navigation coverage.
+- **Status:** Completed
+- **Next Steps:** Remove the duplicate zoom controls from the floating bottom page-navigation module while preserving the complete toolbar zoom controls.
+- **Context:** Only direct and local GoTo destinations are interactive; external actions remain inert. Raw PDF XYZ coordinates are intentionally not forwarded into the reader's top-left scroll coordinate system. Focused outline and plugin tests, TypeScript checks, production build, whitespace validation, and the packaged PDF reader test pass.

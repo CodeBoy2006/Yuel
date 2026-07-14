@@ -1,4 +1,5 @@
 import type { DocumentState } from '@embedpdf/core';
+import type { PdfEngine } from '@embedpdf/models';
 import { useDocumentManagerCapability } from '@embedpdf/plugin-document-manager/react';
 import {
   AlertTriangle,
@@ -25,7 +26,6 @@ import type {
 import { browser } from 'wxt/browser';
 
 import { BrandLockup } from '../../ui/primitives';
-import type { PdfTextRunsEngine } from '../analytics';
 import {
   isPdfSourceError,
   loadLocalPdfSource,
@@ -65,7 +65,7 @@ type SourceActivity =
 export interface PdfReaderWorkspaceProps {
   activeDocument: DocumentState | null;
   activeDocumentId: string | null;
-  engine: PdfTextRunsEngine;
+  engine: PdfEngine;
   pluginsReady: boolean;
 }
 
@@ -424,9 +424,14 @@ export function PdfReaderWorkspace({
         className="pdf-reader__workspace"
         data-panel-open={panelMode ? 'true' : 'false'}
       >
-        {documentLoaded && activeDocumentId && panelMode ? (
+        {documentLoaded
+          && activeDocumentId
+          && activeDocument?.document
+          && panelMode ? (
           <PdfReaderSidebar
+            document={activeDocument.document}
             documentId={activeDocumentId}
+            engine={engine}
             focusSearchRequest={focusSearchRequest}
             mode={panelMode}
             onClose={() => setPanelMode(null)}

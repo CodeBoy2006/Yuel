@@ -1,5 +1,10 @@
-import { MatchFlag } from '@embedpdf/models';
-import type { SearchResult } from '@embedpdf/models';
+import {
+  MatchFlag,
+  type PdfBookmarkObject,
+  type PdfDocumentObject,
+  type PdfEngine,
+  type SearchResult,
+} from '@embedpdf/models';
 import { useScroll, useScrollCapability } from '@embedpdf/plugin-scroll/react';
 import { useSearch } from '@embedpdf/plugin-search/react';
 import {
@@ -7,12 +12,14 @@ import {
   ThumbnailsPane,
 } from '@embedpdf/plugin-thumbnail/react';
 import type { ThumbMeta } from '@embedpdf/plugin-thumbnail';
+import { useZoom } from '@embedpdf/plugin-zoom/react';
 import {
   CaseSensitive,
   ChevronDown,
   ChevronUp,
   FileSearch,
   Images,
+  ListTree,
   LoaderCircle,
   Search as SearchIcon,
   WholeWord,
@@ -28,14 +35,19 @@ import {
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import {
+  getPdfOutlineDestination,
+} from './outline';
+import {
   getPdfSearchResultAnchor,
   groupPdfSearchResults,
 } from './searchResults';
 
-export type PdfReaderPanelMode = 'thumbnails' | 'search';
+export type PdfReaderPanelMode = 'outline' | 'thumbnails' | 'search';
 
 interface PdfReaderSidebarProps {
+  document: PdfDocumentObject;
   documentId: string;
+  engine: Pick<PdfEngine, 'getBookmarks'>;
   focusSearchRequest: number;
   mode: PdfReaderPanelMode;
   onClose: () => void;
@@ -44,7 +56,9 @@ interface PdfReaderSidebarProps {
 }
 
 export function PdfReaderSidebar({
+  document,
   documentId,
+  engine,
   focusSearchRequest,
   mode,
   onClose,
@@ -64,6 +78,16 @@ export function PdfReaderSidebar({
             role="tablist"
             aria-label="导航内容"
           >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'outline'}
+              title="目录"
+              onClick={() => onModeChange('outline')}
+            >
+              <ListTree aria-hidden="true" />
+              <span>目录</span>
+            </button>
             <button
               type="button"
               role="tab"
@@ -97,7 +121,14 @@ export function PdfReaderSidebar({
         </header>
 
         <div className="pdf-reader__sidebar-content">
-          {mode === 'thumbnails' ? (
+          {mode === 'outline' ? (
+            <PdfOutlinePanel
+              document={document}
+              documentId={documentId}
+              engine={engine}
+              onNavigate={onNavigate}
+            />
+          ) : mode === 'thumbnails' ? (
             <PdfThumbnailPanel
               documentId={documentId}
               onNavigate={onNavigate}
@@ -119,6 +150,150 @@ export function PdfReaderSidebar({
         onClick={onClose}
       />
     </>
+  );
+}
+
+type PdfOutlineLoadState =
+  | { status: 'loading' }
+  | { status: 'ready'; bookmarks: PdfBookmarkObject[] }
+  | { status: 'error' };
+
+function PdfOutlinePanel({
+  document,
+  documentId,
+  engine,
+  onNavigate,
+}: {
+  document: PdfDocumentObject;
+  documentId: string;
+  engine: Pick<PdfEngine, 'getBookmarks'>;
+  onNavigate: () => void;
+}) {
+  const { provides: scroll, state: scrollState } = useScroll(documentId);
+  const { provides: zoom } = useZoom(documentId);
+  const [outlineState, setOutlineState] = useState<PdfOutlineLoadState>({
+    status: 'loading',
+  });
+
+  useEffect(() => {
+    let active = true;
+    setOutlineState({ status: 'loading' });
+
+    void engine.getBookmarks(document).toPromise()
+      .then((result) => {
+        if (active) {
+          setOutlineState({
+            status: 'ready',
+            bookmarks: result.bookmarks ?? [],
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setOutlineState({ status: 'error' });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [document, engine]);
+
+  const navigateToBookmark = useCallback((bookmark: PdfBookmarkObject) => {
+    const destination = getPdfOutlineDestination(bookmark);
+    if (!destination || !scroll) return;
+
+    if (destination.zoom !== undefined) {
+      zoom?.requestZoom(destination.zoom);
+    }
+    scroll.scrollToPage({
+      pageNumber: destination.pageIndex + 1,
+      behavior: 'smooth',
+      alignY: 0,
+    });
+    onNavigate();
+  }, [onNavigate, scroll, zoom]);
+
+  if (outlineState.status === 'loading') {
+    return (
+      <div className="pdf-reader__sidebar-state" role="status">
+        <LoaderCircle className="is-spinning" aria-hidden="true" />
+        <span>正在读取章节目录</span>
+      </div>
+    );
+  }
+
+  if (outlineState.status === 'error') {
+    return (
+      <div className="pdf-reader__sidebar-state" role="alert">
+        <FileSearch aria-hidden="true" />
+        <span>章节目录读取失败</span>
+      </div>
+    );
+  }
+
+  if (outlineState.bookmarks.length === 0) {
+    return (
+      <div className="pdf-reader__sidebar-state">
+        <ListTree aria-hidden="true" />
+        <span>此 PDF 未包含章节目录</span>
+      </div>
+    );
+  }
+
+  return (
+    <nav className="pdf-reader__outline-panel" aria-label="PDF 章节目录">
+      <PdfOutlineItems
+        bookmarks={outlineState.bookmarks}
+        currentPage={scrollState.currentPage}
+        onActivate={navigateToBookmark}
+      />
+    </nav>
+  );
+}
+
+function PdfOutlineItems({
+  bookmarks,
+  currentPage,
+  onActivate,
+  path = 'root',
+}: {
+  bookmarks: PdfBookmarkObject[];
+  currentPage: number;
+  onActivate: (bookmark: PdfBookmarkObject) => void;
+  path?: string;
+}) {
+  return (
+    <ul className="pdf-reader__outline-list">
+      {bookmarks.map((bookmark, index) => {
+        const itemPath = `${path}-${index}`;
+        const destination = getPdfOutlineDestination(bookmark);
+        const pageNumber = destination ? destination.pageIndex + 1 : undefined;
+        const active = pageNumber === currentPage;
+        const title = bookmark.title.trim() || '未命名章节';
+
+        return (
+          <li className="pdf-reader__outline-item" key={itemPath}>
+            <button
+              type="button"
+              disabled={!destination}
+              aria-current={active ? 'location' : undefined}
+              title={pageNumber ? `${title} · 第 ${pageNumber} 页` : title}
+              onClick={() => onActivate(bookmark)}
+            >
+              <span>{title}</span>
+              {pageNumber ? <small>{pageNumber}</small> : null}
+            </button>
+            {bookmark.children?.length ? (
+              <PdfOutlineItems
+                bookmarks={bookmark.children}
+                currentPage={currentPage}
+                onActivate={onActivate}
+                path={itemPath}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

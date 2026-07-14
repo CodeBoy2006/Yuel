@@ -115,12 +115,41 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   expect(pixelEvidence.height).toBeGreaterThan(100);
   expect(pixelEvidence.nonWhitePixels).toBeGreaterThan(20);
 
-  const thumbnailPanelButton = pdfReader.getByRole('button', {
-    name: '切换缩略图面板',
+  const navigationPanelButton = pdfReader.getByRole('button', {
+    name: '切换目录与缩略图面板',
   });
-  await thumbnailPanelButton.click();
-  await expect(thumbnailPanelButton).toHaveAttribute('aria-pressed', 'true');
+  await navigationPanelButton.click();
+  await expect(navigationPanelButton).toHaveAttribute('aria-pressed', 'true');
   await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
+  await expect(pdfReader.getByRole('tab', { name: '目录' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  const outlineNavigation = pdfReader.getByRole('navigation', {
+    name: 'PDF 章节目录',
+  });
+  await expect(outlineNavigation).toBeVisible();
+  const introductionOutline = outlineNavigation.getByRole('button', {
+    name: /Introduction/,
+  });
+  const pageTwoOutline = outlineNavigation.getByRole('button', {
+    name: /Page two/,
+  });
+  const nestedOutline = outlineNavigation
+    .locator('.pdf-reader__outline-list .pdf-reader__outline-list')
+    .getByRole('button', { name: /Local rendering/ });
+  await expect(introductionOutline).toBeVisible();
+  await expect(pageTwoOutline).toBeVisible();
+  await expect(nestedOutline).toBeVisible();
+  const toolbarPageInput = pdfReader.locator(
+    '.pdf-reader__document-tools .pdf-reader__page-control input',
+  );
+  await pageTwoOutline.click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await introductionOutline.click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
+  await pdfReader.getByRole('tab', { name: '缩略图' }).click();
   const firstPageThumbnail = pdfReader.getByRole('button', {
     name: '前往第 1 页',
   });
@@ -131,9 +160,6 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(secondPageThumbnail).toBeVisible();
   await expect(firstPageThumbnail.locator('img')).toBeVisible();
   await expect(secondPageThumbnail.locator('img')).toBeVisible();
-  const toolbarPageInput = pdfReader.locator(
-    '.pdf-reader__document-tools .pdf-reader__page-control input',
-  );
   await secondPageThumbnail.click();
   await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
   await firstPageThumbnail.click();

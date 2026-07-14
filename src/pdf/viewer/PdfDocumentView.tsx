@@ -1,5 +1,8 @@
 import type { DocumentState } from '@embedpdf/core';
-import { PdfErrorCode } from '@embedpdf/models';
+import {
+  PdfErrorCode,
+  type PdfEngine,
+} from '@embedpdf/models';
 import {
   DocumentContent,
   useDocumentManagerCapability,
@@ -60,13 +63,12 @@ import type {
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
 import {
   PdfReadingAnalytics,
-  type PdfTextRunsEngine,
 } from '../analytics';
 import type { PdfSourceMetadata } from '../source';
 
 interface PdfDocumentViewProps {
   documentId: string;
-  engine: PdfTextRunsEngine;
+  engine: PdfEngine;
   onCloseDocument: () => Promise<void>;
   onOpenSearch: () => void;
   sourceMetadata?: PdfSourceMetadata;
@@ -261,17 +263,22 @@ export function DocumentToolbarControls({
   const zoomMode = typeof zoomState.zoomLevel === 'string'
     ? zoomState.zoomLevel
     : 'custom';
+  const navigationPanelOpen =
+    panelMode === 'outline' || panelMode === 'thumbnails';
+  const navigationPanelMode = panelMode === 'thumbnails'
+    ? 'thumbnails'
+    : 'outline';
 
   return (
     <div className="pdf-reader__document-tools">
       <button
         className="pdf-reader__icon-button pdf-reader__context-tool"
         type="button"
-        aria-label="切换缩略图面板"
+        aria-label="切换目录与缩略图面板"
         aria-controls="pdf-reader-context-panel"
-        aria-pressed={panelMode === 'thumbnails'}
-        title="缩略图"
-        onClick={() => onTogglePanel('thumbnails')}
+        aria-pressed={navigationPanelOpen}
+        title="目录与缩略图"
+        onClick={() => onTogglePanel(navigationPanelMode)}
       >
         <PanelLeft aria-hidden="true" />
       </button>

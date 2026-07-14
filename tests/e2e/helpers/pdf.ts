@@ -22,7 +22,23 @@ export function createPdfSmokeFixture(): Buffer {
     '',
   ].join('\n');
 
-  return createPdfFixture([firstPageContent, secondPageContent]);
+  return createPdfFixture(
+    [firstPageContent, secondPageContent],
+    [
+      {
+        title: 'Introduction',
+        pageIndex: 0,
+        children: [{
+          title: 'Local rendering',
+          pageIndex: 0,
+        }],
+      },
+      {
+        title: 'Page two',
+        pageIndex: 1,
+      },
+    ],
+  );
 }
 
 export interface PdfStressFixture {
@@ -35,6 +51,18 @@ export interface PdfStressFixture {
 export interface PdfStressFixtureOptions {
   linesPerPage?: number;
   pageCount?: number;
+}
+
+interface PdfFixtureOutlineNode {
+  title: string;
+  pageIndex: number;
+  children?: PdfFixtureOutlineNode[];
+}
+
+interface AssignedPdfFixtureOutlineNode extends PdfFixtureOutlineNode {
+  objectId: number;
+  parentObjectId: number;
+  children: AssignedPdfFixtureOutlineNode[];
 }
 
 export function createPdfStressFixture({
@@ -80,31 +108,105 @@ export function createPdfStressFixture({
   };
 }
 
-function createPdfFixture(pageContents: string[]): Buffer {
+function createPdfFixture(
+  pageContents: string[],
+  outline: PdfFixtureOutlineNode[] = [],
+): Buffer {
   const pageObjectIds = pageContents.map((_, index) => index + 3);
   const fontObjectId = pageContents.length + 3;
   const contentObjectIds = pageContents.map(
     (_, index) => fontObjectId + index + 1,
   );
+  let nextObjectId = contentObjectIds.at(-1)! + 1;
+  const outlineRootObjectId = outline.length > 0
+    ? nextObjectId++
+    : undefined;
+  const assignOutlineNodes = (
+    nodes: PdfFixtureOutlineNode[],
+    parentObjectId: number,
+  ): AssignedPdfFixtureOutlineNode[] => nodes.map((node) => {
+    assertIntegerInRange(
+      node.pageIndex,
+      0,
+      pageContents.length - 1,
+      'PDF outline page index',
+    );
+    const assigned: AssignedPdfFixtureOutlineNode = {
+      ...node,
+      objectId: nextObjectId++,
+      parentObjectId,
+      children: [],
+    };
+    assigned.children = assignOutlineNodes(
+      node.children ?? [],
+      assigned.objectId,
+    );
+    return assigned;
+  });
+  const assignedOutline = outlineRootObjectId === undefined
+    ? []
+    : assignOutlineNodes(outline, outlineRootObjectId);
   const pageReferences = pageObjectIds
     .map((objectId) => `${objectId} 0 R`)
     .join(' ');
+  const objectsById = new Map<number, string>();
 
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
+  objectsById.set(1, [
+    '<< /Type /Catalog /Pages 2 0 R',
+    ...(outlineRootObjectId === undefined
+      ? []
+      : [`   /Outlines ${outlineRootObjectId} 0 R`, '   /PageMode /UseOutlines']),
+    '>>',
+  ].join('\n'));
+  objectsById.set(
+    2,
     `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageContents.length} >>`,
-    ...pageObjectIds.map((_, index) => [
+  );
+  pageObjectIds.forEach((objectId, index) => {
+    objectsById.set(objectId, [
       '<< /Type /Page',
       '   /Parent 2 0 R',
       '   /MediaBox [0 0 612 792]',
       `   /Resources << /Font << /F1 ${fontObjectId} 0 R >> >>`,
       `   /Contents ${contentObjectIds[index]} 0 R`,
       '>>',
-    ].join('\n')),
+    ].join('\n'));
+  });
+  objectsById.set(
+    fontObjectId,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    ...pageContents.map((content) =>
-      `<< /Length ${Buffer.byteLength(content, 'ascii')} >>\nstream\n${content}endstream`),
-  ];
+  );
+  pageContents.forEach((content, index) => {
+    objectsById.set(
+      contentObjectIds[index],
+      `<< /Length ${Buffer.byteLength(content, 'ascii')} >>\nstream\n${content}endstream`,
+    );
+  });
+
+  if (outlineRootObjectId !== undefined) {
+    objectsById.set(outlineRootObjectId, [
+      '<< /Type /Outlines',
+      `   /First ${assignedOutline[0].objectId} 0 R`,
+      `   /Last ${assignedOutline.at(-1)!.objectId} 0 R`,
+      `   /Count ${countAssignedOutlineItems(assignedOutline)}`,
+      '>>',
+    ].join('\n'));
+    addAssignedOutlineObjects(
+      assignedOutline,
+      pageObjectIds,
+      objectsById,
+    );
+  }
+
+  const objectCount = nextObjectId - 1;
+  const objects = Array.from({ length: objectCount }, (_, index) => {
+    const objectId = index + 1;
+    const object = objectsById.get(objectId);
+    if (!object) {
+      throw new Error(`Missing generated PDF object ${objectId}`);
+    }
+    return object;
+  });
 
   let pdf = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
   const offsets = [0];
@@ -131,6 +233,44 @@ function createPdfFixture(pageContents: string[]): Buffer {
   ].join('\n');
 
   return Buffer.from(pdf, 'binary');
+}
+
+function addAssignedOutlineObjects(
+  nodes: AssignedPdfFixtureOutlineNode[],
+  pageObjectIds: number[],
+  objectsById: Map<number, string>,
+): void {
+  nodes.forEach((node, index) => {
+    const previous = nodes[index - 1];
+    const next = nodes[index + 1];
+    const childCount = countAssignedOutlineItems(node.children);
+    objectsById.set(node.objectId, [
+      '<<',
+      `   /Title (${escapePdfString(node.title)})`,
+      `   /Parent ${node.parentObjectId} 0 R`,
+      `   /Dest [${pageObjectIds[node.pageIndex]} 0 R /Fit]`,
+      ...(previous ? [`   /Prev ${previous.objectId} 0 R`] : []),
+      ...(next ? [`   /Next ${next.objectId} 0 R`] : []),
+      ...(node.children.length > 0
+        ? [
+          `   /First ${node.children[0].objectId} 0 R`,
+          `   /Last ${node.children.at(-1)!.objectId} 0 R`,
+          `   /Count ${childCount}`,
+        ]
+        : []),
+      '>>',
+    ].join('\n'));
+    addAssignedOutlineObjects(node.children, pageObjectIds, objectsById);
+  });
+}
+
+function countAssignedOutlineItems(
+  nodes: AssignedPdfFixtureOutlineNode[],
+): number {
+  return nodes.reduce(
+    (count, node) => count + 1 + countAssignedOutlineItems(node.children),
+    0,
+  );
 }
 
 function escapePdfString(text: string): string {
