@@ -38,6 +38,11 @@ export function createPdfSmokeFixture(): Buffer {
         pageIndex: 1,
       },
     ],
+    [{
+      pageIndex: 0,
+      targetPageIndex: 1,
+      rect: [70, 704, 410, 744],
+    }],
   );
 }
 
@@ -57,6 +62,12 @@ interface PdfFixtureOutlineNode {
   title: string;
   pageIndex: number;
   children?: PdfFixtureOutlineNode[];
+}
+
+interface PdfFixtureLink {
+  pageIndex: number;
+  targetPageIndex: number;
+  rect: [number, number, number, number];
 }
 
 interface AssignedPdfFixtureOutlineNode extends PdfFixtureOutlineNode {
@@ -111,6 +122,7 @@ export function createPdfStressFixture({
 function createPdfFixture(
   pageContents: string[],
   outline: PdfFixtureOutlineNode[] = [],
+  links: PdfFixtureLink[] = [],
 ): Buffer {
   const pageObjectIds = pageContents.map((_, index) => index + 3);
   const fontObjectId = pageContents.length + 3;
@@ -118,6 +130,10 @@ function createPdfFixture(
     (_, index) => fontObjectId + index + 1,
   );
   let nextObjectId = contentObjectIds.at(-1)! + 1;
+  const assignedLinks = links.map((link) => ({
+    ...link,
+    objectId: nextObjectId++,
+  }));
   const outlineRootObjectId = outline.length > 0
     ? nextObjectId++
     : undefined;
@@ -163,12 +179,17 @@ function createPdfFixture(
     `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageContents.length} >>`,
   );
   pageObjectIds.forEach((objectId, index) => {
+    const annotationReferences = assignedLinks
+      .filter((link) => link.pageIndex === index)
+      .map((link) => `${link.objectId} 0 R`)
+      .join(' ');
     objectsById.set(objectId, [
       '<< /Type /Page',
       '   /Parent 2 0 R',
       '   /MediaBox [0 0 612 792]',
       `   /Resources << /Font << /F1 ${fontObjectId} 0 R >> >>`,
       `   /Contents ${contentObjectIds[index]} 0 R`,
+      ...(annotationReferences ? [`   /Annots [${annotationReferences}]`] : []),
       '>>',
     ].join('\n'));
   });
@@ -181,6 +202,28 @@ function createPdfFixture(
       contentObjectIds[index],
       `<< /Length ${Buffer.byteLength(content, 'ascii')} >>\nstream\n${content}endstream`,
     );
+  });
+  assignedLinks.forEach((link) => {
+    assertIntegerInRange(
+      link.pageIndex,
+      0,
+      pageContents.length - 1,
+      'PDF link page index',
+    );
+    assertIntegerInRange(
+      link.targetPageIndex,
+      0,
+      pageContents.length - 1,
+      'PDF link target page index',
+    );
+    objectsById.set(link.objectId, [
+      '<< /Type /Annot',
+      '   /Subtype /Link',
+      `   /Rect [${link.rect.join(' ')}]`,
+      '   /Border [0 0 0]',
+      `   /Dest [${pageObjectIds[link.targetPageIndex]} 0 R /Fit]`,
+      '>>',
+    ].join('\n'));
   });
 
   if (outlineRootObjectId !== undefined) {

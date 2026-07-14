@@ -1,20 +1,36 @@
 import type { DocumentState } from '@embedpdf/core';
 import {
   PdfErrorCode,
+  Rotation,
   type PdfEngine,
 } from '@embedpdf/models';
+import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
 import {
   DocumentContent,
   useDocumentManagerCapability,
 } from '@embedpdf/plugin-document-manager/react';
+import { useExport } from '@embedpdf/plugin-export/react';
 import {
   GlobalPointerProvider,
   PagePointerProvider,
 } from '@embedpdf/plugin-interaction-manager/react';
-import { usePan } from '@embedpdf/plugin-pan/react';
+import {
+  usePan,
+  usePanCapability,
+} from '@embedpdf/plugin-pan/react';
 import { RenderLayer } from '@embedpdf/plugin-render/react';
-import { Rotate, useRotate } from '@embedpdf/plugin-rotate/react';
-import { Scroller, useScroll } from '@embedpdf/plugin-scroll/react';
+import {
+  Rotate,
+  useRotate,
+  useRotateCapability,
+} from '@embedpdf/plugin-rotate/react';
+import {
+  ScrollStrategy,
+  Scroller,
+  useScroll,
+  useScrollCapability,
+} from '@embedpdf/plugin-scroll/react';
+import type { ScrollMetrics } from '@embedpdf/plugin-scroll';
 import { SearchLayer } from '@embedpdf/plugin-search/react';
 import {
   SelectionLayer,
@@ -24,24 +40,30 @@ import type {
   SelectionSelectionMenuProps,
 } from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
+import { usePrint } from '@embedpdf/plugin-print/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
 import {
   useZoom,
+  useZoomCapability,
   ZoomGestureWrapper,
   ZoomMode,
 } from '@embedpdf/plugin-zoom/react';
+import type { ZoomLevel } from '@embedpdf/plugin-zoom';
 import {
   AlertCircle,
+  BookmarkPlus,
   Check,
   ChevronLeft,
   ChevronRight,
   Copy,
+  Download,
   Eye,
   EyeOff,
   Hand,
   LoaderCircle,
   LockKeyhole,
   PanelLeft,
+  Printer,
   RotateCw,
   Search,
   X,
@@ -64,20 +86,32 @@ import type { PdfReaderPanelMode } from './PdfReaderSidebar';
 import {
   PdfReadingAnalytics,
 } from '../analytics';
+import {
+  recordPdfDocumentOpen,
+  savePdfDocumentViewState,
+  toPdfPageCoordinates,
+} from '../documentState';
+import type { PdfReaderTarget } from '../navigation';
 import type { PdfSourceMetadata } from '../source';
+import { savePdfSelectedTextItem } from '../../storage/saveItems';
+import type { PdfReaderZoomLevel } from '../../storage/schema';
 
 interface PdfDocumentViewProps {
   documentId: string;
   engine: PdfEngine;
   onCloseDocument: () => Promise<void>;
+  onDocumentStateReady?: () => void;
   onOpenSearch: () => void;
+  initialTarget?: PdfReaderTarget;
   sourceMetadata?: PdfSourceMetadata;
 }
 
 export function PdfDocumentView({
   documentId,
   engine,
+  initialTarget,
   onCloseDocument,
+  onDocumentStateReady,
   onOpenSearch,
   sourceMetadata,
 }: PdfDocumentViewProps) {
@@ -133,14 +167,23 @@ export function PdfDocumentView({
                 {isLoaded ? (
                   <>
                     {documentState.document && sourceMetadata ? (
-                      <PdfReadingAnalytics
-                        document={documentState.document}
-                        documentId={documentId}
-                        documentRotation={documentState.rotation}
-                        engine={engine}
-                        metadata={sourceMetadata}
-                        scale={documentState.scale}
-                      />
+                      <>
+                        <PdfDocumentStateController
+                          documentId={documentId}
+                          initialTarget={initialTarget}
+                          metadata={sourceMetadata}
+                          onReady={onDocumentStateReady}
+                          pages={documentState.document.pages}
+                        />
+                        <PdfReadingAnalytics
+                          document={documentState.document}
+                          documentId={documentId}
+                          documentRotation={documentState.rotation}
+                          engine={engine}
+                          metadata={sourceMetadata}
+                          scale={documentState.scale}
+                        />
+                      </>
                     ) : null}
                     <ZoomGestureWrapper
                       documentId={documentId}
@@ -198,8 +241,14 @@ export function PdfDocumentView({
                                     <PdfSelectionMenu
                                       {...props}
                                       documentId={documentId}
+                                      sourceMetadata={sourceMetadata}
                                     />
                                   )}
+                                />
+                                <AnnotationLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  className="pdf-reader__annotation-layer"
                                 />
                               </PagePointerProvider>
                             </Rotate>
@@ -241,7 +290,10 @@ export function DocumentToolbarControls({
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: rotate, rotation } = useRotate(documentId);
   const { provides: pan, isPanning } = usePan(documentId);
+  const { provides: print } = usePrint(documentId);
+  const { provides: exportPdf } = useExport(documentId);
   const [zoomDraft, setZoomDraft] = useState('100');
+  const [printStatus, setPrintStatus] = useState<'idle' | 'printing' | 'failed'>('idle');
 
   useEffect(() => {
     setZoomDraft(String(Math.round((zoomState.currentZoomLevel || 1) * 100)));
@@ -268,6 +320,16 @@ export function DocumentToolbarControls({
   const navigationPanelMode = panelMode === 'thumbnails'
     ? 'thumbnails'
     : 'outline';
+  const printDocument = async () => {
+    if (!print || printStatus === 'printing') return;
+    setPrintStatus('printing');
+    try {
+      await print.print().toPromise();
+      setPrintStatus('idle');
+    } catch {
+      setPrintStatus('failed');
+    }
+  };
 
   return (
     <div className="pdf-reader__document-tools">
@@ -294,7 +356,7 @@ export function DocumentToolbarControls({
         <Search aria-hidden="true" />
       </button>
       <button
-        className="pdf-reader__icon-button pdf-reader__context-tool"
+        className="pdf-reader__icon-button pdf-reader__context-tool pdf-reader__pan-tool"
         type="button"
         aria-label="切换拖拽浏览"
         aria-pressed={isPanning}
@@ -392,6 +454,35 @@ export function DocumentToolbarControls({
         onClick={() => rotate?.rotateForward()}
       >
         <RotateCw aria-hidden="true" />
+      </button>
+
+      <span
+        className="pdf-reader__toolbar-divider pdf-reader__output-tool"
+        aria-hidden="true"
+      />
+
+      <button
+        className="pdf-reader__icon-button pdf-reader__output-tool"
+        type="button"
+        aria-label="打印 PDF"
+        title={printStatus === 'failed' ? '打印失败，请重试' : '打印 PDF'}
+        disabled={!print || printStatus === 'printing'}
+        aria-busy={printStatus === 'printing'}
+        onClick={() => void printDocument()}
+      >
+        {printStatus === 'printing'
+          ? <LoaderCircle className="is-spinning" aria-hidden="true" />
+          : <Printer aria-hidden="true" />}
+      </button>
+      <button
+        className="pdf-reader__icon-button pdf-reader__output-tool"
+        type="button"
+        aria-label="下载 PDF"
+        title="下载 PDF"
+        disabled={!exportPdf}
+        onClick={() => exportPdf?.download()}
+      >
+        <Download aria-hidden="true" />
       </button>
     </div>
   );
@@ -722,15 +813,19 @@ function PdfSelectionMenu({
   menuWrapperProps,
   placement,
   rect,
+  sourceMetadata,
 }: SelectionSelectionMenuProps & {
   documentId: string;
+  sourceMetadata?: PdfSourceMetadata;
 }) {
   const { provides: selection } = useSelectionCapability();
   const [copied, setCopied] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const resetTimerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     setCopied(false);
+    setSaveStatus('idle');
   }, [placement]);
 
   useEffect(() => {
@@ -757,6 +852,47 @@ function PdfSelectionMenu({
     };
   }, []);
 
+  const saveSelection = async () => {
+    const scope = selection?.forDocument(documentId);
+    if (!scope || !sourceMetadata || saveStatus === 'saving') return;
+
+    setSaveStatus('saving');
+    try {
+      const selectedText = (await scope.getSelectedText().toPromise()).join(' ');
+      const sourceRects = scope.getFormattedSelection().flatMap((selectionPage) => {
+        const rects = selectionPage.segmentRects.length > 0
+          ? selectionPage.segmentRects
+          : [selectionPage.rect];
+        return rects.map((sourceRect) => ({
+          pageIndex: selectionPage.pageIndex,
+          x: sourceRect.origin.x,
+          y: sourceRect.origin.y,
+          width: sourceRect.size.width,
+          height: sourceRect.size.height,
+        }));
+      });
+      const savedItem = await savePdfSelectedTextItem(selectedText, {
+        metadata: sourceMetadata,
+        sourceRects,
+      });
+      if (!savedItem) {
+        setSaveStatus('failed');
+        return;
+      }
+
+      setSaveStatus('saved');
+      if (resetTimerRef.current !== undefined) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+      resetTimerRef.current = window.setTimeout(() => {
+        scope.clear();
+        setSaveStatus('idle');
+      }, 900);
+    } catch {
+      setSaveStatus('failed');
+    }
+  };
+
   return (
     <div {...menuWrapperProps}>
       <div
@@ -765,6 +901,29 @@ function PdfSelectionMenu({
           top: placement.suggestTop ? -48 : rect.size.height + 8,
         }}
       >
+        <button
+          type="button"
+          data-no-interaction
+          aria-label="保存所选文本到 Yuel"
+          title={saveStatus === 'failed' ? '保存失败，请重试' : '保存摘录'}
+          disabled={!sourceMetadata || saveStatus === 'saving'}
+          onClick={() => void saveSelection()}
+        >
+          {saveStatus === 'saving'
+            ? <LoaderCircle className="is-spinning" aria-hidden="true" />
+            : saveStatus === 'saved'
+              ? <Check aria-hidden="true" />
+              : <BookmarkPlus aria-hidden="true" />}
+          <span>
+            {saveStatus === 'saving'
+              ? '保存中'
+              : saveStatus === 'saved'
+                ? '已保存'
+                : saveStatus === 'failed'
+                  ? '重试'
+                  : '保存'}
+          </span>
+        </button>
         <button
           type="button"
           data-no-interaction
@@ -780,6 +939,181 @@ function PdfSelectionMenu({
       </div>
     </div>
   );
+}
+
+function PdfDocumentStateController({
+  documentId,
+  initialTarget,
+  metadata,
+  onReady,
+  pages,
+}: {
+  documentId: string;
+  initialTarget?: PdfReaderTarget;
+  metadata: PdfSourceMetadata;
+  onReady?: () => void;
+  pages: NonNullable<DocumentState['document']>['pages'];
+}) {
+  const { provides: scrollCapability } = useScrollCapability();
+  const { provides: zoomCapability } = useZoomCapability();
+  const { provides: rotateCapability } = useRotateCapability();
+  const { provides: panCapability } = usePanCapability();
+  const restoredDocumentRef = useRef<string | undefined>(undefined);
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+
+  useEffect(() => {
+    if (
+      !scrollCapability
+      || !zoomCapability
+      || !rotateCapability
+      || !panCapability
+    ) {
+      return;
+    }
+    if (restoredDocumentRef.current === documentId) return;
+
+    const scroll = scrollCapability.forDocument(documentId);
+    const zoom = zoomCapability.forDocument(documentId);
+    const rotate = rotateCapability.forDocument(documentId);
+    const pan = panCapability.forDocument(documentId);
+    let cancelled = false;
+    let saveTimer: number | undefined;
+    let latestMetrics: ScrollMetrics | undefined;
+    let persistNow = () => undefined;
+    const unsubscribers: Array<() => void> = [];
+
+    void (async () => {
+      const stored = await recordPdfDocumentOpen(metadata);
+      if (cancelled) return;
+
+      const scrollStrategy = stored.scrollStrategy === 'horizontal'
+        ? ScrollStrategy.Horizontal
+        : ScrollStrategy.Vertical;
+      const target = initialTarget?.resourceId === documentId
+        ? initialTarget
+        : undefined;
+      const requestedPageIndex = target?.pageIndex ?? stored.pageIndex;
+      const pageIndex = Math.min(
+        Math.max(0, requestedPageIndex),
+        Math.max(0, scroll.getTotalPages() - 1),
+      );
+      const requestedPageCoordinates = target?.pageCoordinates ?? stored.pageCoordinates;
+      const pageCoordinates = pageIndex === requestedPageIndex
+        ? requestedPageCoordinates
+        : undefined;
+
+      scroll.setScrollStrategy(scrollStrategy);
+      rotate.setRotation(stored.rotation as Rotation);
+      if (stored.isPanMode) {
+        pan.enablePan();
+      } else {
+        pan.disablePan();
+      }
+      zoom.requestZoom(toEmbedPdfZoomLevel(stored.zoomLevel));
+
+      await waitForAnimationFrame();
+      await waitForAnimationFrame();
+      if (cancelled) return;
+
+      scroll.scrollToPage({
+        pageNumber: pageIndex + 1,
+        ...(pageCoordinates ? { pageCoordinates } : {}),
+        behavior: 'instant',
+        alignY: 0,
+      });
+      restoredDocumentRef.current = documentId;
+      onReady?.();
+
+      persistNow = () => {
+        if (cancelled || restoredDocumentRef.current !== documentId) return;
+
+        let metrics: ScrollMetrics;
+        try {
+          metrics = latestMetrics ?? scroll.getMetrics();
+        } catch {
+          return;
+        }
+        const currentPage = Math.max(1, metrics.currentPage);
+        const currentPageMetrics = metrics.pageVisibilityMetrics.find(
+          (page) => page.pageNumber === currentPage,
+        );
+        const currentPageObject = pagesRef.current[currentPage - 1];
+        const rotation = rotate.getRotation();
+        const pageCoordinates = currentPageMetrics && currentPageObject
+          ? toPdfPageCoordinates(
+              {
+                x: currentPageMetrics.original.pageX,
+                y: currentPageMetrics.original.pageY,
+              },
+              currentPageObject.size,
+              ((currentPageObject.rotation ?? 0) + rotation) % 4,
+            )
+          : undefined;
+        void savePdfDocumentViewState(documentId, {
+          pageIndex: currentPage - 1,
+          ...(pageCoordinates ? { pageCoordinates } : {}),
+          zoomLevel: zoom.getState().zoomLevel,
+          scrollStrategy,
+          rotation,
+          isPanMode: pan.isPanMode(),
+        }).catch(() => undefined);
+      };
+      const scheduleSave = () => {
+        if (saveTimer !== undefined) {
+          window.clearTimeout(saveTimer);
+        }
+        saveTimer = window.setTimeout(persistNow, 320);
+      };
+
+      unsubscribers.push(
+        scroll.onScroll((metrics) => {
+          latestMetrics = metrics;
+          scheduleSave();
+        }),
+        zoom.onStateChange(scheduleSave),
+        rotate.onRotateChange(scheduleSave),
+        pan.onPanModeChange(scheduleSave),
+      );
+      window.addEventListener('pagehide', persistNow);
+      unsubscribers.push(() => window.removeEventListener('pagehide', persistNow));
+    })().catch(() => {
+      onReady?.();
+    });
+
+    return () => {
+      persistNow();
+      cancelled = true;
+      if (saveTimer !== undefined) {
+        window.clearTimeout(saveTimer);
+      }
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [
+    documentId,
+    initialTarget,
+    metadata,
+    onReady,
+    panCapability,
+    rotateCapability,
+    scrollCapability,
+    zoomCapability,
+  ]);
+
+  return null;
+}
+
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+function toEmbedPdfZoomLevel(value: PdfReaderZoomLevel): ZoomLevel {
+  if (value === 'automatic') return ZoomMode.Automatic;
+  if (value === 'fit-page') return ZoomMode.FitPage;
+  if (value === 'fit-width') return ZoomMode.FitWidth;
+  return value;
 }
 
 function ReaderDocumentState({

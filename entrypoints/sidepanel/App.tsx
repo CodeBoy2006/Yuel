@@ -23,6 +23,10 @@ import {
   type CurrentPdfReaderState,
 } from '../../src/pdf/sessionContext';
 import {
+  createPdfReaderUrl,
+  type PdfReaderTarget,
+} from '../../src/pdf/navigation';
+import {
   getCurrentPageReadingSummary,
   getPageReadingSummary,
   getSidePanelReadingDetails,
@@ -54,7 +58,7 @@ export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 
 export interface SidePanelAppDependencies {
   openDashboard: (target?: 'share-card') => Promise<void>;
-  openPdfReader: () => Promise<void>;
+  openPdfReader: (target?: PdfReaderTarget) => Promise<void>;
   getCurrentPdfReaderState: typeof getCurrentPdfReaderState;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
   getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
@@ -77,8 +81,12 @@ const defaultDependencies: SidePanelAppDependencies = {
     }
     await browser.tabs.create({ url: url.toString() });
   },
-  openPdfReader: async () => {
-    await browser.tabs.create({ url: new URL('/pdf-reader.html', window.location.href).toString() });
+  openPdfReader: async (target) => {
+    await browser.tabs.create({
+      url: target
+        ? createPdfReaderUrl(window.location.href, target)
+        : new URL('/pdf-reader.html', window.location.href).toString(),
+    });
   },
 };
 
@@ -314,6 +322,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const dashboardActionBusy = dashboardBusy || shareCardBusy;
   const vocabulary = details?.recentVocabulary ?? [];
   const savedItem = details?.recentSavedItems[0];
+  const savedPdfAnchor = savedItem?.pdfAnchor;
   const refreshLabel = loadFailed || siteAccessFailed || currentPageFailed
     ? '同步未完成'
     : lastUpdatedAt
@@ -348,14 +357,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     }
   };
 
-  const openPdfReader = async () => {
+  const openPdfReader = async (target?: PdfReaderTarget) => {
     if (pdfReaderBusyRef.current) return;
     pdfReaderBusyRef.current = true;
     setPdfReaderBusy(true);
     setPdfReaderFailed(false);
 
     try {
-      await dependencies.openPdfReader();
+      await dependencies.openPdfReader(target);
     } catch (error) {
       console.error('Failed to open Yuel PDF reader from side panel', error);
       if (mountedRef.current) setPdfReaderFailed(true);
@@ -473,6 +482,26 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
                 <span title={savedItem.sourceDomain}>{savedItem.sourceDomain}</span>
                 <time dateTime={new Date(savedItem.createdAt).toISOString()}>{formatDateTime(savedItem.createdAt)}</time>
               </figcaption>
+              {savedPdfAnchor ? (
+                <button
+                  className="sidepanel-excerpt__backlink"
+                  type="button"
+                  disabled={pdfReaderBusy}
+                  aria-busy={pdfReaderBusy}
+                  onClick={() => void openPdfReader({
+                    resourceId: savedPdfAnchor.resourceId,
+                    pageIndex: savedPdfAnchor.pageIndex,
+                    ...(savedPdfAnchor.pageCoordinates
+                      ? { pageCoordinates: savedPdfAnchor.pageCoordinates }
+                      : {}),
+                  })}
+                >
+                  <ExternalLink aria-hidden="true" />
+                  {pdfReaderBusy
+                    ? '打开中...'
+                    : `第 ${savedPdfAnchor.pageIndex + 1} 页 · 跳回原文`}
+                </button>
+              ) : null}
             </figure>
           ) : (
             <EmptyState>{loadFailed ? '摘录数据暂时不可用。' : details ? '还没有保存摘录。' : '正在读取摘录。'}</EmptyState>

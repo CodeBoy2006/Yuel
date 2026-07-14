@@ -12,6 +12,7 @@ import {
 import type {
   DailyStatRecord,
   PageRecord,
+  PdfAnnotationRecord,
   ReadingSessionRecord,
   SavedItemRecord,
   VocabExposureRecord,
@@ -30,6 +31,7 @@ function createStore({
   readingSessions = [],
   recentVocabulary = [],
   recentSavedItems = [],
+  pdfAnnotations = new Map<string, PdfAnnotationRecord>(),
   pagesById = new Map<string, PageRecord>(),
   historicalDailyStats = new Map<string, ReturnType<typeof createDailyStat>>(),
   checkInThresholdWords,
@@ -50,6 +52,7 @@ function createStore({
   readingSessions?: ReadingSessionRecord[];
   recentVocabulary?: VocabExposureRecord[];
   recentSavedItems?: SavedItemRecord[];
+  pdfAnnotations?: Map<string, PdfAnnotationRecord>;
   pagesById?: Map<string, PageRecord>;
   historicalDailyStats?: Map<string, ReturnType<typeof createDailyStat>>;
   checkInThresholdWords?: number;
@@ -180,6 +183,11 @@ function createStore({
             };
           },
         };
+      },
+    },
+    pdfAnnotations: {
+      async bulkGet(ids: string[]) {
+        return ids.map((id) => pdfAnnotations.get(id));
       },
     },
   };
@@ -405,6 +413,39 @@ describe('getReadingDashboardDetails', () => {
       },
     ]);
     expect(details.hasData).toBe(true);
+  });
+
+  it('joins PDF saved items to precise source anchors for reader backlinks', async () => {
+    const annotation = createPdfAnnotationRecord();
+    const details = await getReadingDashboardDetails(
+      createStore({
+        recentSavedItems: [
+          createSavedItemRecord({
+            id: 'saved-pdf',
+            sourceDomain: 'pdf.local',
+            tags: ['selection', 'pdf'],
+            pdfAnnotationId: annotation.id,
+          }),
+        ],
+        pdfAnnotations: new Map([[annotation.id, annotation]]),
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.recentSavedItems).toEqual([
+      expect.objectContaining({
+        id: 'saved-pdf',
+        pdfAnchor: {
+          annotationId: annotation.id,
+          resourceId: annotation.resourceId,
+          pageIndex: 2,
+          pageCoordinates: {
+            x: 72,
+            y: 144,
+          },
+        },
+      }),
+    ]);
   });
 
   it('omits recent pages that have no measured reading exposure', async () => {
@@ -1055,6 +1096,29 @@ function createSavedItemRecord(overrides: Partial<SavedItemRecord> = {}): SavedI
     sourceDomain: 'developer.mozilla.org',
     tags: ['selection'],
     createdAt: morningOnJune27,
+    ...overrides,
+  };
+}
+
+function createPdfAnnotationRecord(
+  overrides: Partial<PdfAnnotationRecord> = {},
+): PdfAnnotationRecord {
+  return {
+    id: 'pdf-annotation-1',
+    resourceId: `pdf_${'a'.repeat(64)}`,
+    pageIndex: 2,
+    type: 'excerpt',
+    quote: 'fail gracefully under pressure',
+    textHash: 'quote-hash',
+    sourceRects: [{
+      pageIndex: 2,
+      x: 72,
+      y: 144,
+      width: 180,
+      height: 18,
+    }],
+    createdAt: morningOnJune27,
+    updatedAt: morningOnJune27,
     ...overrides,
   };
 }

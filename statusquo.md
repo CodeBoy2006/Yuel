@@ -1437,3 +1437,9 @@
 - **Status:** Completed
 - **Next Steps:** Keep the five-minute session boundary and 30-second focus-session threshold unchanged until observed reading behavior justifies tuning.
 - **Context:** The fixes are split across commits `b074693`, `9c16d91`, and `6580027`. All 437 unit/UI tests, TypeScript checks, production build, whitespace validation, design-rule scan, and five packaged-extension Chromium tests pass.
+
+## [2026-07-14 12:28] PDF Reader Source Backlinks and Resume
+- **Changes:** Added annotation-backed PDF selection saving with page/rectangle anchors and Dashboard/Side Panel backlinks; persisted and restored page position, zoom, rotation, scroll strategy, and pan mode; added recent-document reopening with SHA-256 identity checks; enabled embedded links and read-only existing annotations; and added print plus original-name download controls.
+- **Status:** Completed
+- **Next Steps:** Build the native highlight, note, annotation-sidebar, export, vocabulary, and review loop on top of the new PDF annotation and document-state tables.
+- **Context:** Local PDF bytes remain memory-only, so local recents and backlinks require the user to reselect the original file before restoring. Remote documents reopen through the original URL and are accepted only when the resulting content hash matches. All 455 unit/UI tests, TypeScript checks, production build, generated-output smoke validation, whitespace validation, five packaged-extension Chromium tests, the focused PDF workflow E2E, and the 160-page / 20,160-word pressure test pass.

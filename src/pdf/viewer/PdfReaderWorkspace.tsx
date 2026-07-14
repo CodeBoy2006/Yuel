@@ -26,6 +26,15 @@ import type {
 import { browser } from 'wxt/browser';
 
 import { BrandLockup } from '../../ui/primitives';
+import type { PdfDocumentStateRecord } from '../../storage/schema';
+import {
+  getPdfDocumentState,
+  getRecentPdfDocumentStates,
+} from '../documentState';
+import {
+  parsePdfReaderTarget,
+  type PdfReaderTarget,
+} from '../navigation';
 import {
   isPdfSourceError,
   loadLocalPdfSource,
@@ -62,6 +71,17 @@ type SourceActivity =
   | { kind: 'opening'; source: 'local' | 'remote' }
   | { kind: 'error'; message: string };
 
+interface PendingLocalDocument {
+  state: PdfDocumentStateRecord;
+  target?: PdfReaderTarget;
+}
+
+interface OpenSourceOptions {
+  expectedDisplayName?: string;
+  expectedResourceId?: string;
+  target?: PdfReaderTarget;
+}
+
 export interface PdfReaderWorkspaceProps {
   activeDocument: DocumentState | null;
   activeDocumentId: string | null;
@@ -78,6 +98,9 @@ export function PdfReaderWorkspace({
   const { provides: documentManager } = useDocumentManagerCapability();
   const [activity, setActivity] = useState<SourceActivity>({ kind: 'idle' });
   const [sourceMetadata, setSourceMetadata] = useState<PdfSourceMetadata>();
+  const [documentTarget, setDocumentTarget] = useState<PdfReaderTarget>();
+  const [recentDocuments, setRecentDocuments] = useState<PdfDocumentStateRecord[]>([]);
+  const [pendingLocalDocument, setPendingLocalDocument] = useState<PendingLocalDocument>();
   const [remoteFormOpen, setRemoteFormOpen] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState('');
   const [statsBusy, setStatsBusy] = useState(false);
@@ -88,6 +111,11 @@ export function PdfReaderWorkspace({
   const mountedRef = useRef(true);
   const loadSequenceRef = useRef(0);
   const abortControllerRef = useRef<AbortController | undefined>(undefined);
+  const pendingLocalDocumentRef = useRef<PendingLocalDocument | undefined>(undefined);
+  const launchTargetRef = useRef<PdfReaderTarget | undefined>(
+    parsePdfReaderTarget(window.location.search),
+  );
+  const launchTargetHandledRef = useRef(false);
 
   const isBusy = activity.kind === 'loading' || activity.kind === 'opening';
   const canOpenSource = pluginsReady && Boolean(documentManager) && !isBusy;
@@ -97,12 +125,26 @@ export function PdfReaderWorkspace({
     ?? '尚未打开 PDF';
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       loadSequenceRef.current += 1;
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const refreshRecentDocuments = useCallback(async () => {
+    try {
+      const documents = await getRecentPdfDocumentStates();
+      if (mountedRef.current) setRecentDocuments(documents);
+    } catch {
+      if (mountedRef.current) setRecentDocuments([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRecentDocuments();
+  }, [refreshRecentDocuments]);
 
   useEffect(() => {
     setPanelMode(null);
@@ -161,8 +203,9 @@ export function PdfReaderWorkspace({
       signal: AbortSignal,
       onProgress: (progress: PdfSourceProgress) => void,
     ) => Promise<PdfSourceHandle>,
-  ) => {
-    if (!documentManager || isBusy) return;
+    options: OpenSourceOptions = {},
+  ): Promise<boolean> => {
+    if (!documentManager || isBusy) return false;
 
     const requestId = ++loadSequenceRef.current;
     abortControllerRef.current?.abort();
@@ -188,13 +231,25 @@ export function PdfReaderWorkspace({
           setActivity({ kind: 'loading', source: sourceKind, progress });
         }
       });
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
 
       setActivity({ kind: 'opening', source: sourceKind });
-      await documentManager.closeAllDocuments().toPromise();
-      if (!isCurrentRequest()) return;
-
       const metadata = source.metadata;
+      if (
+        options.expectedResourceId
+        && metadata.resourceId !== options.expectedResourceId
+      ) {
+        throw new Error(
+          `所选 PDF 与阅读记录不匹配。请重新选择“${
+            options.expectedDisplayName ?? '原 PDF'
+          }”。`,
+        );
+      }
+
+      await documentManager.closeAllDocuments().toPromise();
+      if (!isCurrentRequest()) return false;
+
+      setDocumentTarget(options.target);
       const response = await documentManager.openDocumentBuffer({
         buffer: source.getBuffer(),
         name: metadata.displayName,
@@ -210,13 +265,15 @@ export function PdfReaderWorkspace({
       await response.task.toPromise().catch(() => undefined);
 
       if (isCurrentRequest()) setActivity({ kind: 'idle' });
+      return true;
     } catch (error) {
-      if (!isCurrentRequest()) return;
+      if (!isCurrentRequest()) return false;
       if (isPdfSourceError(error) && error.code === 'aborted') {
         setActivity({ kind: 'idle' });
       } else {
         setActivity({ kind: 'error', message: formatPdfOpenError(error) });
       }
+      return false;
     } finally {
       source?.release();
       if (requestId === loadSequenceRef.current) {
@@ -225,21 +282,52 @@ export function PdfReaderWorkspace({
     }
   }, [documentManager, isBusy]);
 
-  const openLocalFile = useCallback((file: File) => {
+  const openLocalFile = useCallback(async (
+    file: File,
+    pendingDocument?: PendingLocalDocument,
+  ) => {
     setRemoteFormOpen(false);
-    void openSource('local', (signal, onProgress) =>
+    const opened = await openSource('local', (signal, onProgress) =>
       loadLocalPdfSource(file, {
         maxBytes: LOCAL_PDF_MAX_BYTES,
         signal,
         onProgress,
-      }));
+      }), pendingDocument ? {
+        expectedDisplayName: pendingDocument.state.displayName,
+        expectedResourceId: pendingDocument.state.resourceId,
+        target: pendingDocument.target,
+      } : undefined);
+
+    if (opened && mountedRef.current) {
+      pendingLocalDocumentRef.current = undefined;
+      setPendingLocalDocument(undefined);
+    }
   }, [openSource]);
 
   const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (file) openLocalFile(file);
+    if (file) {
+      void openLocalFile(file, pendingLocalDocumentRef.current);
+    }
   };
+
+  const requestLocalFile = useCallback((pendingDocument?: PendingLocalDocument) => {
+    pendingLocalDocumentRef.current = pendingDocument;
+    setPendingLocalDocument(pendingDocument);
+    if (!pendingDocument) setDocumentTarget(undefined);
+    fileInputRef.current?.click();
+  }, []);
+
+  const openRemoteDocument = useCallback((
+    url: string,
+    options?: OpenSourceOptions,
+  ) => openSource('remote', (signal, onProgress) =>
+    loadRemotePdfSource(url, {
+      maxBytes: REMOTE_PDF_MAX_BYTES,
+      signal,
+      onProgress,
+    }), options), [openSource]);
 
   const handleRemoteSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -247,13 +335,70 @@ export function PdfReaderWorkspace({
     if (!nextUrl || !canOpenSource) return;
 
     setRemoteFormOpen(false);
-    void openSource('remote', (signal, onProgress) =>
-      loadRemotePdfSource(nextUrl, {
-        maxBytes: REMOTE_PDF_MAX_BYTES,
-        signal,
-        onProgress,
-      }));
+    pendingLocalDocumentRef.current = undefined;
+    setPendingLocalDocument(undefined);
+    setDocumentTarget(undefined);
+    void openRemoteDocument(nextUrl);
   };
+
+  const openRecentDocument = useCallback((state: PdfDocumentStateRecord) => {
+    if (!canOpenSource) return;
+
+    if (state.kind === 'remote' && state.sourceUrl) {
+      pendingLocalDocumentRef.current = undefined;
+      setPendingLocalDocument(undefined);
+      setDocumentTarget(undefined);
+      void openRemoteDocument(state.sourceUrl, {
+        expectedDisplayName: state.displayName,
+        expectedResourceId: state.resourceId,
+      });
+      return;
+    }
+
+    requestLocalFile({ state });
+  }, [canOpenSource, openRemoteDocument, requestLocalFile]);
+
+  useEffect(() => {
+    const target = launchTargetRef.current;
+    if (!target || launchTargetHandledRef.current || !canOpenSource) return;
+    launchTargetHandledRef.current = true;
+
+    void (async () => {
+      try {
+        const state = await getPdfDocumentState(target.resourceId);
+        if (!mountedRef.current) return;
+
+        if (!state) {
+          setActivity({
+            kind: 'error',
+            message: '找不到这条 PDF 摘录对应的本地阅读记录。',
+          });
+          return;
+        }
+
+        if (state.kind === 'remote' && state.sourceUrl) {
+          await openRemoteDocument(state.sourceUrl, {
+            expectedDisplayName: state.displayName,
+            expectedResourceId: state.resourceId,
+            target,
+          });
+          return;
+        }
+
+        const pendingDocument = { state, target };
+        pendingLocalDocumentRef.current = pendingDocument;
+        setPendingLocalDocument(pendingDocument);
+        setDocumentTarget(target);
+      } catch {
+        if (mountedRef.current) {
+          setActivity({
+            kind: 'error',
+            message: '无法读取这条 PDF 摘录的本地记录，请稍后重试。',
+          });
+        }
+      }
+    })();
+  }, [canOpenSource, openRemoteDocument]);
 
   const cancelSourceLoad = () => {
     if (activity.kind !== 'loading') return;
@@ -266,12 +411,14 @@ export function PdfReaderWorkspace({
     abortControllerRef.current = undefined;
     setActivity({ kind: 'idle' });
     setSourceMetadata(undefined);
+    setDocumentTarget(undefined);
     setPanelMode(null);
 
     if (documentManager) {
       await documentManager.closeAllDocuments().toPromise().catch(() => undefined);
     }
-  }, [documentManager]);
+    await refreshRecentDocuments();
+  }, [documentManager, refreshRecentDocuments]);
 
   const openStats = async () => {
     if (statsBusy) return;
@@ -294,7 +441,9 @@ export function PdfReaderWorkspace({
       .find((candidate) =>
         candidate.type === 'application/pdf'
         || candidate.name.toLowerCase().endsWith('.pdf'));
-    if (file) openLocalFile(file);
+    if (file) {
+      void openLocalFile(file, pendingLocalDocumentRef.current);
+    }
   };
 
   return (
@@ -352,7 +501,7 @@ export function PdfReaderWorkspace({
             className="pdf-reader__toolbar-button pdf-reader__toolbar-button--primary"
             type="button"
             disabled={!canOpenSource}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => requestLocalFile()}
           >
             <FileUp aria-hidden="true" />
             <span>打开文件</span>
@@ -445,7 +594,9 @@ export function PdfReaderWorkspace({
             <PdfDocumentView
               documentId={activeDocumentId}
               engine={engine}
+              initialTarget={documentTarget}
               onCloseDocument={closeDocument}
+              onDocumentStateReady={refreshRecentDocuments}
               onOpenSearch={openSearchPanel}
               sourceMetadata={sourceMetadata?.resourceId === activeDocumentId
                 ? sourceMetadata
@@ -453,9 +604,17 @@ export function PdfReaderWorkspace({
             />
           ) : (
             <ReaderEmptyState
+              pendingLocalDocument={pendingLocalDocument}
               ready={canOpenSource}
-              onOpenFile={() => fileInputRef.current?.click()}
+              recentDocuments={recentDocuments}
+              onCancelPendingLocal={() => {
+                pendingLocalDocumentRef.current = undefined;
+                setPendingLocalDocument(undefined);
+                setDocumentTarget(undefined);
+              }}
+              onOpenFile={() => requestLocalFile(pendingLocalDocument)}
               onOpenRemote={() => setRemoteFormOpen(true)}
+              onOpenRecent={openRecentDocument}
             />
           )}
         </div>
@@ -518,23 +677,41 @@ type LoadProgressStyle = CSSProperties & {
 };
 
 function ReaderEmptyState({
+  onCancelPendingLocal,
   onOpenFile,
   onOpenRemote,
+  onOpenRecent,
+  pendingLocalDocument,
   ready,
+  recentDocuments,
 }: {
+  onCancelPendingLocal: () => void;
   onOpenFile: () => void;
   onOpenRemote: () => void;
+  onOpenRecent: (state: PdfDocumentStateRecord) => void;
+  pendingLocalDocument?: PendingLocalDocument;
   ready: boolean;
+  recentDocuments: PdfDocumentStateRecord[];
 }) {
+  const pendingState = pendingLocalDocument?.state;
+
   return (
     <section className="pdf-reader__empty" aria-busy={!ready}>
       <div className="pdf-reader__empty-mark" aria-hidden="true">
         {ready ? <FileText /> : <LoaderCircle className="is-spinning" />}
       </div>
       <p className="pdf-reader__empty-kicker">Yuel PDF Reader</p>
-      <h1>{ready ? '打开 PDF，继续你的阅读' : '正在准备本地 PDF 引擎'}</h1>
+      <h1>
+        {!ready
+          ? '正在准备本地 PDF 引擎'
+          : pendingState
+            ? `重新选择 ${pendingState.displayName}`
+            : '打开 PDF，继续你的阅读'}
+      </h1>
       <p className="pdf-reader__empty-copy">
-        文件内容只在当前设备处理。阅读统计复用现有本地优先数据流，不保存 PDF 文件本身。
+        {pendingState
+          ? 'Yuel 不保存本地 PDF 文件。重新选择原文件后，将校验内容并恢复到保存的位置。'
+          : '文件内容只在当前设备处理。阅读统计复用现有本地优先数据流，不保存 PDF 文件本身。'}
       </p>
       <div className="pdf-reader__empty-actions">
         <button
@@ -544,24 +721,78 @@ function ReaderEmptyState({
           onClick={onOpenFile}
         >
           <FileUp aria-hidden="true" />
-          打开本地 PDF
+          {pendingState ? '选择原 PDF' : '打开本地 PDF'}
         </button>
-        <button
-          className="pdf-reader__button pdf-reader__button--secondary"
-          type="button"
-          disabled={!ready}
-          onClick={onOpenRemote}
-        >
-          <Link2 aria-hidden="true" />
-          输入远程链接
-        </button>
+        {pendingState ? (
+          <button
+            className="pdf-reader__button pdf-reader__button--secondary"
+            type="button"
+            onClick={onCancelPendingLocal}
+          >
+            <X aria-hidden="true" />
+            取消
+          </button>
+        ) : (
+          <button
+            className="pdf-reader__button pdf-reader__button--secondary"
+            type="button"
+            disabled={!ready}
+            onClick={onOpenRemote}
+          >
+            <Link2 aria-hidden="true" />
+            输入远程链接
+          </button>
+        )}
       </div>
+      {recentDocuments.length > 0 ? (
+        <div className="pdf-reader__recent">
+          <div className="pdf-reader__recent-heading">
+            <strong>最近文档</strong>
+            <span>最多显示 5 个</span>
+          </div>
+          <div className="pdf-reader__recent-list">
+            {recentDocuments.map((documentState) => (
+              <button
+                key={documentState.resourceId}
+                type="button"
+                disabled={!ready}
+                onClick={() => onOpenRecent(documentState)}
+              >
+                <FileText aria-hidden="true" />
+                <span>
+                  <strong title={documentState.displayName}>
+                    {documentState.displayName}
+                  </strong>
+                  <small>
+                    {documentState.kind === 'remote' ? '远程 PDF' : '本地 PDF'}
+                    {' · '}
+                    第 {documentState.pageIndex + 1} 页
+                    {' · '}
+                    {formatRecentDocumentTime(documentState.lastOpenedAt)}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="pdf-reader__empty-trust">
         <ShieldCheck aria-hidden="true" />
         <span>PDFium WASM 与 Worker 均由扩展本地提供</span>
       </div>
     </section>
   );
+}
+
+function formatRecentDocumentTime(timestamp: number): string {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '最近打开';
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(timestamp);
 }
 
 async function openExtensionSidePanel(): Promise<void> {

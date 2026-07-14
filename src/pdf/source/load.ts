@@ -99,6 +99,7 @@ export async function loadRemotePdfSource(
     displayName: createRemoteDisplayName(finalUrl),
     mediaType: response.headers.get('Content-Type')?.split(';', 1)[0]?.trim() || 'application/pdf',
     origin: finalUrl.origin,
+    sourceUrl: requestedUrl.toString(),
   }, options);
 }
 
@@ -107,6 +108,7 @@ interface PdfSourceMetadataInput {
   displayName: string;
   mediaType: string;
   origin?: string;
+  sourceUrl?: string;
 }
 
 async function finalizePdfSource(

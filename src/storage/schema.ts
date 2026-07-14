@@ -102,7 +102,53 @@ export interface SavedItemRecord {
   type: 'word' | 'phrase' | 'sentence' | 'quote';
   sourceDomain: string;
   tags: string[];
+  pdfAnnotationId?: string;
   createdAt: number;
+}
+
+export interface PdfSourceRectRecord {
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface PdfAnnotationRecord {
+  id: string;
+  resourceId: string;
+  pageIndex: number;
+  type: 'excerpt';
+  quote: string;
+  textHash: string;
+  sourceRects: PdfSourceRectRecord[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PdfReaderZoomLevel = 'automatic' | 'fit-page' | 'fit-width' | number;
+export type PdfReaderScrollStrategy = 'vertical' | 'horizontal';
+
+export interface PdfDocumentStateRecord {
+  resourceId: string;
+  sha256: string;
+  kind: 'local' | 'remote';
+  displayName: string;
+  byteLength: number;
+  mediaType: string;
+  origin?: string;
+  sourceUrl?: string;
+  pageIndex: number;
+  pageCoordinates?: {
+    x: number;
+    y: number;
+  };
+  zoomLevel: PdfReaderZoomLevel;
+  scrollStrategy: PdfReaderScrollStrategy;
+  rotation: 0 | 1 | 2 | 3;
+  isPanMode: boolean;
+  lastOpenedAt: number;
+  updatedAt: number;
 }
 
 export interface DailyStatRecord {
@@ -166,6 +212,8 @@ export class YuelDatabase extends Dexie {
   readingSessions!: Table<ReadingSessionRecord, string>;
   vocabExposures!: Table<VocabExposureRecord, string>;
   savedItems!: Table<SavedItemRecord, string>;
+  pdfAnnotations!: Table<PdfAnnotationRecord, string>;
+  pdfDocumentStates!: Table<PdfDocumentStateRecord, string>;
   dailyStats!: Table<DailyStatRecord, string>;
   readingPaceProfiles!: Table<ReadingPaceProfileRecord, string>;
   readingPaceEpisodes!: Table<ReadingPaceEpisodeRecord, string>;
@@ -202,6 +250,11 @@ export class YuelDatabase extends Dexie {
 
     this.version(6).stores({
       readingSessions: 'id, sessionId, date, pageId, domain, startedAt, endedAt',
+    });
+
+    this.version(7).stores({
+      pdfAnnotations: 'id, resourceId, pageIndex, createdAt',
+      pdfDocumentStates: 'resourceId, kind, lastOpenedAt, updatedAt',
     });
   }
 }

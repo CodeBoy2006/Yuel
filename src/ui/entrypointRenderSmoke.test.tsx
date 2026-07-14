@@ -189,6 +189,7 @@ function createDashboardDependencies(
       showSiteIcons: true,
       showStreak: true,
     }),
+    openPdfReaderTarget: async () => undefined,
     saveOnboardingReadingPaceCalibration: async (input) => createReadingPaceSummary({
       language: input.language ?? 'en',
       contentType: input.contentType ?? 'general',
@@ -818,6 +819,41 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(pageProgress?.getAttribute('aria-valuetext')).toBe('620 / 1,200 词');
 
     await revealTodayCard(container);
+  });
+
+  it('opens a saved PDF excerpt from the dashboard at its source position', async () => {
+    const resourceId = `pdf_${'a'.repeat(64)}`;
+    const openPdfReaderTarget = vi.fn(async () => undefined);
+    const details = createDashboardDetails(960);
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => ({
+        ...details,
+        recentSavedItems: [{
+          id: 'saved-pdf',
+          text: 'Evidence remains connected to its source.',
+          type: 'quote',
+          sourceDomain: 'pdf.local',
+          tags: ['selection', 'pdf'],
+          pdfAnchor: {
+            annotationId: 'annotation-pdf',
+            resourceId,
+            pageIndex: 2,
+            pageCoordinates: { x: 72, y: 180 },
+          },
+          createdAt: Date.UTC(2026, 6, 14, 9, 30, 0),
+        }],
+        hasData: true,
+      }),
+      openPdfReaderTarget,
+    });
+
+    await clickButton(findButton(container, '第 3 页 · 跳回原文'));
+
+    expect(openPdfReaderTarget).toHaveBeenCalledWith({
+      resourceId,
+      pageIndex: 2,
+      pageCoordinates: { x: 72, y: 180 },
+    });
   });
 
   it('keeps sharing locked until the daily goal is reached and saves a user-defined goal', async () => {
@@ -1900,6 +1936,39 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '打开 PDF 阅读器'));
 
     expect(openPdfReader).toHaveBeenCalledOnce();
+  });
+
+  it('opens a saved PDF excerpt from the side panel at its source position', async () => {
+    const resourceId = `pdf_${'b'.repeat(64)}`;
+    const openPdfReader = vi.fn(async () => undefined);
+    const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => ({
+        ...createSidePanelDetails(createDashboardDetails(320).summary),
+        recentSavedItems: [{
+          id: 'saved-pdf',
+          text: 'Return to the evidence.',
+          type: 'quote',
+          sourceDomain: 'pdf.local',
+          tags: ['selection', 'pdf'],
+          pdfAnchor: {
+            annotationId: 'annotation-pdf',
+            resourceId,
+            pageIndex: 4,
+            pageCoordinates: { x: 64, y: 220 },
+          },
+          createdAt: Date.UTC(2026, 6, 14, 9, 30, 0),
+        }],
+      }),
+      openPdfReader,
+    });
+
+    await clickButton(findButton(container, '第 5 页 · 跳回原文'));
+
+    expect(openPdfReader).toHaveBeenCalledWith({
+      resourceId,
+      pageIndex: 4,
+      pageCoordinates: { x: 64, y: 220 },
+    });
   });
 
   it('shows a side panel PDF reader launch failure', async () => {

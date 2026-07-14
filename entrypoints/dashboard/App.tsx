@@ -5,6 +5,7 @@ import {
   Clipboard,
   Database,
   Download,
+  ExternalLink,
   Gauge,
   Languages,
   LockKeyhole,
@@ -18,6 +19,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import { browser } from 'wxt/browser';
 
 import { analyzeEnglishText } from '../../src/analysis/english';
 import {
@@ -27,6 +29,10 @@ import {
   isValidDailyCheckInThresholdWords,
 } from '../../src/domain/checkIn';
 import { requestReadingToolbarIconRefresh } from '../../src/messaging/readingToolbarClient';
+import {
+  createPdfReaderUrl,
+  type PdfReaderTarget,
+} from '../../src/pdf/navigation';
 import { saveDailyCheckInThresholdWords } from '../../src/storage/checkInSettings';
 import { clearLocalReadingData } from '../../src/storage/repositories';
 import {
@@ -101,6 +107,7 @@ export interface DashboardAppDependencies {
   getReadingRecordingSettings: typeof getReadingRecordingSettings;
   getReadingToolbarSettings: typeof getReadingToolbarSettings;
   getShareCardSettings: typeof getShareCardSettings;
+  openPdfReaderTarget: (target: PdfReaderTarget) => Promise<void>;
   saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
   resetReadingPaceCalibration: typeof resetReadingPaceCalibration;
   saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
@@ -122,6 +129,11 @@ const defaultDependencies: DashboardAppDependencies = {
   getReadingRecordingSettings,
   getReadingToolbarSettings,
   getShareCardSettings,
+  openPdfReaderTarget: async (target) => {
+    await browser.tabs.create({
+      url: createPdfReaderUrl(window.location.href, target),
+    });
+  },
   refreshReadingToolbarIcon: requestReadingToolbarIconRefresh,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
@@ -1295,7 +1307,13 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <Panel title="保存摘录" meta={`${details.recentSavedItems.length} 条`} icon={Quote}>
               <div className="saved-grid">
                 {details.recentSavedItems.length
-                  ? details.recentSavedItems.map((item) => <SavedHighlightCard key={item.id} item={item} />)
+                  ? details.recentSavedItems.map((item) => (
+                      <SavedHighlightCard
+                        key={item.id}
+                        item={item}
+                        onOpenPdfReaderTarget={dependencies.openPdfReaderTarget}
+                      />
+                    ))
                   : <EmptyState>还没有保存摘录。</EmptyState>}
               </div>
             </Panel>
@@ -1405,7 +1423,32 @@ function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
   );
 }
 
-function SavedHighlightCard({ item }: { item: RecentSavedItemSummary }) {
+function SavedHighlightCard({
+  item,
+  onOpenPdfReaderTarget,
+}: {
+  item: RecentSavedItemSummary;
+  onOpenPdfReaderTarget: (target: PdfReaderTarget) => Promise<void>;
+}) {
+  const [openStatus, setOpenStatus] = useState<'idle' | 'opening' | 'failed'>('idle');
+  const openPdfSource = async () => {
+    if (!item.pdfAnchor || openStatus === 'opening') return;
+    setOpenStatus('opening');
+    try {
+      await onOpenPdfReaderTarget({
+        resourceId: item.pdfAnchor.resourceId,
+        pageIndex: item.pdfAnchor.pageIndex,
+        ...(item.pdfAnchor.pageCoordinates
+          ? { pageCoordinates: item.pdfAnchor.pageCoordinates }
+          : {}),
+      });
+      setOpenStatus('idle');
+    } catch (error) {
+      console.error('Failed to open the saved PDF excerpt', error);
+      setOpenStatus('failed');
+    }
+  };
+
   return (
     <article className="saved-item">
       <div className="saved-item__meta">
@@ -1416,6 +1459,23 @@ function SavedHighlightCard({ item }: { item: RecentSavedItemSummary }) {
       <footer>
         <span title={item.sourceDomain}>{item.sourceDomain}</span>
         {item.tags.map((tag) => <span key={tag} title={tag}>{tag}</span>)}
+        {item.pdfAnchor ? (
+          <button
+            className="saved-item__backlink"
+            type="button"
+            disabled={openStatus === 'opening'}
+            aria-busy={openStatus === 'opening'}
+            title={openStatus === 'failed' ? '打开失败，请重试' : '跳回 PDF 原文'}
+            onClick={() => void openPdfSource()}
+          >
+            <ExternalLink aria-hidden="true" />
+            {openStatus === 'opening'
+              ? '打开中'
+              : openStatus === 'failed'
+                ? '重试回链'
+                : `第 ${item.pdfAnchor.pageIndex + 1} 页 · 跳回原文`}
+          </button>
+        ) : null}
       </footer>
     </article>
   );

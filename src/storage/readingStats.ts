@@ -6,6 +6,7 @@ import {
   db,
   type DailyStatRecord,
   type PageRecord,
+  type PdfAnnotationRecord,
   type ReadingSessionRecord,
   type SavedItemRecord,
   type VocabExposureRecord,
@@ -83,6 +84,15 @@ export interface RecentSavedItemSummary {
   type: SavedItemRecord['type'];
   sourceDomain: string;
   tags: string[];
+  pdfAnchor?: {
+    annotationId: string;
+    resourceId: string;
+    pageIndex: number;
+    pageCoordinates?: {
+      x: number;
+      y: number;
+    };
+  };
   createdAt: number;
 }
 
@@ -155,6 +165,9 @@ export interface ReadingStatsStore {
         };
       };
     };
+  };
+  pdfAnnotations?: {
+    bulkGet: (ids: string[]) => Promise<Array<PdfAnnotationRecord | undefined>>;
   };
 }
 
@@ -267,7 +280,11 @@ export async function getReadingDashboardDetails(
     }));
   const readingSessions = createReadingFocusSessionSummaries(readingSessionRecords);
   const recentVocabulary = createRecentVocabularySummaries(recentVocabularyRecords);
-  const recentSavedItems = createRecentSavedItemSummaries(recentSavedItemRecords);
+  const recentSavedItems = createRecentSavedItemSummaries(
+    recentSavedItemRecords,
+    RECENT_SAVED_ITEM_LIMIT,
+    await loadPdfAnnotationsForSavedItems(store, recentSavedItemRecords),
+  );
 
   const hasHistoricalReading = history.some((day) => day.effectiveWords > 0 || day.minutes > 0);
   const hasData = summary.hasData
@@ -432,11 +449,16 @@ export async function getSidePanelReadingDetails(
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
     store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
   ]);
+  const pdfAnnotations = await loadPdfAnnotationsForSavedItems(store, recentSavedItemRecords);
 
   return {
     summary,
     recentVocabulary: createRecentVocabularySummaries(recentVocabularyRecords, SIDE_PANEL_VOCABULARY_LIMIT),
-    recentSavedItems: createRecentSavedItemSummaries(recentSavedItemRecords, SIDE_PANEL_SAVED_ITEM_LIMIT),
+    recentSavedItems: createRecentSavedItemSummaries(
+      recentSavedItemRecords,
+      SIDE_PANEL_SAVED_ITEM_LIMIT,
+      pdfAnnotations,
+    ),
   };
 }
 
@@ -514,18 +536,58 @@ function createRecentVocabularySummaries(
 function createRecentSavedItemSummaries(
   records: SavedItemRecord[],
   limit = RECENT_SAVED_ITEM_LIMIT,
+  pdfAnnotations = new Map<string, PdfAnnotationRecord>(),
 ): RecentSavedItemSummary[] {
   return records
     .filter(hasVisibleSavedItem)
     .slice(0, limit)
-    .map((item) => ({
-      id: item.id,
-      text: normalizeSavedItemText(item.text),
-      type: item.type,
-      sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-      tags: normalizeTags(item.tags),
-      createdAt: item.createdAt,
-    }));
+    .map((item) => {
+      const annotation = item.pdfAnnotationId
+        ? pdfAnnotations.get(item.pdfAnnotationId)
+        : undefined;
+      const firstRect = annotation?.sourceRects.find(
+        (rect) => rect.pageIndex === annotation.pageIndex,
+      ) ?? annotation?.sourceRects[0];
+
+      return {
+        id: item.id,
+        text: normalizeSavedItemText(item.text),
+        type: item.type,
+        sourceDomain: normalizeDisplayDomain(item.sourceDomain),
+        tags: normalizeTags(item.tags),
+        ...(annotation ? {
+          pdfAnchor: {
+            annotationId: annotation.id,
+            resourceId: annotation.resourceId,
+            pageIndex: annotation.pageIndex,
+            ...(firstRect ? {
+              pageCoordinates: {
+                x: firstRect.x,
+                y: firstRect.y,
+              },
+            } : {}),
+          },
+        } : {}),
+        createdAt: item.createdAt,
+      };
+    });
+}
+
+async function loadPdfAnnotationsForSavedItems(
+  store: ReadingStatsStore,
+  records: SavedItemRecord[],
+): Promise<Map<string, PdfAnnotationRecord>> {
+  const annotationIds = Array.from(new Set(
+    records.flatMap((item) => item.pdfAnnotationId ? [item.pdfAnnotationId] : []),
+  ));
+  if (annotationIds.length === 0 || !store.pdfAnnotations) {
+    return new Map();
+  }
+
+  const annotations = await store.pdfAnnotations.bulkGet(annotationIds);
+  return new Map(
+    annotations.flatMap((annotation) => annotation ? [[annotation.id, annotation] as const] : []),
+  );
 }
 
 function normalizeTopDomains(topDomains: string[]): string[] {

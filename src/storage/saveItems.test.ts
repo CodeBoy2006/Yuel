@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { saveSelectedTextItem } from './saveItems';
+import {
+  savePdfSelectedTextItem,
+  saveSelectedTextItem,
+} from './saveItems';
 
 const mocks = vi.hoisted(() => {
   const savedItems = {
+    put: vi.fn(),
+  };
+  const pdfAnnotations = {
     put: vi.fn(),
   };
   const vocabExposures = {
@@ -11,6 +17,7 @@ const mocks = vi.hoisted(() => {
     put: vi.fn(),
   };
   const db = {
+    pdfAnnotations,
     savedItems,
     vocabExposures,
     transaction: vi.fn(async (...args: unknown[]) => {
@@ -21,7 +28,7 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { db, savedItems, vocabExposures };
+  return { db, pdfAnnotations, savedItems, vocabExposures };
 });
 
 vi.mock('./schema', () => ({
@@ -152,6 +159,76 @@ describe('saveSelectedTextItem', () => {
     });
 
     expect(record).toBeUndefined();
+    expect(mocks.savedItems.put).not.toHaveBeenCalled();
+  });
+
+  it('stores a PDF excerpt as an annotation-backed saved item', async () => {
+    const resourceId = `pdf_${'a'.repeat(64)}`;
+    const record = await savePdfSelectedTextItem('  Local PDFium WASM  ', {
+      metadata: {
+        resourceId,
+        sha256: 'a'.repeat(64),
+        kind: 'remote',
+        displayName: 'Reference.pdf',
+        byteLength: 2_048,
+        mediaType: 'application/pdf',
+        origin: 'https://docs.example.com',
+        sourceUrl: 'https://docs.example.com/reference.pdf',
+      },
+      sourceRects: [
+        {
+          pageIndex: 2,
+          x: 72,
+          y: 140,
+          width: 180,
+          height: 18,
+        },
+      ],
+      createdAt: savedAt,
+    });
+
+    expect(record).toMatchObject({
+      text: 'Local PDFium WASM',
+      sourceDomain: 'docs.example.com',
+      tags: ['selection', 'pdf'],
+      createdAt: savedAt,
+    });
+    expect(record?.pdfAnnotationId).toMatch(/^pdf_annotation_saved_/);
+    expect(mocks.pdfAnnotations.put).toHaveBeenCalledWith({
+      id: record?.pdfAnnotationId,
+      resourceId,
+      pageIndex: 2,
+      type: 'excerpt',
+      quote: 'Local PDFium WASM',
+      textHash: expect.any(String),
+      sourceRects: [{
+        pageIndex: 2,
+        x: 72,
+        y: 140,
+        width: 180,
+        height: 18,
+      }],
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    });
+    expect(mocks.savedItems.put).toHaveBeenCalledWith(record);
+  });
+
+  it('rejects PDF selection saves without a valid source rectangle', async () => {
+    await expect(savePdfSelectedTextItem('Source text', {
+      metadata: {
+        resourceId: `pdf_${'b'.repeat(64)}`,
+        sha256: 'b'.repeat(64),
+        kind: 'local',
+        displayName: 'Local.pdf',
+        byteLength: 1_024,
+        mediaType: 'application/pdf',
+      },
+      sourceRects: [],
+      createdAt: savedAt,
+    })).rejects.toThrow(RangeError);
+
+    expect(mocks.pdfAnnotations.put).not.toHaveBeenCalled();
     expect(mocks.savedItems.put).not.toHaveBeenCalled();
   });
 });

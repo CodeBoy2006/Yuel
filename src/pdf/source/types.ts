@@ -15,6 +15,7 @@ export interface PdfSourceMetadata {
   readonly byteLength: number;
   readonly mediaType: string;
   readonly origin?: string;
+  readonly sourceUrl?: string;
 }
 
 export interface PdfSourceHandle {

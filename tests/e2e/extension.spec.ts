@@ -48,6 +48,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   extensionId,
 }) => {
   const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
+  const pdfFixture = createPdfSmokeFixture();
   const externalRequests: string[] = [];
   const pageErrors: string[] = [];
 
@@ -68,7 +69,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await pdfReader.locator('input[type="file"]').setInputFiles({
     name: 'yuel-reader-smoke.pdf',
     mimeType: 'application/pdf',
-    buffer: createPdfSmokeFixture(),
+    buffer: pdfFixture,
   });
 
   const renderedPage = pdfReader.locator('.pdf-reader__page-shell').first();
@@ -78,6 +79,28 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(pdfReader.locator('.pdf-reader__document-name')).toContainText(
     'yuel-reader-smoke.pdf',
   );
+  const toolbarPageInput = pdfReader.locator(
+    '.pdf-reader__document-tools .pdf-reader__page-control input',
+  );
+  const printButton = pdfReader.getByRole('button', { name: '打印 PDF' });
+  const downloadButton = pdfReader.getByRole('button', { name: '下载 PDF' });
+  await expect(printButton).toBeEnabled();
+  await expect(downloadButton).toBeEnabled();
+
+  const internalLink = pdfReader.locator(
+    '.pdf-reader__annotation-layer [style*="cursor: pointer"]',
+  ).first();
+  await expect(internalLink).toBeVisible();
+  await internalLink.click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await toolbarPageInput.fill('1');
+  await toolbarPageInput.press('Enter');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
+  const downloadPromise = pdfReader.waitForEvent('download');
+  await downloadButton.click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('yuel-reader-smoke.pdf');
 
   await expect.poll(() => pdfReader.workers().length).toBeGreaterThanOrEqual(1);
   expect(pdfReader.workers().every((worker) => worker.url().startsWith('blob:'))).toBe(true);
@@ -141,9 +164,6 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(introductionOutline).toBeVisible();
   await expect(pageTwoOutline).toBeVisible();
   await expect(nestedOutline).toBeVisible();
-  const toolbarPageInput = pdfReader.locator(
-    '.pdf-reader__document-tools .pdf-reader__page-control input',
-  );
   await pageTwoOutline.click();
   await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
   await introductionOutline.click();
@@ -180,6 +200,8 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
 
   const activeHighlight = pdfReader.locator('.pdf-reader__search-layer > div').first();
   await expect(activeHighlight).toBeVisible();
+  const readerViewport = pdfReader.locator('.pdf-reader__viewport');
+  await expect.poll(() => readerViewport.evaluate((element) => element.scrollTop)).toBe(0);
 
   const panButton = pdfReader.getByRole('button', { name: '切换拖拽浏览' });
   await expect(panButton).toHaveAttribute('aria-pressed', 'false');
@@ -207,6 +229,44 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(copySelectionButton).toBeVisible();
   await copySelectionButton.click();
   await expect(copySelectionButton).toContainText('已复制');
+  const saveSelectionButton = pdfReader.getByRole('button', {
+    name: '保存所选文本到 Yuel',
+  });
+  await saveSelectionButton.click();
+  await expect(saveSelectionButton).toContainText('已保存');
+
+  const excerptDashboard = await openExtensionPage(
+    context,
+    extensionId,
+    'dashboard.html',
+  );
+  await expect.poll(async () => {
+    await excerptDashboard.reload({ waitUntil: 'load' });
+    return excerptDashboard.locator('body').innerText();
+  }).toContain('Local PDFium');
+  const backlinkPagePromise = context.waitForEvent('page');
+  await excerptDashboard.getByRole('button', {
+    name: '第 1 页 · 跳回原文',
+  }).click();
+  const backlinkReader = await backlinkPagePromise;
+  await backlinkReader.waitForLoadState('load');
+  await expect(backlinkReader.locator('body')).toContainText(
+    '重新选择 yuel-reader-smoke.pdf',
+  );
+  await backlinkReader.locator('input[type="file"]').setInputFiles({
+    name: 'yuel-reader-smoke.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfFixture,
+  });
+  await expect(backlinkReader.locator('.pdf-reader__document-name')).toContainText(
+    'yuel-reader-smoke.pdf',
+  );
+  await expect.poll(() => backlinkReader.locator(
+    '.pdf-reader__document-tools .pdf-reader__page-control input',
+  ).inputValue()).toBe('1');
+  await backlinkReader.close();
+  await excerptDashboard.close();
+  await pdfReader.bringToFront();
 
   await pdfReader.getByRole('button', { name: '关闭导航面板' }).first().click();
   await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeHidden();
@@ -253,6 +313,9 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect.poll(() => readBrowserScale(pdfReader)).toEqual(initialBrowserScale);
 
   await pdfReader.locator('.pdf-reader__fit-select select').selectOption('fit-width');
+  await zoomInput.fill('135');
+  await zoomInput.press('Enter');
+  await expect.poll(() => zoomInput.inputValue()).toBe('135');
 
   await pdfReader.setViewportSize({ width: 620, height: 900 });
   const sidebar = pdfReader.locator('.pdf-reader__sidebar');
@@ -266,6 +329,11 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   expect(documentStageBox?.width).toBe(620);
   await sidebarBackdrop.click({ position: { x: 600, y: 400 } });
   await expect(sidebar).toBeHidden();
+
+  await toolbarPageInput.fill('2');
+  await toolbarPageInput.press('Enter');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await pdfReader.waitForTimeout(500);
 
   const pdfSidePanel = await openExtensionPage(
     context,
@@ -303,11 +371,54 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     return analyticsDashboard.locator('body').innerText();
   }, { timeout: 10_000 }).toContain('pdf.local');
   await analyticsDashboard.close();
-  await pdfReader.bringToFront();
 
   expect(externalRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
   await pdfReader.close();
+
+  const recentReader = await openExtensionPage(
+    context,
+    extensionId,
+    'pdf-reader.html',
+  );
+  const recentDocument = recentReader.locator('.pdf-reader__recent-list button', {
+    hasText: 'yuel-reader-smoke.pdf',
+  });
+  await expect(recentDocument).toContainText('第 2 页');
+
+  const mismatchedFileChooserPromise = recentReader.waitForEvent('filechooser');
+  await recentDocument.click();
+  const mismatchedFileChooser = await mismatchedFileChooserPromise;
+  await mismatchedFileChooser.setFiles({
+    name: 'yuel-reader-smoke.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.concat([pdfFixture, Buffer.from('\n% changed fixture\n')]),
+  });
+  await expect(recentReader.locator('body')).toContainText('所选 PDF 与阅读记录不匹配');
+  await expect(recentReader.locator('body')).toContainText(
+    '重新选择 yuel-reader-smoke.pdf',
+  );
+
+  const originalFileChooserPromise = recentReader.waitForEvent('filechooser');
+  await recentReader.getByRole('button', { name: '选择原 PDF' }).click();
+  const originalFileChooser = await originalFileChooserPromise;
+  await originalFileChooser.setFiles({
+    name: 'yuel-reader-smoke.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfFixture,
+  });
+  await expect(recentReader.locator('.pdf-reader__document-name')).toContainText(
+    'yuel-reader-smoke.pdf',
+  );
+  const recentPageInput = recentReader.locator(
+    '.pdf-reader__document-tools .pdf-reader__page-control input',
+  );
+  await expect.poll(() => recentPageInput.inputValue()).toBe('2');
+  await expect(recentReader.locator('.pdf-reader__zoom-input input')).toHaveValue('135');
+  await expect(recentReader.getByRole('button', {
+    name: '顺时针旋转',
+  })).toHaveAttribute('title', /当前 90°/);
+  await recentReader.close();
 });
 
 async function readBrowserScale(page: import('@playwright/test').Page): Promise<{

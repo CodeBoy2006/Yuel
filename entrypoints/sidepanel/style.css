@@ -255,6 +255,38 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.sidepanel-excerpt__backlink {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 5px;
+  margin-top: 10px;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--y-accent-hover);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.sidepanel-excerpt__backlink:hover:not(:disabled) {
+  background: var(--y-accent-soft);
+}
+
+.sidepanel-excerpt__backlink:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.sidepanel-excerpt__backlink svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke-width: 1.9;
+}
+
 .sidepanel-actions {
   position: fixed;
   z-index: 20;

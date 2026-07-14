@@ -55,6 +55,12 @@ const mocks = vi.hoisted(() => {
   const savedItems = {
     clear: vi.fn(),
   };
+  const pdfAnnotations = {
+    clear: vi.fn(),
+  };
+  const pdfDocumentStates = {
+    clear: vi.fn(),
+  };
   const dailyStats = {
     clear: vi.fn(),
     get: vi.fn(),
@@ -85,6 +91,8 @@ const mocks = vi.hoisted(() => {
     readingSessions,
     vocabExposures,
     savedItems,
+    pdfAnnotations,
+    pdfDocumentStates,
     dailyStats,
     readingPaceProfiles,
     readingPaceEpisodes,
@@ -104,6 +112,8 @@ const mocks = vi.hoisted(() => {
     dailyStats,
     metadata,
     pages,
+    pdfAnnotations,
+    pdfDocumentStates,
     readingEvents,
     readingPaceEpisodes,
     readingPaceProfiles,
@@ -1447,6 +1457,8 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.readingSessions.clear).toHaveBeenCalledOnce();
     expect(mocks.vocabExposures.clear).toHaveBeenCalledOnce();
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
+    expect(mocks.pdfAnnotations.clear).toHaveBeenCalledOnce();
+    expect(mocks.pdfDocumentStates.clear).toHaveBeenCalledOnce();
     expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();
     expect(mocks.readingPaceProfiles.clear).toHaveBeenCalledOnce();
     expect(mocks.readingPaceEpisodes.clear).toHaveBeenCalledOnce();

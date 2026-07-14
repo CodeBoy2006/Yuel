@@ -2432,6 +2432,38 @@
   white-space: nowrap;
 }
 
+.saved-item__backlink {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 5px;
+  margin-left: auto;
+  padding: 3px 7px;
+  background: transparent;
+  color: var(--y-accent-hover);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.saved-item__backlink:hover:not(:disabled) {
+  background: var(--y-accent-soft);
+}
+
+.saved-item__backlink:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.saved-item__backlink svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  stroke-width: 1.9;
+}
+
 .local-data {
   display: flex;
   align-items: center;
@@ -2824,6 +2856,12 @@
 
   .record-row__identity {
     width: 100%;
+  }
+
+  .saved-item__backlink {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
   }
 }
 

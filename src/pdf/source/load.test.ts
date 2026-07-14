@@ -104,6 +104,7 @@ describe('PDF source loading', () => {
       byteLength: new TextEncoder().encode(VALID_PDF_TEXT).byteLength,
       mediaType: 'application/pdf',
       origin: 'https://cdn.example',
+      sourceUrl: 'https://example.com/download?id=1',
     });
     expect(fetcher).toHaveBeenCalledOnce();
     const [requestedUrl, request] = fetcher.mock.calls[0]!;

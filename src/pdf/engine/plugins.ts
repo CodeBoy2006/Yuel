@@ -1,8 +1,15 @@
 import { createPluginRegistration } from '@embedpdf/core';
 import type { PluginBatchRegistrations } from '@embedpdf/core';
+import {
+  AnnotationPluginPackage,
+  LockModeType,
+} from '@embedpdf/plugin-annotation/react';
 import { DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager';
+import { ExportPluginPackage } from '@embedpdf/plugin-export/react';
+import { HistoryPluginPackage } from '@embedpdf/plugin-history';
 import { InteractionManagerPluginPackage } from '@embedpdf/plugin-interaction-manager';
 import { PanPluginPackage } from '@embedpdf/plugin-pan/react';
+import { PrintPluginPackage } from '@embedpdf/plugin-print/react';
 import { RenderPluginPackage } from '@embedpdf/plugin-render';
 import { RotatePluginPackage } from '@embedpdf/plugin-rotate';
 import { SearchPluginPackage } from '@embedpdf/plugin-search';
@@ -40,6 +47,7 @@ export function createPdfReaderPlugins(): PluginBatchRegistrations {
       defaultBufferSize: PDF_READER_RENDER_LIMITS.pageBufferSize,
     }),
     createPluginRegistration(InteractionManagerPluginPackage),
+    createPluginRegistration(HistoryPluginPackage),
     createPluginRegistration(ZoomPluginPackage, {
       defaultZoomLevel: ZoomMode.FitWidth,
       minZoom: 0.25,
@@ -67,6 +75,11 @@ export function createPdfReaderPlugins(): PluginBatchRegistrations {
       minSelectionDragDistance: 3,
       toleranceFactor: 1.25,
     }),
+    createPluginRegistration(AnnotationPluginPackage, {
+      autoCommit: false,
+      autoOpenLinks: true,
+      locked: { type: LockModeType.All },
+    }),
     createPluginRegistration(SearchPluginPackage, {
       flags: [],
       showAllResults: true,
@@ -80,6 +93,10 @@ export function createPdfReaderPlugins(): PluginBatchRegistrations {
       scrollBehavior: 'smooth',
       imagePadding: 0,
       paddingY: 14,
+    }),
+    createPluginRegistration(PrintPluginPackage),
+    createPluginRegistration(ExportPluginPackage, {
+      defaultFileName: 'document.pdf',
     }),
   ];
 }
