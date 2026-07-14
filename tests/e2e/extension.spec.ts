@@ -329,7 +329,31 @@ test('records reading data through the extension runtime', async ({ context, ext
   const dashboardBody = dashboard.locator('body');
   await expect(dashboardBody).toContainText(RUNTIME_LOOP_DOMAIN);
   await expect(dashboardBody).toContainText('今日有效阅读');
+  await expect(dashboardBody).toContainText('每日有效时长');
+  await expect(dashboardBody).toContainText('最近会话');
+  await expect(dashboard.locator('.reading-duration-recent__list li')).toHaveCount(1);
   await expect(dashboardBody).not.toContainText('从下一篇外语文章开始');
+
+  const durationTrend = dashboard.locator('.reading-duration-trend');
+  const durationSources = dashboard.locator('.reading-duration-sources');
+  await dashboard.setViewportSize({ width: 1280, height: 900 });
+  const desktopTrendBox = await durationTrend.boundingBox();
+  const desktopSourcesBox = await durationSources.boundingBox();
+  expect(desktopTrendBox).not.toBeNull();
+  expect(desktopSourcesBox).not.toBeNull();
+  expect(desktopSourcesBox?.x).toBeGreaterThanOrEqual(
+    (desktopTrendBox?.x ?? 0) + (desktopTrendBox?.width ?? 0) - 1,
+  );
+
+  await dashboard.setViewportSize({ width: 520, height: 900 });
+  const mobileTrendBox = await durationTrend.boundingBox();
+  const mobileSourcesBox = await durationSources.boundingBox();
+  expect(mobileTrendBox).not.toBeNull();
+  expect(mobileSourcesBox).not.toBeNull();
+  expect(mobileSourcesBox?.y).toBeGreaterThanOrEqual(
+    (mobileTrendBox?.y ?? 0) + (mobileTrendBox?.height ?? 0) - 1,
+  );
+  expect(await dashboard.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(520);
 });
 
 test('updates the toolbar logo through completion and supports static mode', async ({

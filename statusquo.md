@@ -1425,3 +1425,9 @@
 - **Status:** Completed
 - **Next Steps:** Push the verified fine-grained commit series.
 - **Context:** All 428 unit/UI tests, TypeScript checks, production builds, whitespace validation, five packaged-extension Chromium tests, and the 160-page / 20,160-word PDF stress test pass. The stress run kept only pages 1–2 or 159–160 mounted, added 4.65 MiB of renderer heap, and created no additional document objects.
+
+## [2026-07-14 10:05] Reading Duration Insights
+- **Changes:** Added the Dexie v6 `readingSessions` table, persisted effective-reading intervals with a five-minute same-session merge, composed cross-page focus sessions for dashboard reads, added effective-duration summaries, daily trends, source totals, recent sessions, and page-level duration, and aligned duration labels across extension surfaces and share cards.
+- **Status:** Completed
+- **Next Steps:** Tune the five-minute session boundary or 30-second display threshold only from observed reading behavior; no historical backfill is planned.
+- **Context:** The feature reuses the existing Budgeted Exposure Model's effective attention time and does not introduce a second timer or count page-open duration. All 434 unit/UI tests, TypeScript checks, production build, whitespace validation, design-rule scan, and five packaged-extension Chromium tests pass; desktop and 520px screenshots were inspected without overlap or horizontal overflow.

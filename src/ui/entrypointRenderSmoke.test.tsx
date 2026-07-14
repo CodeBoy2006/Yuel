@@ -91,6 +91,7 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
       reviewWords: 0,
       checkInCompleted,
     }],
+    readingSessions: [],
     recentPages: [],
     recentVocabulary: [],
     recentSavedItems: [],
@@ -499,6 +500,7 @@ describe('extension UI entrypoint smoke rendering', () => {
           hasData: true,
         }),
         history: [],
+        readingSessions: [],
         recentPages: [],
         recentVocabulary: [],
         recentSavedItems: [],
@@ -565,7 +567,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.textContent).toContain('有效阅读不可用');
-    expect(container.textContent).toContain('阅读时间不可用');
+    expect(container.textContent).toContain('有效时长不可用');
     expect(container.textContent).toContain('页面不可用');
     expect(container.textContent).toContain('学习中词汇不可用');
     expect(container.textContent).toContain('本地数据暂时不可用');
@@ -734,6 +736,19 @@ describe('extension UI entrypoint smoke rendering', () => {
           hasData: true,
         }),
         history: [],
+        readingSessions: [{
+          id: 'focus-session-1',
+          date: '2026-06-27',
+          startedAt: Date.UTC(2026, 5, 27, 9, 30, 0),
+          endedAt: Date.UTC(2026, 5, 27, 9, 45, 0),
+          effectiveMinutes: 11,
+          effectiveWords: 340,
+          pageCount: 2,
+          sources: [{
+            domain: 'developer.mozilla.org',
+            effectiveMinutes: 11,
+          }],
+        }],
         recentPages: [
           {
             pageId: 'page-1',
@@ -741,6 +756,7 @@ describe('extension UI entrypoint smoke rendering', () => {
             totalWords: 1200,
             effectiveWords: 620,
             coveredWords: 620,
+            effectiveMinutes: 3,
             lastReadAt: Date.UTC(2026, 5, 27, 10, 0, 0),
           },
         ],
@@ -782,6 +798,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('有效阅读趋势');
     expect(container.textContent).toContain('一周节律');
     expect(container.textContent).toContain('输入构成');
+    expect(container.textContent).toContain('每日有效时长');
+    expect(container.textContent).toContain('最近会话');
+    expect(container.textContent).toContain('2 个页面 · 340 个有效词');
+    expect(container.textContent).toContain('有效时长 3 分钟');
     expect(container.querySelectorAll('.reading-heatmap__week')).toHaveLength(13);
 
     const thirtyDayRange = findButton(container, '30 天');
@@ -1193,7 +1213,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 960 Words\n'
       + '连续打卡：4 天\n'
-      + '阅读时间：11 分钟\n'
+      + '有效时长：11 分钟\n'
       + '页面：2 页\n'
       + '学习中词汇：5 个\n'
       + '今日网站：developer.mozilla.org';
@@ -1211,6 +1231,7 @@ describe('extension UI entrypoint smoke rendering', () => {
           hasData: true,
         }),
         history: [],
+        readingSessions: [],
         recentPages: [],
         recentVocabulary: [],
         recentSavedItems: [],
@@ -1245,6 +1266,7 @@ describe('extension UI entrypoint smoke rendering', () => {
           hasData: true,
         }),
         history: [],
+        readingSessions: [],
         recentPages: [],
         recentVocabulary: [],
         recentSavedItems: [],
@@ -1293,7 +1315,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(copyTextToClipboard).toHaveBeenCalledWith(
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 960 Words\n'
-      + '阅读时间：11 分钟\n'
+      + '有效时长：11 分钟\n'
       + '页面：4 页\n'
       + '学习中词汇：5 个\n'
       + '今日网站：developer.mozilla.org、web.dev',
@@ -1830,8 +1852,8 @@ describe('extension UI entrypoint smoke rendering', () => {
   it('shows no-data side panel time metric when local reading stats are empty', async () => {
     const container = await renderSidePanel();
 
-    expect(container.textContent).toContain('阅读时间0 分钟');
-    expect(container.textContent).not.toContain('阅读时间不足 1 分钟');
+    expect(container.textContent).toContain('有效时长0 分钟');
+    expect(container.textContent).not.toContain('有效时长不足 1 分钟');
   });
 
   it('does not show side panel top-domain empty state while local summary is loading', async () => {
@@ -1852,7 +1874,7 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(container.textContent).toContain('不可用');
     expect(container.textContent).toContain('有效阅读不可用');
-    expect(container.textContent).toContain('阅读时间不可用');
+    expect(container.textContent).toContain('有效时长不可用');
     expect(container.textContent).toContain('页面不可用');
     expect(container.textContent).toContain('学习中词汇不可用');
     expect(container.textContent).not.toContain('暂无当前网站');

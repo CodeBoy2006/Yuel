@@ -71,6 +71,20 @@ export interface ReadingEventRecord {
   value?: Record<string, unknown>;
 }
 
+export interface ReadingSessionRecord {
+  id: string;
+  sessionId: string;
+  date: string;
+  pageId: string;
+  domain: string;
+  resourceType?: ReadingResourceType;
+  startedAt: number;
+  endedAt: number;
+  effectiveReadingMs: number;
+  effectiveWords: number;
+  confidence: number;
+}
+
 export interface VocabExposureRecord {
   lemma: string;
   language: string;
@@ -149,6 +163,7 @@ export class YuelDatabase extends Dexie {
   chunkSessions!: Table<ChunkSessionRecord, string>;
   chunkDays!: Table<ChunkDayRecord, string>;
   readingEvents!: Table<ReadingEventRecord, string>;
+  readingSessions!: Table<ReadingSessionRecord, string>;
   vocabExposures!: Table<VocabExposureRecord, string>;
   savedItems!: Table<SavedItemRecord, string>;
   dailyStats!: Table<DailyStatRecord, string>;
@@ -183,6 +198,10 @@ export class YuelDatabase extends Dexie {
 
     this.version(5).stores({
       readingPaceEpisodes: 'id, sessionId, pageId, lastObservedAt',
+    });
+
+    this.version(6).stores({
+      readingSessions: 'id, sessionId, date, pageId, domain, startedAt, endedAt',
     });
   }
 }

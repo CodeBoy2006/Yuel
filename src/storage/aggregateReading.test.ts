@@ -114,6 +114,16 @@ describe('summarizeReadingEventBatch', () => {
         effectiveReadingMs: 60_000,
       }),
     ]);
+    expect(summary.sessionUpdates).toEqual([
+      expect.objectContaining({
+        sessionId: 'session-1',
+        date: '2026-06-27',
+        startedAt: capturedAt - 60_000,
+        endedAt: capturedAt,
+        effectiveReadingMs: 60_000,
+        effectiveWords: 120,
+      }),
+    ]);
   });
 
   it('records raw exposure without daily effective reading for inactive viewport ticks', () => {
@@ -130,6 +140,7 @@ describe('summarizeReadingEventBatch', () => {
     expect(summary.totalEffectiveReadingMs).toBe(0);
     expect(summary.pageEffectiveWords).toBe(0);
     expect(summary.dailyUpdates).toEqual([]);
+    expect(summary.sessionUpdates).toEqual([]);
   });
 
   it('applies session, day, and lifetime counters while splitting new and review words', () => {

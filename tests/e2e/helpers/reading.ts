@@ -18,8 +18,10 @@ export function createRuntimeReadingBatchMessage(now = Date.now()): ReadingEvent
 function createRuntimeReadingBatchPayload(now: number): ReadingEventBatchPayload {
   const url = `https://${RUNTIME_LOOP_DOMAIN}/local-first-browser-reading`;
   const pageId = createPageId(url);
-  const chunkText =
-    'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.';
+  const chunkText = Array.from(
+    { length: 10 },
+    () => 'Architecture performance guides help local first browser extensions measure reading behavior and vocabulary exposure safely.',
+  ).join(' ');
   const chunkAnalysis = analyzeEnglishText(chunkText);
   const chunkId = createChunkId(pageId, chunkText);
   const sessionId = `session_browser_smoke_${now}`;

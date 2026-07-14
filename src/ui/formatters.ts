@@ -21,11 +21,21 @@ export function formatWords(words: number): string {
 }
 
 export function formatMinutes(minutes: number): string {
-  if (minutes < 1 && minutes > 0) {
+  const normalizedMinutes = Math.max(0, minutes);
+  if (normalizedMinutes < 1 && normalizedMinutes > 0) {
     return '不足 1 分钟';
   }
 
-  return `${Math.round(minutes)} 分钟`;
+  const roundedMinutes = Math.round(normalizedMinutes);
+  if (roundedMinutes < 60) {
+    return `${roundedMinutes} 分钟`;
+  }
+
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = roundedMinutes % 60;
+  return remainingMinutes > 0
+    ? `${hours} 小时 ${remainingMinutes} 分钟`
+    : `${hours} 小时`;
 }
 
 export function formatDateTime(timestamp: number): string {

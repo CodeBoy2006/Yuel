@@ -45,7 +45,7 @@ export function createShareCardCopyText(
   }
 
   lines.push(
-    `阅读时间：${content.readingTime}`,
+    `有效时长：${content.readingTime}`,
     `页面：${content.pages} 页`,
     `学习中词汇：${content.learningWords} 个`,
     `今日网站：${visibleDomains.join('、') || '暂无今日网站'}`,

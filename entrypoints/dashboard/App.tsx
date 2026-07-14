@@ -87,6 +87,7 @@ import {
   ShareCardCarousel,
   type ShareCardThemeId,
 } from './ShareCardCarousel';
+import { ReadingDurationInsights } from './ReadingDurationInsights';
 import { ReadingInsights } from './ReadingInsights';
 
 export interface DashboardAppDependencies {
@@ -887,7 +888,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               </div>
               <div className="today-ledger__metrics">
                 <Metric icon={BookOpen} label="有效阅读" value={`${effectiveWordsValue} 词`} />
-                <Metric icon={Activity} label="阅读时间" value={readingTimeValue} />
+                <Metric icon={Activity} label="有效时长" value={readingTimeValue} />
                 <Metric icon={Database} label="今日页面" value={pagesTodayValue} />
                 <Metric icon={Languages} label="学习中词汇" value={learningWordsValue} />
                 <Metric icon={BookOpen} label="连续打卡" value={`${summary?.streak ?? 0} 天`} />
@@ -998,6 +999,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             ) : null}
 
             <ReadingInsights dailyGoal={checkInThresholdWords} history={insightHistory} />
+            <ReadingDurationInsights
+              history={insightHistory}
+              sessions={details?.readingSessions ?? []}
+            />
           </>
         ) : null}
 
@@ -1369,7 +1374,7 @@ function RecentPageCard({
         <time dateTime={new Date(page.lastReadAt).toISOString()}>{formatDateTime(page.lastReadAt)}</time>
       </div>
       <p>
-        累计有效 {formatCount(page.effectiveWords)} 词 · 内容覆盖 {formatCount(page.coveredWords)} / {formatCount(page.totalWords)} 词
+        累计有效 {formatCount(page.effectiveWords)} 词 · 有效时长 {formatMinutes(page.effectiveMinutes)} · 内容覆盖 {formatCount(page.coveredWords)} / {formatCount(page.totalWords)} 词
       </p>
       {page.totalWords > 0 ? (
         <ProgressBar

@@ -9,7 +9,13 @@ import {
   getTodayReadingSummary,
   type ReadingStatsStore,
 } from './readingStats';
-import type { DailyStatRecord, PageRecord, SavedItemRecord, VocabExposureRecord } from './schema';
+import type {
+  DailyStatRecord,
+  PageRecord,
+  ReadingSessionRecord,
+  SavedItemRecord,
+  VocabExposureRecord,
+} from './schema';
 
 const morningOnJune27 = new Date(2026, 5, 27, 10, 0, 0).getTime();
 
@@ -21,6 +27,7 @@ function createStore({
   expectedRecentVocabularyQueryLimit = 20,
   expectedRecentSavedItemQueryLimit = 20,
   recentPages = [],
+  readingSessions = [],
   recentVocabulary = [],
   recentSavedItems = [],
   pagesById = new Map<string, PageRecord>(),
@@ -40,6 +47,7 @@ function createStore({
   expectedRecentVocabularyQueryLimit?: number;
   expectedRecentSavedItemQueryLimit?: number;
   recentPages?: PageRecord[];
+  readingSessions?: ReadingSessionRecord[];
   recentVocabulary?: VocabExposureRecord[];
   recentSavedItems?: SavedItemRecord[];
   pagesById?: Map<string, PageRecord>;
@@ -68,6 +76,21 @@ function createStore({
       },
       async bulkGet(dates: string[]) {
         return dates.map(getDailyStat);
+      },
+    },
+    readingSessions: {
+      where(index: string) {
+        expect(index).toBe('endedAt');
+        return {
+          aboveOrEqual(startedAt: number) {
+            expect(startedAt).toBe(new Date(2026, 2, 30).getTime());
+            return {
+              async toArray() {
+                return readingSessions;
+              },
+            };
+          },
+        };
       },
     },
     pages: {
@@ -358,6 +381,7 @@ describe('getReadingDashboardDetails', () => {
         totalWords: 400,
         effectiveWords: 220,
         coveredWords: 220,
+        effectiveMinutes: 0,
         lastReadAt: morningOnJune27,
       },
     ]);
@@ -401,6 +425,7 @@ describe('getReadingDashboardDetails', () => {
         totalWords: 400,
         effectiveWords: 120,
         coveredWords: 120,
+        effectiveMinutes: 0,
         lastReadAt: morningOnJune27,
       },
     ]);
@@ -447,9 +472,88 @@ describe('getReadingDashboardDetails', () => {
         totalWords: 400,
         effectiveWords: 120,
         coveredWords: 120,
+        effectiveMinutes: 0,
         lastReadAt: morningOnJune27,
       },
     ]);
+  });
+
+  it('merges nearby page records into focus sessions and keeps longer breaks separate', async () => {
+    const firstStartedAt = new Date(2026, 5, 27, 9, 0).getTime();
+    const details = await getReadingDashboardDetails(
+      createStore({
+        readingSessions: [
+          createReadingSessionRecord({
+            id: 'session-a',
+            pageId: 'page-a',
+            domain: 'docs.example.com',
+            startedAt: firstStartedAt,
+            endedAt: firstStartedAt + 10 * 60_000,
+            effectiveReadingMs: 5 * 60_000,
+            effectiveWords: 100,
+          }),
+          createReadingSessionRecord({
+            id: 'session-b',
+            pageId: 'page-b',
+            domain: 'github.com',
+            startedAt: firstStartedAt + 14 * 60_000,
+            endedAt: firstStartedAt + 25 * 60_000,
+            effectiveReadingMs: 7 * 60_000,
+            effectiveWords: 140,
+          }),
+          createReadingSessionRecord({
+            id: 'session-c',
+            pageId: 'page-c',
+            domain: 'pdf.local',
+            resourceType: 'pdf',
+            startedAt: firstStartedAt + 31 * 60_000,
+            endedAt: firstStartedAt + 35 * 60_000,
+            effectiveReadingMs: 3 * 60_000,
+            effectiveWords: 60,
+          }),
+        ],
+      }),
+      morningOnJune27,
+    );
+
+    expect(details.readingSessions).toEqual([
+      {
+        id: 'session-c',
+        date: '2026-06-27',
+        startedAt: firstStartedAt + 31 * 60_000,
+        endedAt: firstStartedAt + 35 * 60_000,
+        effectiveMinutes: 3,
+        effectiveWords: 60,
+        pageCount: 1,
+        sources: [{
+          domain: 'pdf.local',
+          resourceType: 'pdf',
+          effectiveMinutes: 3,
+        }],
+      },
+      {
+        id: 'session-a',
+        date: '2026-06-27',
+        startedAt: firstStartedAt,
+        endedAt: firstStartedAt + 25 * 60_000,
+        effectiveMinutes: 12,
+        effectiveWords: 240,
+        pageCount: 2,
+        sources: [
+          {
+            domain: 'github.com',
+            resourceType: undefined,
+            effectiveMinutes: 7,
+          },
+          {
+            domain: 'docs.example.com',
+            resourceType: undefined,
+            effectiveMinutes: 5,
+          },
+        ],
+      },
+    ]);
+    expect(details.hasData).toBe(true);
   });
 
   it('limits dashboard recent pages to five measured reading records after scanning', async () => {
@@ -907,6 +1011,24 @@ function createPageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
     effectiveWords: 0,
     firstSeenAt: morningOnJune27 - 2_000,
     lastReadAt: morningOnJune27,
+    ...overrides,
+  };
+}
+
+function createReadingSessionRecord(
+  overrides: Partial<ReadingSessionRecord> = {},
+): ReadingSessionRecord {
+  return {
+    id: 'session-record',
+    sessionId: 'technical-session',
+    date: '2026-06-27',
+    pageId: 'page-1',
+    domain: 'example.com',
+    startedAt: morningOnJune27,
+    endedAt: morningOnJune27 + 60_000,
+    effectiveReadingMs: 60_000,
+    effectiveWords: 220,
+    confidence: 0.9,
     ...overrides,
   };
 }

@@ -26,7 +26,7 @@ Included:
 - Text block extraction for article, main, docs, markdown, heading, code, list, and blockquote content.
 - Dynamic SPA refresh support for later content injection, infinite-scroll additions, and client-side route replacement.
 - Reading event contracts for page visibility, block visibility, viewport exposure, scroll velocity, idle/activity, and selection.
-- Dexie schema for pages, chunks, chunk session/day caps, events, vocabulary exposures, saved items, and daily stats.
+- Dexie schema for pages, chunks, chunk session/day caps, events, durable reading sessions, vocabulary exposures, saved items, and daily stats.
 - Lightweight English tokenization using browser-native `Intl.Segmenter` for sentence splitting where available.
 - Data-only Pack validation and matching for lexicon and phrase rules.
 
@@ -52,6 +52,7 @@ The required `tabs` permission lets the persistent side panel resolve the active
 The local database uses event sourcing plus aggregate-ready tables:
 
 - `readingEvents`: short-lived behavior events.
+- `readingSessions`: durable effective-reading intervals, merged within a five-minute gap and used for cross-page focus-session reporting.
 - `pages`: hashed page identity and page-level counters.
 - `textChunks`: hashed chunk identity and aggregate exposure fields.
 - `chunkSessions`: per-session chunk effective-word caps.

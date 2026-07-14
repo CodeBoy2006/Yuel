@@ -27,6 +27,9 @@ describe('Chinese UI formatters', () => {
     expect(formatMinutes(0.5)).toBe('不足 1 分钟');
     expect(formatMinutes(1.49)).toBe('1 分钟');
     expect(formatMinutes(1.5)).toBe('2 分钟');
+    expect(formatMinutes(60)).toBe('1 小时');
+    expect(formatMinutes(75)).toBe('1 小时 15 分钟');
+    expect(formatMinutes(120)).toBe('2 小时');
   });
 
   it('formats dates with a stable Simplified Chinese locale', () => {

@@ -42,6 +42,11 @@ const mocks = vi.hoisted(() => {
     clear: vi.fn(),
     where: vi.fn(),
   };
+  const readingSessions = {
+    bulkPut: vi.fn(),
+    clear: vi.fn(),
+    where: vi.fn(),
+  };
   const vocabExposures = {
     clear: vi.fn(),
     get: vi.fn(),
@@ -77,6 +82,7 @@ const mocks = vi.hoisted(() => {
     chunkSessions,
     chunkDays,
     readingEvents,
+    readingSessions,
     vocabExposures,
     savedItems,
     dailyStats,
@@ -91,7 +97,21 @@ const mocks = vi.hoisted(() => {
     }),
   };
 
-  return { chunkDays, chunkSessions, db, dailyStats, metadata, pages, readingEvents, readingPaceEpisodes, readingPaceProfiles, savedItems, textChunks, vocabExposures };
+  return {
+    chunkDays,
+    chunkSessions,
+    db,
+    dailyStats,
+    metadata,
+    pages,
+    readingEvents,
+    readingPaceEpisodes,
+    readingPaceProfiles,
+    readingSessions,
+    savedItems,
+    textChunks,
+    vocabExposures,
+  };
 });
 
 vi.mock('./schema', () => ({
@@ -173,6 +193,11 @@ describe('recordReadingEventBatch', () => {
         delete: vi.fn(),
       })),
     });
+    mocks.readingSessions.where.mockReturnValue({
+      equals: vi.fn(() => ({
+        toArray: vi.fn(async () => []),
+      })),
+    });
     mocks.readingPaceEpisodes.where.mockReturnValue({
       below: vi.fn(() => ({
         delete: vi.fn(),
@@ -210,6 +235,86 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.textChunks.bulkGet).toHaveBeenCalledWith(['chunk-1']);
     expect(mocks.chunkSessions.bulkGet).toHaveBeenCalledWith(['session-1:chunk-1']);
     expect(mocks.chunkDays.bulkGet).toHaveBeenCalledWith(['2026-06-27:chunk-1']);
+    expect(mocks.readingSessions.where).toHaveBeenCalledWith('sessionId');
+  });
+
+  it('stores effective reading intervals as durable session records', async () => {
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.readingSessions.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: `session-1:2026-06-27:${capturedAt - 30_000}`,
+        sessionId: 'session-1',
+        date: '2026-06-27',
+        pageId: 'page-1',
+        domain: 'docs.example.com',
+        startedAt: capturedAt - 30_000,
+        endedAt: capturedAt,
+        effectiveReadingMs: expect.closeTo(8 / 220 * 60_000, 6),
+        effectiveWords: 8,
+      }),
+    ]);
+  });
+
+  it('merges adjacent effective intervals for the same page and technical session', async () => {
+    const existingEffectiveReadingMs = 1_500;
+    mocks.readingSessions.where.mockReturnValueOnce({
+      equals: vi.fn(() => ({
+        toArray: vi.fn(async () => [{
+          id: 'stored-session',
+          sessionId: 'session-1',
+          date: '2026-06-27',
+          pageId: 'page-1',
+          domain: 'docs.example.com',
+          startedAt: capturedAt - 90_000,
+          endedAt: capturedAt - 45_000,
+          effectiveReadingMs: existingEffectiveReadingMs,
+          effectiveWords: 4,
+          confidence: 0.5,
+        }]),
+      })),
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.readingSessions.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'stored-session',
+        startedAt: capturedAt - 90_000,
+        endedAt: capturedAt,
+        effectiveReadingMs: expect.closeTo(existingEffectiveReadingMs + 8 / 220 * 60_000, 6),
+        effectiveWords: 12,
+      }),
+    ]);
+  });
+
+  it('starts a new stored interval after a five-minute reading break', async () => {
+    mocks.readingSessions.where.mockReturnValueOnce({
+      equals: vi.fn(() => ({
+        toArray: vi.fn(async () => [{
+          id: 'stored-session',
+          sessionId: 'session-1',
+          date: '2026-06-27',
+          pageId: 'page-1',
+          domain: 'docs.example.com',
+          startedAt: capturedAt - 10 * 60_000,
+          endedAt: capturedAt - 6 * 60_000,
+          effectiveReadingMs: 60_000,
+          effectiveWords: 100,
+          confidence: 0.8,
+        }]),
+      })),
+    });
+
+    await recordReadingEventBatch(createPayload());
+
+    expect(mocks.readingSessions.bulkPut).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: `session-1:2026-06-27:${capturedAt - 30_000}`,
+        startedAt: capturedAt - 30_000,
+        endedAt: capturedAt,
+      }),
+    ]);
   });
 
   it('persists PDF resource and physical section identities without changing table indexes', async () => {
@@ -1339,6 +1444,7 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.chunkSessions.clear).toHaveBeenCalledOnce();
     expect(mocks.chunkDays.clear).toHaveBeenCalledOnce();
     expect(mocks.readingEvents.clear).toHaveBeenCalledOnce();
+    expect(mocks.readingSessions.clear).toHaveBeenCalledOnce();
     expect(mocks.vocabExposures.clear).toHaveBeenCalledOnce();
     expect(mocks.savedItems.clear).toHaveBeenCalledOnce();
     expect(mocks.dailyStats.clear).toHaveBeenCalledOnce();

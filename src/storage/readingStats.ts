@@ -6,6 +6,7 @@ import {
   db,
   type DailyStatRecord,
   type PageRecord,
+  type ReadingSessionRecord,
   type SavedItemRecord,
   type VocabExposureRecord,
 } from './schema';
@@ -38,7 +39,25 @@ export interface RecentPageSummary {
   totalWords: number;
   effectiveWords: number;
   coveredWords: number;
+  effectiveMinutes: number;
   lastReadAt: number;
+}
+
+export interface ReadingSessionSourceSummary {
+  domain: string;
+  resourceType?: ReadingSessionRecord['resourceType'];
+  effectiveMinutes: number;
+}
+
+export interface ReadingFocusSessionSummary {
+  id: string;
+  date: string;
+  startedAt: number;
+  endedAt: number;
+  effectiveMinutes: number;
+  effectiveWords: number;
+  pageCount: number;
+  sources: ReadingSessionSourceSummary[];
 }
 
 export interface CurrentPageReadingSummary {
@@ -70,6 +89,7 @@ export interface RecentSavedItemSummary {
 export interface ReadingDashboardDetails {
   summary: TodayReadingSummary;
   history: ReadingHistoryDay[];
+  readingSessions: ReadingFocusSessionSummary[];
   recentPages: RecentPageSummary[];
   recentVocabulary: RecentVocabularySummary[];
   recentSavedItems: RecentSavedItemSummary[];
@@ -89,6 +109,13 @@ export interface ReadingStatsStore {
   dailyStats: {
     get: (date: string) => Promise<DailyStatRecord | undefined>;
     bulkGet: (dates: string[]) => Promise<Array<DailyStatRecord | undefined>>;
+  };
+  readingSessions: {
+    where: (index: string) => {
+      aboveOrEqual: (value: number) => {
+        toArray: () => Promise<ReadingSessionRecord[]>;
+      };
+    };
   };
   pages: {
     get: (pageId: string) => Promise<PageRecord | undefined>;
@@ -140,6 +167,7 @@ const RECENT_SAVED_ITEM_SCAN_LIMIT = 20;
 const SIDE_PANEL_VOCABULARY_LIMIT = 5;
 const SIDE_PANEL_SAVED_ITEM_LIMIT = 1;
 const DASHBOARD_HISTORY_WEEKS = 13;
+const READING_SESSION_MERGE_GAP_MS = 5 * 60_000;
 
 export async function getTodayReadingSummary(
   store: ReadingStatsStore = db,
@@ -207,9 +235,19 @@ export async function getReadingDashboardDetails(
   store: ReadingStatsStore = db,
   now = Date.now(),
 ): Promise<ReadingDashboardDetails> {
-  const [summary, history, recentPageRecords, recentVocabularyRecords, recentSavedItemRecords] = await Promise.all([
+  const historyDates = createDashboardHistoryDates(now);
+  const historyStartedAt = parseLocalDate(historyDates[0]).getTime();
+  const [
+    summary,
+    history,
+    readingSessionRecords,
+    recentPageRecords,
+    recentVocabularyRecords,
+    recentSavedItemRecords,
+  ] = await Promise.all([
     getTodayReadingSummary(store, now),
-    getDashboardReadingHistory(store, now),
+    getDashboardReadingHistory(store, historyDates),
+    store.readingSessions.where('endedAt').aboveOrEqual(historyStartedAt).toArray(),
     store.pages.orderBy('lastReadAt').reverse().limit(RECENT_PAGE_SCAN_LIMIT).toArray(),
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
     store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
@@ -224,14 +262,17 @@ export async function getReadingDashboardDetails(
       totalWords: page.totalWords,
       effectiveWords: page.effectiveWords,
       coveredWords: getPageCoveredWords(page),
+      effectiveMinutes: Math.max(0, page.effectiveReadingMs ?? 0) / 60_000,
       lastReadAt: page.lastReadAt,
     }));
+  const readingSessions = createReadingFocusSessionSummaries(readingSessionRecords);
   const recentVocabulary = createRecentVocabularySummaries(recentVocabularyRecords);
   const recentSavedItems = createRecentSavedItemSummaries(recentSavedItemRecords);
 
   const hasHistoricalReading = history.some((day) => day.effectiveWords > 0 || day.minutes > 0);
   const hasData = summary.hasData
     || hasHistoricalReading
+    || readingSessions.length > 0
     || recentPages.length > 0
     || recentVocabulary.length > 0
     || recentSavedItems.length > 0;
@@ -239,6 +280,7 @@ export async function getReadingDashboardDetails(
   return {
     summary,
     history,
+    readingSessions,
     recentPages,
     recentVocabulary,
     recentSavedItems,
@@ -248,9 +290,8 @@ export async function getReadingDashboardDetails(
 
 async function getDashboardReadingHistory(
   store: ReadingStatsStore,
-  now: number,
+  dates: string[],
 ): Promise<ReadingHistoryDay[]> {
-  const dates = createDashboardHistoryDates(now);
   const [dailyStats, checkInThresholdWords] = await Promise.all([
     store.dailyStats.bulkGet(dates),
     getDailyCheckInThresholdWords(store),
@@ -270,6 +311,95 @@ async function getDashboardReadingHistory(
   });
 }
 
+function createReadingFocusSessionSummaries(
+  records: ReadingSessionRecord[],
+): ReadingFocusSessionSummary[] {
+  const accumulators: ReadingFocusSessionAccumulator[] = [];
+
+  for (const record of records
+    .filter((candidate) => candidate.effectiveReadingMs > 0)
+    .sort((left, right) => left.startedAt - right.startedAt)) {
+    const current = accumulators.at(-1);
+    if (
+      current
+      && current.date === record.date
+      && record.startedAt - current.endedAt <= READING_SESSION_MERGE_GAP_MS
+    ) {
+      addReadingSessionRecord(current, record);
+      continue;
+    }
+
+    const next: ReadingFocusSessionAccumulator = {
+      id: record.id,
+      date: record.date,
+      startedAt: record.startedAt,
+      endedAt: record.endedAt,
+      effectiveReadingMs: 0,
+      effectiveWords: 0,
+      pageIds: new Set(),
+      sources: new Map(),
+    };
+    addReadingSessionRecord(next, record);
+    accumulators.push(next);
+  }
+
+  return accumulators
+    .map((session): ReadingFocusSessionSummary => ({
+      id: session.id,
+      date: session.date,
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      effectiveMinutes: session.effectiveReadingMs / 60_000,
+      effectiveWords: session.effectiveWords,
+      pageCount: session.pageIds.size,
+      sources: Array.from(session.sources.values())
+        .sort((left, right) => right.effectiveReadingMs - left.effectiveReadingMs)
+        .map((source) => ({
+          domain: source.domain,
+          resourceType: source.resourceType,
+          effectiveMinutes: source.effectiveReadingMs / 60_000,
+        })),
+    }))
+    .sort((left, right) => right.startedAt - left.startedAt);
+}
+
+interface ReadingFocusSessionAccumulator {
+  id: string;
+  date: string;
+  startedAt: number;
+  endedAt: number;
+  effectiveReadingMs: number;
+  effectiveWords: number;
+  pageIds: Set<string>;
+  sources: Map<string, ReadingSessionSourceAccumulator>;
+}
+
+interface ReadingSessionSourceAccumulator {
+  domain: string;
+  resourceType?: ReadingSessionRecord['resourceType'];
+  effectiveReadingMs: number;
+}
+
+function addReadingSessionRecord(
+  session: ReadingFocusSessionAccumulator,
+  record: ReadingSessionRecord,
+): void {
+  session.startedAt = Math.min(session.startedAt, record.startedAt);
+  session.endedAt = Math.max(session.endedAt, record.endedAt);
+  session.effectiveReadingMs += Math.max(0, record.effectiveReadingMs);
+  session.effectiveWords += Math.max(0, record.effectiveWords);
+  session.pageIds.add(record.pageId);
+
+  const domain = normalizeDisplayDomain(record.domain);
+  const sourceKey = `${record.resourceType ?? 'web'}:${domain}`;
+  const existingSource = session.sources.get(sourceKey);
+  session.sources.set(sourceKey, {
+    domain,
+    resourceType: record.resourceType,
+    effectiveReadingMs: (existingSource?.effectiveReadingMs ?? 0) + Math.max(0, record.effectiveReadingMs),
+  });
+}
+
 function createDashboardHistoryDates(now: number): string[] {
   const today = new Date(now);
   // Noon keeps local calendar stepping stable across daylight-saving transitions.
@@ -286,6 +416,11 @@ function createDashboardHistoryDates(now: number): string[] {
   }
 
   return dates;
+}
+
+function parseLocalDate(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 export async function getSidePanelReadingDetails(
@@ -339,7 +474,7 @@ export async function getPageReadingSummary(
 }
 
 function hasMeasuredReading(page: PageRecord): boolean {
-  return page.effectiveWords > 0;
+  return page.effectiveWords > 0 || (page.effectiveReadingMs ?? 0) > 0;
 }
 
 function getPageCoveredWords(page: PageRecord): number {

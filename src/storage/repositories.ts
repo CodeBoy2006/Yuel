@@ -23,6 +23,7 @@ import {
   type PageRecord,
   type ReadingPaceEpisodeRecord,
   type ReadingPaceProfileRecord,
+  type ReadingSessionRecord,
   type TextChunkRecord,
   type VocabExposureRecord,
 } from './schema';
@@ -43,12 +44,25 @@ const ADAPTIVE_CENTER_BAND_TOP = 0.3;
 const ADAPTIVE_CENTER_BAND_BOTTOM = 0.7;
 const ADAPTIVE_COMPLETION_Y = 0.2;
 const MAX_ADAPTIVE_EPISODE_MS = 10 * 60_000;
+const READING_SESSION_MERGE_GAP_MS = 5 * 60_000;
 const READING_DATA_CLEARED_AT_KEY = 'readingDataClearedAt';
 
 export async function recordReadingEventBatch(payload: ReadingEventBatchPayload): Promise<void> {
   const now = Date.now();
 
-  await db.transaction('rw', [db.pages, db.textChunks, db.chunkSessions, db.chunkDays, db.readingEvents, db.vocabExposures, db.dailyStats, db.readingPaceProfiles, db.readingPaceEpisodes, db.metadata], async () => {
+  await db.transaction('rw', [
+    db.pages,
+    db.textChunks,
+    db.chunkSessions,
+    db.chunkDays,
+    db.readingEvents,
+    db.readingSessions,
+    db.vocabExposures,
+    db.dailyStats,
+    db.readingPaceProfiles,
+    db.readingPaceEpisodes,
+    db.metadata,
+  ], async () => {
     const dataClearedAt = (await db.metadata.get(READING_DATA_CLEARED_AT_KEY))?.numberValue ?? 0;
     const eventsAfterClear = payload.events.flatMap((event) => normalizeEventAfterClear(event, dataClearedAt));
     const newEvents = await getNewReadingEvents(eventsAfterClear);
@@ -77,12 +91,16 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       existingChunkValues,
       existingSessionChunkValues,
       existingDayChunkValues,
+      existingReadingSessionRecords,
     ] = await Promise.all([
       db.readingPaceProfiles.get(createReadingPaceProfileId(pageLanguage, DEFAULT_READING_CONTENT_TYPE)),
       db.pages.get(payload.page.pageId),
       db.textChunks.bulkGet(chunkIds),
       sessionId ? db.chunkSessions.bulkGet(sessionChunkIds) : Promise.resolve([]),
       dayChunkIds.length > 0 ? db.chunkDays.bulkGet(dayChunkIds) : Promise.resolve([]),
+      sessionId
+        ? db.readingSessions.where('sessionId').equals(sessionId).toArray()
+        : Promise.resolve([]),
     ]);
     const baseWordsPerMinute = resolveReadingPaceBaseWordsPerMinute(readingPaceProfile);
     const incomingMetricModelVersion = payload.page.metricModelVersion ?? 1;
@@ -232,6 +250,7 @@ export async function recordReadingEventBatch(payload: ReadingEventBatchPayload)
       await db.readingEvents.bulkPut(newEvents);
     }
     await recordChunkCapIncrements(summary, existingSessionChunks, existingDayChunks, sessionId);
+    await recordReadingSessionUpdates(summary.sessionUpdates, existingReadingSessionRecords, pageRecord);
     await recordDailyStatIncrements(summary.dailyUpdates, pageDomain, incomingMetricModelVersion);
     await recordAdaptiveReadingPaceSample(batchPayload, readingPaceProfile, baseWordsPerMinute, pageLanguage, now);
 
@@ -322,6 +341,7 @@ export async function clearLocalReadingData(clearedAt = Date.now()): Promise<voi
       db.chunkSessions,
       db.chunkDays,
       db.readingEvents,
+      db.readingSessions,
       db.vocabExposures,
       db.savedItems,
       db.dailyStats,
@@ -338,6 +358,7 @@ export async function clearLocalReadingData(clearedAt = Date.now()): Promise<voi
         db.chunkSessions.clear(),
         db.chunkDays.clear(),
         db.readingEvents.clear(),
+        db.readingSessions.clear(),
         db.vocabExposures.clear(),
         db.savedItems.clear(),
         db.dailyStats.clear(),
@@ -596,6 +617,89 @@ async function recordChunkCapIncrements(
   }
 }
 
+async function recordReadingSessionUpdates(
+  updates: ReturnType<typeof summarizeReadingEventBatch>['sessionUpdates'],
+  existingRecords: ReadingSessionRecord[],
+  page: PageRecord,
+): Promise<void> {
+  const records = existingRecords.map((record) => ({ ...record }));
+  const changedRecords = new Map<string, ReadingSessionRecord>();
+
+  for (const update of updates
+    .filter((candidate) => candidate.effectiveReadingMs > 0)
+    .sort((left, right) => left.startedAt - right.startedAt)) {
+    let matchingRecord: ReadingSessionRecord | undefined;
+    let matchingGap = Number.POSITIVE_INFINITY;
+
+    for (const record of records) {
+      if (
+        record.sessionId !== update.sessionId
+        || record.date !== update.date
+        || record.pageId !== page.pageId
+      ) {
+        continue;
+      }
+
+      const intervalGap = getReadingSessionIntervalGap(record, update);
+      if (intervalGap <= READING_SESSION_MERGE_GAP_MS && intervalGap < matchingGap) {
+        matchingRecord = record;
+        matchingGap = intervalGap;
+      }
+    }
+
+    if (matchingRecord) {
+      const existingEffectiveReadingMs = matchingRecord.effectiveReadingMs;
+      matchingRecord.startedAt = Math.min(matchingRecord.startedAt, update.startedAt);
+      matchingRecord.endedAt = Math.max(matchingRecord.endedAt, update.endedAt);
+      matchingRecord.effectiveReadingMs += update.effectiveReadingMs;
+      matchingRecord.effectiveWords += update.effectiveWords;
+      matchingRecord.confidence = weightedAverageConfidence(
+        matchingRecord.confidence,
+        existingEffectiveReadingMs,
+        update.confidence,
+        update.effectiveReadingMs,
+      );
+      matchingRecord.domain = page.domain;
+      matchingRecord.resourceType = page.resourceType;
+      changedRecords.set(matchingRecord.id, matchingRecord);
+      continue;
+    }
+
+    const record: ReadingSessionRecord = {
+      id: createReadingSessionId(update.sessionId, update.date, update.startedAt),
+      sessionId: update.sessionId,
+      date: update.date,
+      pageId: page.pageId,
+      domain: page.domain,
+      resourceType: page.resourceType,
+      startedAt: update.startedAt,
+      endedAt: update.endedAt,
+      effectiveReadingMs: update.effectiveReadingMs,
+      effectiveWords: update.effectiveWords,
+      confidence: update.confidence,
+    };
+    records.push(record);
+    changedRecords.set(record.id, record);
+  }
+
+  if (changedRecords.size > 0) {
+    await db.readingSessions.bulkPut(Array.from(changedRecords.values()));
+  }
+}
+
+function getReadingSessionIntervalGap(
+  record: Pick<ReadingSessionRecord, 'startedAt' | 'endedAt'>,
+  update: Pick<ReturnType<typeof summarizeReadingEventBatch>['sessionUpdates'][number], 'startedAt' | 'endedAt'>,
+): number {
+  if (update.startedAt > record.endedAt) {
+    return update.startedAt - record.endedAt;
+  }
+  if (record.startedAt > update.endedAt) {
+    return record.startedAt - update.endedAt;
+  }
+  return 0;
+}
+
 function mergeTopDomains(existing: string[], domain: string): string[] {
   const normalizedExisting = existing.map(normalizeExistingTopDomain).filter((value): value is string => Boolean(value));
   return Array.from(new Set([...normalizedExisting, domain])).slice(0, 8);
@@ -809,6 +913,10 @@ function createChunkSessionId(sessionId: string, chunkId: string): string {
 
 function createChunkDayId(date: string, chunkId: string): string {
   return `${date}:${chunkId}`;
+}
+
+function createReadingSessionId(sessionId: string, date: string, startedAt: number): string {
+  return `${sessionId}:${date}:${Math.floor(startedAt)}`;
 }
 
 function mergePageConfidence(

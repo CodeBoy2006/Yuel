@@ -50,6 +50,16 @@ export interface ChunkDayReadingUpdate {
   reviewWords: number;
 }
 
+export interface ReadingSessionUpdate {
+  sessionId: string;
+  date: string;
+  startedAt: number;
+  endedAt: number;
+  effectiveReadingMs: number;
+  effectiveWords: number;
+  confidence: number;
+}
+
 export interface ReadingBatchSummary {
   chunkUpdates: ChunkReadingUpdate[];
   pageEffectiveWords: number;
@@ -60,6 +70,7 @@ export interface ReadingBatchSummary {
   lastEffectiveReadAt?: number;
   dailyUpdates: DailyReadingUpdate[];
   chunkDayUpdates: ChunkDayReadingUpdate[];
+  sessionUpdates: ReadingSessionUpdate[];
 }
 
 export function summarizeReadingEventBatch(
@@ -72,6 +83,7 @@ export function summarizeReadingEventBatch(
   const chunkDayStates = cloneChunkDayStates(state.chunkDayStates);
   const chunkDayUpdates = new Map<string, ChunkDayReadingUpdate>();
   const dailyUpdates = new Map<string, DailyReadingUpdate>();
+  const sessionUpdates: ReadingSessionUpdate[] = [];
   let pageEffectiveWords = 0;
   let pageNewWords = 0;
   let pageReviewWords = 0;
@@ -133,6 +145,18 @@ export function summarizeReadingEventBatch(
     totalRawExposureMs += estimate.rawExposureMs;
     totalEffectiveReadingMs += estimate.effectiveReadingMs;
     pageEffectiveWords += estimate.allocatedWords;
+
+    if (estimate.effectiveReadingMs > 0) {
+      sessionUpdates.push({
+        sessionId: event.sessionId,
+        date,
+        startedAt: Math.max(0, event.occurredAt - tick.tickMs),
+        endedAt: event.occurredAt,
+        effectiveReadingMs: estimate.effectiveReadingMs,
+        effectiveWords: estimate.allocatedWords,
+        confidence: estimate.confidenceScore,
+      });
+    }
 
     recordVisibleChunkRawExposure(chunkUpdates, chunkDayUpdates, date, visibleChunks, estimate.rawExposureMs, estimate.confidenceScore);
 
@@ -204,6 +228,7 @@ export function summarizeReadingEventBatch(
     lastEffectiveReadAt,
     dailyUpdates: Array.from(dailyUpdates.values()),
     chunkDayUpdates: Array.from(chunkDayUpdates.values()),
+    sessionUpdates,
   };
 }
 

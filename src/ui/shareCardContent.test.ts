@@ -30,7 +30,7 @@ describe('createShareCardContent', () => {
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 1,280 Words\n'
       + '连续打卡：3 天\n'
-      + '阅读时间：9 分钟\n'
+      + '有效时长：9 分钟\n'
       + '页面：4 页\n'
       + '学习中词汇：11 个\n'
       + '今日网站：developer.mozilla.org、web.dev、react.dev',
@@ -54,7 +54,7 @@ describe('createShareCardContent', () => {
     expect(createShareCardCopyText(content, { siteLimit: 2, showStreak: false })).toBe(
       '阅量 · 今日英文阅读 · 2026-06-27\n'
       + '今天计入 900 Words\n'
-      + '阅读时间：10 分钟\n'
+      + '有效时长：10 分钟\n'
       + '页面：3 页\n'
       + '学习中词汇：4 个\n'
       + '今日网站：developer.mozilla.org、web.dev',

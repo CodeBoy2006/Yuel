@@ -432,7 +432,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           </SectionHeader>
           <div className="sidepanel-metrics">
             <Metric label="有效阅读" value={todayValue} icon={BookOpen} />
-            <Metric label="阅读时间" value={timeValue} icon={Activity} />
+            <Metric label="有效时长" value={timeValue} icon={Activity} />
             <Metric label="页面" value={pagesValue} icon={BookMarked} />
             <Metric label="学习中词汇" value={learningValue} icon={Languages} />
           </div>

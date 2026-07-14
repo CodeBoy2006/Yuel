@@ -259,7 +259,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           </SectionHeader>
           <div className="popup-metrics">
             <Metric label="有效阅读" value={loadFailed ? '不可用' : summary ? formatWords(summary.effectiveWords) : '读取中'} />
-            <Metric label="阅读时间" value={loadFailed ? '不可用' : summary?.hasData ? formatMinutes(summary.minutes) : hasLoaded ? '0 分钟' : '读取中'} />
+            <Metric label="有效时长" value={loadFailed ? '不可用' : summary?.hasData ? formatMinutes(summary.minutes) : hasLoaded ? '0 分钟' : '读取中'} />
             <Metric label="页面" value={loadFailed ? '不可用' : summary ? `${summary.readPages} 页` : '读取中'} />
             <Metric label="学习中词汇" value={loadFailed ? '不可用' : summary ? `${summary.learningWords} 个` : '读取中'} />
           </div>

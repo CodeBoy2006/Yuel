@@ -198,7 +198,7 @@ const ShareCardPreview = ({
       </div>
 
       <dl className="share-card-preview__metrics">
-        <div><dt>阅读时间</dt><dd>{content.readingTime}</dd></div>
+        <div><dt>有效时长</dt><dd>{content.readingTime}</dd></div>
         <div><dt>今日页面</dt><dd>{content.pages} 页</dd></div>
         <div><dt>学习词汇</dt><dd>{content.learningWords} 个</dd></div>
       </dl>
