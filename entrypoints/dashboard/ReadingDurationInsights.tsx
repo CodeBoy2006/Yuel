@@ -145,7 +145,7 @@ function DurationTrend({
   range: DurationRange;
   totalMinutes: number;
 }) {
-  const maximumMinutes = Math.max(1, ...history.map((day) => day.minutes));
+  const maximumMinutes = Math.max(0, ...history.map((day) => day.minutes));
   const averageMinutes = history.length ? totalMinutes / history.length : 0;
   const firstDay = history[0];
   const middleDay = history[Math.floor((history.length - 1) / 2)];
@@ -194,9 +194,9 @@ function DurationTrend({
               <span className="reading-duration-trend__day" key={day.date} aria-hidden="true">
                 <span
                   style={{
-                    height: day.minutes > 0
-                      ? `${Math.max(2, day.minutes / maximumMinutes * 100)}%`
-                      : '0',
+                  height: day.minutes > 0 && maximumMinutes > 0
+                    ? `${Math.max(2, day.minutes / maximumMinutes * 100)}%`
+                    : '0',
                   }}
                   title={`${fullDateFormatter.format(parseLocalDate(day.date))}：${formatMinutes(day.minutes)}`}
                 />
@@ -254,7 +254,11 @@ function SourceBreakdown({ sources }: { sources: SourceTotal[] }) {
                 <strong>{formatMinutes(source.effectiveMinutes)}</strong>
               </div>
               <span className="reading-duration-sources__track" aria-hidden="true">
-                <span style={{ width: `${source.effectiveMinutes / Math.max(1, totalMinutes) * 100}%` }} />
+                <span
+                  style={{
+                    width: `${totalMinutes > 0 ? source.effectiveMinutes / totalMinutes * 100 : 0}%`,
+                  }}
+                />
               </span>
             </li>
           ))}

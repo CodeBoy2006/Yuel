@@ -96,6 +96,39 @@ describe('ReadingDurationInsights', () => {
     expect(dailyItems[2].textContent).toContain('1 分钟');
   });
 
+  it('normalizes sub-minute trend and source bars against their real totals', async () => {
+    const history = [{
+      ...createHistory(1)[0],
+      minutes: 0.5,
+    }];
+    const startedAt = new Date(2026, 4, 28, 9, 0).getTime();
+    const sessions: ReadingFocusSessionSummary[] = [{
+      id: 'focus-short',
+      date: history[0].date,
+      startedAt,
+      endedAt: startedAt + 30_000,
+      effectiveMinutes: 0.5,
+      effectiveWords: 110,
+      pageCount: 1,
+      sources: [{
+        domain: 'docs.example.com',
+        effectiveMinutes: 0.5,
+      }],
+    }];
+    const container = await renderForSmoke(
+      <ReadingDurationInsights history={history} sessions={sessions} />,
+    );
+    const trendBar = container.querySelector<HTMLElement>(
+      '.reading-duration-trend__day > span',
+    );
+    const sourceBar = container.querySelector<HTMLElement>(
+      '.reading-duration-sources__track > span',
+    );
+
+    expect(trendBar?.style.height).toBe('100%');
+    expect(sourceBar?.style.width).toBe('100%');
+  });
+
   it('renders source totals and recent focus-session details', async () => {
     const startedAt = new Date(2026, 5, 27, 9, 0).getTime();
     const sessions: ReadingFocusSessionSummary[] = [
