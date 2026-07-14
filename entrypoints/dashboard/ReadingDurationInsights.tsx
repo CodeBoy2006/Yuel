@@ -1,5 +1,5 @@
 import { Clock3 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { formatLocalDate } from '../../src/domain/localDate';
 import type {
@@ -150,6 +150,14 @@ function DurationTrend({
   const firstDay = history[0];
   const middleDay = history[Math.floor((history.length - 1) / 2)];
   const lastDay = history.at(-1);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const plotMinWidth = Math.max(320, history.length * 8);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  }, [firstDay?.date, history.length, lastDay?.date, range]);
 
   return (
     <section className="reading-duration-trend" aria-labelledby="reading-duration-trend-title">
@@ -172,35 +180,36 @@ function DurationTrend({
         </div>
       </div>
 
-      <div className="reading-duration-trend__scroller">
-        <div
-          className="reading-duration-trend__plot"
-          role="img"
-          aria-label={`每日有效时长柱状图，区间累计 ${formatMinutes(totalMinutes)}。`}
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(1, history.length)}, minmax(4px, 1fr))`,
-            minWidth: `${Math.max(320, history.length * 8)}px`,
-          }}
-        >
-          {history.map((day) => (
-            <span className="reading-duration-trend__day" key={day.date} aria-hidden="true">
-              <span
-                style={{
-                  height: day.minutes > 0
-                    ? `${Math.max(2, day.minutes / maximumMinutes * 100)}%`
-                    : '0',
-                }}
-                title={`${fullDateFormatter.format(parseLocalDate(day.date))}：${formatMinutes(day.minutes)}`}
-              />
-            </span>
-          ))}
-        </div>
-      </div>
+      <div className="reading-duration-trend__scroller" ref={scrollerRef}>
+        <div className="reading-duration-trend__canvas" style={{ minWidth: `${plotMinWidth}px` }}>
+          <div
+            className="reading-duration-trend__plot"
+            role="img"
+            aria-label={`每日有效时长柱状图，区间累计 ${formatMinutes(totalMinutes)}。`}
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(1, history.length)}, minmax(4px, 1fr))`,
+            }}
+          >
+            {history.map((day) => (
+              <span className="reading-duration-trend__day" key={day.date} aria-hidden="true">
+                <span
+                  style={{
+                    height: day.minutes > 0
+                      ? `${Math.max(2, day.minutes / maximumMinutes * 100)}%`
+                      : '0',
+                  }}
+                  title={`${fullDateFormatter.format(parseLocalDate(day.date))}：${formatMinutes(day.minutes)}`}
+                />
+              </span>
+            ))}
+          </div>
 
-      <div className="reading-duration-trend__axis" aria-hidden="true">
-        <span>{firstDay ? monthDayFormatter.format(parseLocalDate(firstDay.date)) : '—'}</span>
-        <span>{middleDay ? monthDayFormatter.format(parseLocalDate(middleDay.date)) : '—'}</span>
-        <span>{lastDay ? monthDayFormatter.format(parseLocalDate(lastDay.date)) : '—'}</span>
+          <div className="reading-duration-trend__axis" aria-hidden="true">
+            <span>{firstDay ? monthDayFormatter.format(parseLocalDate(firstDay.date)) : '—'}</span>
+            <span>{middleDay ? monthDayFormatter.format(parseLocalDate(middleDay.date)) : '—'}</span>
+            <span>{lastDay ? monthDayFormatter.format(parseLocalDate(lastDay.date)) : '—'}</span>
+          </div>
+        </div>
       </div>
     </section>
   );

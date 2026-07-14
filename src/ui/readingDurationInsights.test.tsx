@@ -29,6 +29,47 @@ describe('ReadingDurationInsights', () => {
     expect(fourteenDayButton?.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('keeps the date axis aligned with the scrollable plot and opens on the latest days', async () => {
+    const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const originalScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get() {
+        return this.classList.contains('reading-duration-trend__scroller') ? 300 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+      configurable: true,
+      get() {
+        if (!this.classList.contains('reading-duration-trend__scroller')) return 0;
+        const canvas = (this as HTMLElement).querySelector<HTMLElement>('.reading-duration-trend__canvas');
+        return Number.parseFloat(canvas?.style.minWidth ?? '0');
+      },
+    });
+
+    try {
+      const container = await renderForSmoke(
+        <ReadingDurationInsights history={createHistory(91)} sessions={[]} />,
+      );
+      const thirteenWeekButton = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === '13 周',
+      );
+      expect(thirteenWeekButton).toBeInstanceOf(HTMLButtonElement);
+      await act(async () => {
+        thirteenWeekButton?.click();
+      });
+
+      const scroller = container.querySelector<HTMLElement>('.reading-duration-trend__scroller');
+      const canvas = scroller?.querySelector('.reading-duration-trend__canvas');
+      expect(canvas).toBeInstanceOf(HTMLElement);
+      expect(canvas?.querySelector('.reading-duration-trend__axis')).toBeInstanceOf(HTMLElement);
+      expect(scroller?.scrollLeft).toBe(91 * 8 - 300);
+    } finally {
+      restoreProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth);
+      restoreProperty(HTMLElement.prototype, 'scrollWidth', originalScrollWidth);
+    }
+  });
+
   it('renders source totals and recent focus-session details', async () => {
     const startedAt = new Date(2026, 5, 27, 9, 0).getTime();
     const sessions: ReadingFocusSessionSummary[] = [
@@ -79,6 +120,19 @@ describe('ReadingDurationInsights', () => {
     expect(container.textContent).toContain('12 分钟');
   });
 });
+
+function restoreProperty(
+  target: object,
+  property: string,
+  descriptor: PropertyDescriptor | undefined,
+): void {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+    return;
+  }
+
+  Reflect.deleteProperty(target, property);
+}
 
 function createHistory(count: number): ReadingHistoryDay[] {
   const firstDay = new Date(2026, 4, 28, 12);

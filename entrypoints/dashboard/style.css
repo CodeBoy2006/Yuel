@@ -760,6 +760,10 @@
   padding-bottom: 6px;
 }
 
+.reading-duration-trend__canvas {
+  min-width: 0;
+}
+
 .reading-duration-trend__plot {
   display: grid;
   height: 176px;
