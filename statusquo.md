@@ -1455,3 +1455,9 @@
 - **Status:** Completed
 - **Next Steps:** Harden view-state persistence after zoom and rotation layout changes.
 - **Context:** Selected text is not placed in the reader URL. One hundred fifteen focused storage, navigation, aggregation, and UI tests, TypeScript checks, the production build, and the packaged local-PDF backlink workflow pass.
+
+## [2026-07-14 14:09] Precise PDF Rotation Resume
+- **Changes:** Changed document-state flushes to sample current scroll metrics instead of reusing the last scroll-event snapshot, preventing rotated layouts from persisting stale page coordinates.
+- **Status:** Completed
+- **Next Steps:** Run the complete unit, type, production-build, packaged-extension, and large-PDF regression suite before pushing.
+- **Context:** The packaged local-PDF workflow now scrolls within a page, rotates it, reloads the reader, reselects the original file, and verifies the normalized visible position restores within two PDF points. The focused workflow passed twice consecutively.

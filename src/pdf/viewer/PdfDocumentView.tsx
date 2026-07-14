@@ -1083,7 +1083,6 @@ function PdfDocumentStateController({
     const pan = panCapability.forDocument(documentId);
     let cancelled = false;
     let saveTimer: number | undefined;
-    let latestMetrics: ScrollMetrics | undefined;
     let persistNow = () => undefined;
     const unsubscribers: Array<() => void> = [];
 
@@ -1134,7 +1133,9 @@ function PdfDocumentStateController({
 
         let metrics: ScrollMetrics;
         try {
-          metrics = latestMetrics ?? scroll.getMetrics();
+          // Rotation refreshes the scroll layout without emitting a scroll event,
+          // so the flush must sample current metrics instead of reusing an old event.
+          metrics = scroll.getMetrics();
         } catch {
           return;
         }
@@ -1171,10 +1172,7 @@ function PdfDocumentStateController({
       };
 
       unsubscribers.push(
-        scroll.onScroll((metrics) => {
-          latestMetrics = metrics;
-          scheduleSave();
-        }),
+        scroll.onScroll(scheduleSave),
         zoom.onStateChange(scheduleSave),
         rotate.onRotateChange(scheduleSave),
         pan.onPanModeChange(scheduleSave),

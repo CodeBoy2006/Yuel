@@ -280,10 +280,46 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   const zoomInput = pdfReader.locator('.pdf-reader__zoom-input input');
   const zoomBeforeRotation = Number(await zoomInput.inputValue());
   const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
+  const preRotationScrollTop = await readerViewport.evaluate((element) => {
+    element.scrollTop = Math.min(
+      260,
+      Math.max(0, element.scrollHeight - element.clientHeight),
+    );
+    element.dispatchEvent(new Event('scroll'));
+    return element.scrollTop;
+  });
+  expect(preRotationScrollTop).toBeGreaterThan(40);
+  await pdfReader.waitForTimeout(80);
   await rotateButton.click();
   await expect(rotateButton).toHaveAttribute('title', /当前 90°/);
   await expect(renderedPage).toBeVisible();
   await expect.poll(async () => Number(await zoomInput.inputValue())).not.toBe(zoomBeforeRotation);
+  await pdfReader.waitForTimeout(420);
+  const rotatedPosition = await readVisiblePdfPosition(pdfReader);
+
+  await pdfReader.reload({ waitUntil: 'load' });
+  const resumeDocument = pdfReader.locator('.pdf-reader__recent-list button', {
+    hasText: 'yuel-reader-smoke.pdf',
+  });
+  await expect(resumeDocument).toContainText('第 1 页');
+  const resumeFileChooserPromise = pdfReader.waitForEvent('filechooser');
+  await resumeDocument.click();
+  const resumeFileChooser = await resumeFileChooserPromise;
+  await resumeFileChooser.setFiles({
+    name: 'yuel-reader-smoke.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfFixture,
+  });
+  await expect(pdfReader.locator('.pdf-reader__document-name')).toContainText(
+    'yuel-reader-smoke.pdf',
+  );
+  await expect(rotateButton).toHaveAttribute('title', /当前 90°/);
+  const resumedRotatedPosition = await readVisiblePdfPosition(pdfReader);
+  expect(Math.abs(
+    resumedRotatedPosition.y - rotatedPosition.y,
+  )).toBeLessThan(2);
+  await pdfReader.locator('body').press('Control+f');
+  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
 
   const zoomInButton = pdfReader.getByRole('button', { name: '放大' });
   await expect(zoomInButton).toHaveCount(1);
@@ -432,6 +468,30 @@ async function readBrowserScale(page: import('@playwright/test').Page): Promise<
     devicePixelRatio: window.devicePixelRatio,
     visualViewportScale: window.visualViewport?.scale ?? 1,
   }));
+}
+
+async function readVisiblePdfPosition(
+  page: import('@playwright/test').Page,
+): Promise<{
+  x: number;
+  y: number;
+}> {
+  await expect(page.locator('.pdf-reader__page-shell').first()).toBeVisible();
+  return page.evaluate(() => {
+    const viewport = document.querySelector<HTMLElement>('.pdf-reader__viewport');
+    const pdfPage = document.querySelector<HTMLElement>('.pdf-reader__page-shell');
+    if (!viewport || !pdfPage) {
+      throw new Error('PDF resume geometry is unavailable');
+    }
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const pageRect = pdfPage.getBoundingClientRect();
+    const scale = pageRect.width / 792;
+    return {
+      x: Math.max(0, viewportRect.left - pageRect.left) / scale,
+      y: Math.max(0, viewportRect.top - pageRect.top) / scale,
+    };
+  });
 }
 
 test('records reading data through the extension runtime', async ({ context, extensionId }) => {
