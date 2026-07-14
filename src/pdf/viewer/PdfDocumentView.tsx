@@ -22,7 +22,11 @@ import type {
 } from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
-import { useZoom, ZoomMode } from '@embedpdf/plugin-zoom/react';
+import {
+  useZoom,
+  ZoomGestureWrapper,
+  ZoomMode,
+} from '@embedpdf/plugin-zoom/react';
 import {
   AlertCircle,
   Check,
@@ -136,66 +140,71 @@ export function PdfDocumentView({
                         scale={documentState.scale}
                       />
                     ) : null}
-                    <Scroller
+                    <ZoomGestureWrapper
                       documentId={documentId}
-                      className="pdf-reader__scroller"
-                      renderPage={({ height, pageIndex, pageNumber, width }) => (
-                        <div
-                          className="pdf-reader__page-shell"
-                          data-page-number={pageNumber}
-                          aria-label={`第 ${pageNumber} 页`}
-                        >
-                          <Rotate
-                            documentId={documentId}
-                            pageIndex={pageIndex}
-                            style={{ height, width }}
+                      className="pdf-reader__zoom-gesture"
+                    >
+                      <Scroller
+                        documentId={documentId}
+                        className="pdf-reader__scroller"
+                        renderPage={({ height, pageIndex, pageNumber, width }) => (
+                          <div
+                            className="pdf-reader__page-shell"
+                            data-page-number={pageNumber}
+                            aria-label={`第 ${pageNumber} 页`}
                           >
-                            <PagePointerProvider
+                            <Rotate
                               documentId={documentId}
                               pageIndex={pageIndex}
-                              className="pdf-reader__page-layers"
                               style={{ height, width }}
                             >
-                              <RenderLayer
+                              <PagePointerProvider
                                 documentId={documentId}
                                 pageIndex={pageIndex}
-                                scale={1}
-                                dpr={1}
-                                className="pdf-reader__base-page"
-                                draggable={false}
-                                aria-hidden="true"
-                              />
-                              <TilingLayer
-                                documentId={documentId}
-                                pageIndex={pageIndex}
-                                className="pdf-reader__tile-layer"
-                                aria-hidden="true"
-                              />
-                              <SearchLayer
-                                documentId={documentId}
-                                pageIndex={pageIndex}
-                                className="pdf-reader__search-layer"
-                                highlightColor="rgb(243 207 91 / 42%)"
-                                activeHighlightColor="rgb(233 165 58 / 58%)"
-                              />
-                              <SelectionLayer
-                                documentId={documentId}
-                                pageIndex={pageIndex}
-                                textStyle={{
-                                  background: 'rgb(53 143 97 / 34%)',
-                                }}
-                                selectionMenu={(props) => (
-                                  <PdfSelectionMenu
-                                    {...props}
-                                    documentId={documentId}
-                                  />
-                                )}
-                              />
-                            </PagePointerProvider>
-                          </Rotate>
-                        </div>
-                      )}
-                    />
+                                className="pdf-reader__page-layers"
+                                style={{ height, width }}
+                              >
+                                <RenderLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  scale={1}
+                                  dpr={1}
+                                  className="pdf-reader__base-page"
+                                  draggable={false}
+                                  aria-hidden="true"
+                                />
+                                <TilingLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  className="pdf-reader__tile-layer"
+                                  aria-hidden="true"
+                                />
+                                <SearchLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  className="pdf-reader__search-layer"
+                                  highlightColor="rgb(243 207 91 / 42%)"
+                                  activeHighlightColor="rgb(233 165 58 / 58%)"
+                                />
+                                <SelectionLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  textStyle={{
+                                    background: 'rgb(53 143 97 / 34%)',
+                                  }}
+                                  selectionMenu={(props) => (
+                                    <PdfSelectionMenu
+                                      {...props}
+                                      documentId={documentId}
+                                    />
+                                  )}
+                                />
+                              </PagePointerProvider>
+                            </Rotate>
+                          </div>
+                        )}
+                      />
+                    </ZoomGestureWrapper>
                   </>
                 ) : null}
               </Viewport>

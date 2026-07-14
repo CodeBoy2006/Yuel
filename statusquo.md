@@ -1395,3 +1395,9 @@
 - **Status:** Completed
 - **Next Steps:** Review release readiness and keep true HTTP Range loading as a separate source-layer enhancement.
 - **Context:** The default 160-page / 20,160-word run extracted in 514 ms with pages 1–2 or 159–160 mounted, a 4.65 MiB renderer-heap increase, 248 additional DOM nodes, and no additional document objects. A 500-page / 63,000-word audit extracted in 2.03 s with only pages 1–2 or 499–500 mounted and a 6.55 MiB heap increase. All 417 unit/UI tests, TypeScript checks, production build, generated-output smoke validation, whitespace validation, five packaged-extension Chromium tests, and both PDF stress scales pass.
+
+## [2026-07-14 09:00] PDF Trackpad Content Zoom
+- **Changes:** Mounted EmbedPDF's zoom gesture wrapper around the virtual PDF scroller so trackpad pinch and Ctrl/Cmd-wheel gestures update document zoom around the pointer instead of changing Chromium page zoom; added layout support for the wrapper and packaged-extension regression coverage.
+- **Status:** Completed
+- **Next Steps:** Publish the active PDF resource identity to the side panel so current-document reading progress can be queried without treating the reader as an unsupported browser page.
+- **Context:** TypeScript checks and the production build pass. The focused packaged-extension test confirms PDF zoom changes while `devicePixelRatio` and `visualViewport.scale` stay fixed, then completes rendering, search, rotation, selection, responsive navigation, and analytics persistence checks.

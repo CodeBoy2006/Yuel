@@ -201,6 +201,27 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await zoomInButton.click();
   await expect.poll(async () => Number(await zoomInput.inputValue())).toBeGreaterThan(initialZoom);
 
+  const initialGestureZoom = Number(await zoomInput.inputValue());
+  const initialBrowserScale = await readBrowserScale(pdfReader);
+  const viewportBox = await pdfReader.locator('.pdf-reader__viewport').boundingBox();
+  expect(viewportBox).not.toBeNull();
+  if (!viewportBox) throw new Error('PDF viewport has no browser geometry');
+
+  await pdfReader.mouse.move(
+    viewportBox.x + viewportBox.width / 2,
+    viewportBox.y + viewportBox.height / 2,
+  );
+  await pdfReader.keyboard.down('Control');
+  await pdfReader.mouse.wheel(0, -20);
+  await pdfReader.keyboard.up('Control');
+
+  await expect.poll(async () => Number(await zoomInput.inputValue())).toBeGreaterThan(
+    initialGestureZoom,
+  );
+  await expect.poll(() => readBrowserScale(pdfReader)).toEqual(initialBrowserScale);
+
+  await pdfReader.locator('.pdf-reader__fit-select select').selectOption('fit-width');
+
   await pdfReader.setViewportSize({ width: 620, height: 900 });
   const sidebar = pdfReader.locator('.pdf-reader__sidebar');
   const sidebarBackdrop = pdfReader.locator('.pdf-reader__sidebar-backdrop');
@@ -236,6 +257,16 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   expect(pageErrors).toEqual([]);
   await pdfReader.close();
 });
+
+async function readBrowserScale(page: import('@playwright/test').Page): Promise<{
+  devicePixelRatio: number;
+  visualViewportScale: number;
+}> {
+  return page.evaluate(() => ({
+    devicePixelRatio: window.devicePixelRatio,
+    visualViewportScale: window.visualViewport?.scale ?? 1,
+  }));
+}
 
 test('records reading data through the extension runtime', async ({ context, extensionId }) => {
   const messagePage = await openExtensionPage(context, extensionId, 'dashboard.html');

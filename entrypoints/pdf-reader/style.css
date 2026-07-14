@@ -536,6 +536,10 @@ body,
   content: "";
 }
 
+.pdf-reader__zoom-gesture {
+  min-width: 100%;
+}
+
 .pdf-reader__scroller {
   padding: 32px 0 52px;
 }
