@@ -77,7 +77,7 @@ export function createPdfReaderPlugins(): PluginBatchRegistrations {
     }),
     createPluginRegistration(AnnotationPluginPackage, {
       autoCommit: false,
-      autoOpenLinks: true,
+      autoOpenLinks: false,
       locked: { type: LockModeType.All },
     }),
     createPluginRegistration(SearchPluginPackage, {

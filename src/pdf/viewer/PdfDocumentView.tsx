@@ -4,7 +4,10 @@ import {
   Rotation,
   type PdfEngine,
 } from '@embedpdf/models';
-import { AnnotationLayer } from '@embedpdf/plugin-annotation/react';
+import {
+  AnnotationLayer,
+  useAnnotationCapability,
+} from '@embedpdf/plugin-annotation/react';
 import {
   DocumentContent,
   useDocumentManagerCapability,
@@ -91,6 +94,7 @@ import {
   savePdfDocumentViewState,
   toPdfPageCoordinates,
 } from '../documentState';
+import { openSafePdfExternalLink } from '../externalLinks';
 import type { PdfReaderTarget } from '../navigation';
 import type { PdfSourceMetadata } from '../source';
 import { savePdfSelectedTextItem } from '../../storage/saveItems';
@@ -150,10 +154,13 @@ export function PdfDocumentView({
         return (
           <>
             {isLoaded ? (
-              <DocumentKeyboardShortcuts
-                documentId={documentId}
-                onOpenSearch={onOpenSearch}
-              />
+              <>
+                <DocumentKeyboardShortcuts
+                  documentId={documentId}
+                  onOpenSearch={onOpenSearch}
+                />
+                <PdfExternalLinkHandler documentId={documentId} />
+              </>
             ) : null}
             <GlobalPointerProvider
               documentId={documentId}
@@ -804,6 +811,25 @@ function DocumentKeyboardShortcuts({
     selection,
     zoom,
   ]);
+
+  return null;
+}
+
+function PdfExternalLinkHandler({ documentId }: { documentId: string }) {
+  const { provides: annotation } = useAnnotationCapability();
+
+  useEffect(() => {
+    if (!annotation) return;
+
+    return annotation.onNavigate((event) => {
+      if (
+        event.documentId === documentId
+        && event.result.outcome === 'uri'
+      ) {
+        openSafePdfExternalLink(event.result.uri);
+      }
+    });
+  }, [annotation, documentId]);
 
   return null;
 }

@@ -46,7 +46,7 @@ describe('PDF reader engine configuration', () => {
     });
     expect(registrations[11]?.config).toMatchObject({
       autoCommit: false,
-      autoOpenLinks: true,
+      autoOpenLinks: false,
       locked: { type: 'all' },
     });
     expect(registrations[13]?.config).toMatchObject({

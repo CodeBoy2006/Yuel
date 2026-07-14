@@ -1443,3 +1443,9 @@
 - **Status:** Completed
 - **Next Steps:** Build the native highlight, note, annotation-sidebar, export, vocabulary, and review loop on top of the new PDF annotation and document-state tables.
 - **Context:** Local PDF bytes remain memory-only, so local recents and backlinks require the user to reselect the original file before restoring. Remote documents reopen through the original URL and are accepted only when the resulting content hash matches. All 455 unit/UI tests, TypeScript checks, production build, generated-output smoke validation, whitespace validation, five packaged-extension Chromium tests, the focused PDF workflow E2E, and the 160-page / 20,160-word pressure test pass.
+
+## [2026-07-14 13:58] Safe PDF External Links
+- **Changes:** Disabled the annotation plugin's automatic URI opener and added an explicit absolute HTTP/HTTPS allowlist for external PDF links while preserving internal document navigation.
+- **Status:** Completed
+- **Next Steps:** Render saved PDF source rectangles when a Dashboard or Side Panel backlink reopens the document.
+- **Context:** Unsupported schemes, relative paths, and malformed URLs remain inert. Eleven focused link and plugin tests plus TypeScript checks pass.
