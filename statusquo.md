@@ -1461,3 +1461,9 @@
 - **Status:** Completed
 - **Next Steps:** Run the complete unit, type, production-build, packaged-extension, and large-PDF regression suite before pushing.
 - **Context:** The packaged local-PDF workflow now scrolls within a page, rotates it, reloads the reader, reselects the original file, and verifies the normalized visible position restores within two PDF points. The focused workflow passed twice consecutively.
+
+## [2026-07-14 14:12] PDF Reader Batch One Final Verification
+- **Changes:** Verified the complete first-batch implementation and the three follow-up hardening commits on the production extension artifact.
+- **Status:** Completed
+- **Next Steps:** Begin the P1 native highlight, note, annotation-sidebar, export, vocabulary, and review loop as a separate batch.
+- **Context:** All 469 unit/UI tests, TypeScript checks, production build, generated-output smoke test, and five packaged-extension Chromium tests pass. The 160-page / 20,160-word pressure test completed extraction in 1,009 ms, kept only pages 1–2 or 159–160 mounted, added 4.81 MiB of renderer heap, and created no additional document objects.
