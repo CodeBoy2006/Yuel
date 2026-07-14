@@ -37,6 +37,10 @@ import type {
   PdfSourceProgress,
 } from '../source';
 import {
+  clearPdfReaderSession,
+  publishPdfReaderSession,
+} from '../sessionContext';
+import {
   formatPdfOpenError,
   formatPdfSourceProgress,
 } from './format';
@@ -103,6 +107,28 @@ export function PdfReaderWorkspace({
   useEffect(() => {
     setPanelMode(null);
   }, [activeDocumentId]);
+
+  useEffect(() => {
+    if (
+      !documentLoaded
+      || !sourceMetadata
+      || sourceMetadata.resourceId !== activeDocumentId
+    ) {
+      return;
+    }
+
+    void publishPdfReaderSession(sourceMetadata).catch((error) => {
+      console.warn('Failed to publish the active PDF reader session', error);
+    });
+
+    return () => {
+      void clearPdfReaderSession(sourceMetadata.resourceId).catch(() => undefined);
+    };
+  }, [
+    activeDocumentId,
+    documentLoaded,
+    sourceMetadata,
+  ]);
 
   const showPanel = useCallback((mode: PdfReaderPanelMode) => {
     setPanelMode(mode);

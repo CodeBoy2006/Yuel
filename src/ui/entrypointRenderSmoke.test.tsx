@@ -229,6 +229,7 @@ function createSidePanelDependencies(
 ): SidePanelAppDependencies {
   return {
     getSidePanelReadingDetails: async () => createSidePanelDetails(),
+    getCurrentPdfReaderState: async () => ({ active: false }),
     getCurrentTabSiteAccess: async () => createSupportedSiteAccess({
       url: 'https://docs.example.com/article',
       origin: 'https://docs.example.com/*',
@@ -236,6 +237,13 @@ function createSidePanelDependencies(
       collectorState: 'recording',
     }),
     getCurrentPageReadingSummary: async () => ({
+      totalWords: 0,
+      effectiveWords: 0,
+      coveredWords: 0,
+      effectiveMinutes: 0,
+      hasData: false,
+    }),
+    getPageReadingSummary: async () => ({
       totalWords: 0,
       effectiveWords: 0,
       coveredWords: 0,
@@ -419,6 +427,45 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(idle.textContent).toContain('当前页面未检测到可记录的英文内容');
     expect(unconfirmed.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('已启用');
     expect(unconfirmed.textContent).toContain('正在确认页面采集状态');
+  });
+
+  it('shows active PDF document progress without treating the reader as an unsupported page', async () => {
+    const pageId = 'pdf.local_reader-session';
+    const getCurrentTabSiteAccess = vi.fn(async () => createSupportedSiteAccess());
+    const getPageReadingSummary = vi.fn(async () => ({
+      totalWords: 2_400,
+      effectiveWords: 640,
+      coveredWords: 520,
+      effectiveMinutes: 4,
+      confidence: 0.78,
+      hasData: true,
+    }));
+    const container = await renderSidePanel({
+      getCurrentPdfReaderState: async () => ({
+        active: true,
+        tabId: 17,
+        session: {
+          tabId: 17,
+          resourceId: `pdf_${'a'.repeat(64)}`,
+          pageId,
+          displayName: 'Architecture.pdf',
+          domain: 'pdf.local',
+          updatedAt: 1_234,
+        },
+      }),
+      getCurrentTabSiteAccess,
+      getPageReadingSummary,
+    });
+
+    expect(getCurrentTabSiteAccess).not.toHaveBeenCalled();
+    expect(getPageReadingSummary).toHaveBeenCalledWith(pageId);
+    expect(container.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('记录中');
+    expect(container.textContent).toContain('当前文档');
+    expect(container.textContent).toContain('Architecture.pdf');
+    expect(container.textContent).toContain('文档内容覆盖');
+    expect(container.textContent).toContain('520 / 2,400 词');
+    expect(container.textContent).not.toContain('当前页面无法记录');
+    expect(container.textContent).not.toContain('不可记录');
   });
 
   it('distinguishes hidden tab metadata from a page that is truly unsupported', async () => {

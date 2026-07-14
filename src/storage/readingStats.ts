@@ -309,7 +309,13 @@ export async function getCurrentPageReadingSummary(
   url: string,
   store: ReadingStatsStore = db,
 ): Promise<CurrentPageReadingSummary> {
-  const pageId = createPageId(url);
+  return getPageReadingSummary(createPageId(url), store);
+}
+
+export async function getPageReadingSummary(
+  pageId: string,
+  store: ReadingStatsStore = db,
+): Promise<CurrentPageReadingSummary> {
   const page = await store.pages.get(pageId);
 
   if (!page) {

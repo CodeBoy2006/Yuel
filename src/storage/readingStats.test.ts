@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createPageId } from '../domain/events';
 import {
   getCurrentPageReadingSummary,
+  getPageReadingSummary,
   getReadingDashboardDetails,
   getSidePanelReadingDetails,
   getTodayReadingSummary,
@@ -857,6 +858,40 @@ describe('getCurrentPageReadingSummary', () => {
       coveredWords: 0,
       effectiveMinutes: 0,
       hasData: false,
+    });
+  });
+
+  it('loads resource-backed PDF progress directly by its stable page ID', async () => {
+    const pageId = 'pdf.local_1oh4h4p';
+    const pdfResourceId = `pdf_${'a'.repeat(64)}`;
+    const summary = await getPageReadingSummary(
+      pageId,
+      createStore({
+        pagesById: new Map([
+          [
+            pageId,
+            createPageRecord({
+              pageId,
+              domain: 'pdf.local',
+              resourceType: 'pdf',
+              resourceId: pdfResourceId,
+              totalWords: 2_400,
+              effectiveWords: 640,
+              coveredWords: 520,
+              effectiveReadingMs: 240_000,
+            }),
+          ],
+        ]),
+      }),
+    );
+
+    expect(summary).toEqual({
+      totalWords: 2_400,
+      effectiveWords: 640,
+      coveredWords: 520,
+      effectiveMinutes: 4,
+      confidence: undefined,
+      hasData: true,
     });
   });
 });

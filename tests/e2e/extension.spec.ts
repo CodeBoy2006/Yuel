@@ -235,6 +235,26 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await sidebarBackdrop.click({ position: { x: 600, y: 400 } });
   await expect(sidebar).toBeHidden();
 
+  const pdfSidePanel = await openExtensionPage(
+    context,
+    extensionId,
+    'sidepanel.html',
+  );
+  await pdfReader.bringToFront();
+  const pdfSidePanelBody = pdfSidePanel.locator('body');
+  await expect.poll(() => pdfSidePanelBody.innerText()).toContain(
+    'yuel-reader-smoke.pdf',
+  );
+  await expect(pdfSidePanelBody).toContainText('当前文档');
+  await expect(pdfSidePanelBody).toContainText('文档内容覆盖');
+  await expect(pdfSidePanelBody).toContainText('记录中');
+  await expect(pdfSidePanelBody).not.toContainText('当前页面无法记录');
+  await expect.poll(async () => {
+    const text = await pdfSidePanelBody.innerText();
+    return text.includes('— / — 词');
+  }).toBe(false);
+  await pdfSidePanel.close();
+
   await pdfReader.waitForTimeout(1_250);
   // Exercise the normal lifecycle flush without waiting for the 15-second batch timer.
   await pdfReader.evaluate(() => {

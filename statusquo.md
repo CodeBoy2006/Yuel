@@ -1401,3 +1401,9 @@
 - **Status:** Completed
 - **Next Steps:** Publish the active PDF resource identity to the side panel so current-document reading progress can be queried without treating the reader as an unsupported browser page.
 - **Context:** TypeScript checks and the production build pass. The focused packaged-extension test confirms PDF zoom changes while `devicePixelRatio` and `visualViewport.scale` stay fixed, then completes rendering, search, rotation, selection, responsive navigation, and analytics persistence checks.
+
+## [2026-07-14 09:07] PDF Side Panel Reading Context
+- **Changes:** Added a tab-scoped PDF reader session record in `chrome.storage.session`, published and cleared it with the loaded reader lifecycle, exposed direct page-ID reading-summary lookup, and taught the side panel to render the active PDF name, document coverage, and recording state without passing through HTTP site-permission logic.
+- **Status:** Completed
+- **Next Steps:** Read PDF bookmarks from PDFium and add a hierarchical chapter-outline mode to the existing navigation panel.
+- **Context:** The session record contains only stable resource/page identifiers, display name, source domain, and update time; PDF bytes remain in memory. Ninety-four focused unit/UI tests, TypeScript checks, production build, whitespace validation, and the packaged PDF reader test pass. The side-panel bundle keeps the new shared session chunk to 2.85 KB rather than importing the full analytics surface.

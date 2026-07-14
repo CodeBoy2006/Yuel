@@ -18,7 +18,13 @@ import {
   type SiteAccessState,
 } from '../../src/permissions/siteAccess';
 import {
+  getCurrentPdfReaderState,
+  isPdfReaderSessionStorageKey,
+  type CurrentPdfReaderState,
+} from '../../src/pdf/sessionContext';
+import {
   getCurrentPageReadingSummary,
+  getPageReadingSummary,
   getSidePanelReadingDetails,
   type CurrentPageReadingSummary,
   type SidePanelReadingDetails,
@@ -49,15 +55,19 @@ export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 export interface SidePanelAppDependencies {
   openDashboard: (target?: 'share-card') => Promise<void>;
   openPdfReader: () => Promise<void>;
+  getCurrentPdfReaderState: typeof getCurrentPdfReaderState;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
   getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
+  getPageReadingSummary: typeof getPageReadingSummary;
   getSidePanelReadingDetails: typeof getSidePanelReadingDetails;
   subscribeToRefresh: (refresh: (reason?: SidePanelRefreshReason) => void) => () => void;
 }
 
 const defaultDependencies: SidePanelAppDependencies = {
+  getCurrentPdfReaderState,
   getCurrentTabSiteAccess,
   getCurrentPageReadingSummary,
+  getPageReadingSummary,
   getSidePanelReadingDetails,
   subscribeToRefresh: subscribeToDefaultRefresh,
   openDashboard: async (target) => {
@@ -74,6 +84,7 @@ const defaultDependencies: SidePanelAppDependencies = {
 
 export function SidePanelApp({ dependencies = defaultDependencies }: { dependencies?: SidePanelAppDependencies }) {
   const [details, setDetails] = useState<SidePanelReadingDetails>();
+  const [pdfReaderState, setPdfReaderState] = useState<CurrentPdfReaderState>();
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [currentPage, setCurrentPage] = useState<CurrentPageReadingSummary>();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -90,7 +101,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const dashboardActionSequenceRef = useRef(0);
   const dashboardActionBusyRef = useRef(false);
   const pdfReaderBusyRef = useRef(false);
-  const currentUrlRef = useRef<string | undefined>(undefined);
+  const currentTargetKeyRef = useRef<string | undefined>(undefined);
   const refreshInFlightRef = useRef(false);
   const activeRefreshTokenRef = useRef(0);
   const pendingRefreshReasonRef = useRef<SidePanelRefreshReason | undefined>(undefined);
@@ -110,44 +121,104 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
         if (!isCurrentRequest()) return;
         setLoadFailed(true);
       });
-    const siteAccessTask = dependencies.getCurrentTabSiteAccess()
-      .then(async (nextAccess) => {
-        if (!isCurrentRequest()) return;
+    const currentTargetTask = (async () => {
+      let nextPdfReaderState: CurrentPdfReaderState = { active: false };
+      try {
+        nextPdfReaderState = await dependencies.getCurrentPdfReaderState();
+      } catch (error) {
+        console.error('Failed to identify the active Yuel PDF reader', error);
+      }
+      if (!isCurrentRequest()) return;
 
-        const nextUrl = nextAccess.supported ? nextAccess.url : undefined;
-        if (!nextUrl || nextUrl !== currentUrlRef.current) {
+      setPdfReaderState(nextPdfReaderState);
+      setSiteAccessFailed(false);
+      setCurrentPageFailed(false);
+
+      if (nextPdfReaderState.active) {
+        const session = nextPdfReaderState.session;
+        const nextTargetKey = session
+          ? `pdf:${session.pageId}`
+          : `pdf-reader:${nextPdfReaderState.tabId ?? 'unknown'}`;
+        if (nextTargetKey !== currentTargetKeyRef.current) {
           setCurrentPage(undefined);
         }
-        currentUrlRef.current = nextUrl;
+        currentTargetKeyRef.current = nextTargetKey;
+        setSiteAccess(undefined);
+
+        if (!session) return;
+
+        try {
+          const nextPage = await dependencies.getPageReadingSummary(session.pageId);
+          if (
+            !isCurrentRequest()
+            || currentTargetKeyRef.current !== nextTargetKey
+          ) {
+            return;
+          }
+          setCurrentPage(nextPage);
+          setCurrentPageFailed(false);
+        } catch (error) {
+          console.error('Failed to load Yuel PDF reader progress', error);
+          if (
+            !isCurrentRequest()
+            || currentTargetKeyRef.current !== nextTargetKey
+          ) {
+            return;
+          }
+          setCurrentPage(undefined);
+          setCurrentPageFailed(true);
+        }
+        return;
+      }
+
+      try {
+        const nextAccess = await dependencies.getCurrentTabSiteAccess();
+        if (!isCurrentRequest()) return;
+
+        const nextTargetKey = nextAccess.supported
+          ? `web:${nextAccess.url}`
+          : undefined;
+        if (!nextTargetKey || nextTargetKey !== currentTargetKeyRef.current) {
+          setCurrentPage(undefined);
+        }
+        currentTargetKeyRef.current = nextTargetKey;
         setSiteAccess(nextAccess);
-        setSiteAccessFailed(false);
-        setCurrentPageFailed(false);
 
         if (!nextAccess.supported) return;
 
         try {
           const nextPage = await dependencies.getCurrentPageReadingSummary(nextAccess.url);
-          if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
+          if (
+            !isCurrentRequest()
+            || currentTargetKeyRef.current !== nextTargetKey
+          ) {
+            return;
+          }
           setCurrentPage(nextPage);
           setCurrentPageFailed(false);
         } catch (error) {
           console.error('Failed to load Yuel side panel current page stats', error);
-          if (!isCurrentRequest() || currentUrlRef.current !== nextAccess.url) return;
+          if (
+            !isCurrentRequest()
+            || currentTargetKeyRef.current !== nextTargetKey
+          ) {
+            return;
+          }
           setCurrentPage(undefined);
           setCurrentPageFailed(true);
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to load Yuel side panel current page state', error);
         if (!isCurrentRequest()) return;
-        currentUrlRef.current = undefined;
+        currentTargetKeyRef.current = undefined;
         setSiteAccess(undefined);
         setCurrentPage(undefined);
         setSiteAccessFailed(true);
         setCurrentPageFailed(false);
-      });
+      }
+    })();
 
-    await Promise.all([detailsTask, siteAccessTask]);
+    await Promise.all([detailsTask, currentTargetTask]);
     if (isCurrentRequest()) {
       setLastUpdatedAt(Date.now());
     }
@@ -161,7 +232,8 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     const isUrgentRefresh = reason === 'tab' || reason === 'navigation';
     if (isUrgentRefresh) {
       refreshSequenceRef.current += 1;
-      currentUrlRef.current = undefined;
+      currentTargetKeyRef.current = undefined;
+      setPdfReaderState(undefined);
       setSiteAccess(undefined);
       setCurrentPage(undefined);
       setCurrentPageFailed(false);
@@ -217,12 +289,19 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
 
   const summary = details?.summary;
   const statusText = formatStatusText(
+    pdfReaderState,
     siteAccess,
     siteAccessFailed,
     summary,
     loadFailed,
   );
-  const currentHost = formatCurrentHost(siteAccess, siteAccessFailed);
+  const currentHost = formatCurrentHost(
+    pdfReaderState,
+    siteAccess,
+    siteAccessFailed,
+  );
+  const isPdfReaderActive = pdfReaderState?.active === true;
+  const coverageLabel = isPdfReaderActive ? '文档内容覆盖' : '本页内容覆盖';
   const todayValue = summary ? formatWords(summary.effectiveWords) : loadFailed ? '不可用' : '读取中';
   const timeValue = summary ? (summary.hasData ? formatMinutes(summary.minutes) : '0 分钟') : loadFailed ? '不可用' : '读取中';
   const pagesValue = summary ? `${summary.readPages} 页` : loadFailed ? '不可用' : '读取中';
@@ -302,13 +381,15 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           } : undefined}
           progressStatus={loadFailed ? 'unavailable' : 'loading'}
         />
-        <StatusPill tone={getStatusTone(siteAccess, siteAccessFailed, loadFailed)}>{statusText}</StatusPill>
+        <StatusPill tone={getStatusTone(pdfReaderState, siteAccess, siteAccessFailed, loadFailed)}>{statusText}</StatusPill>
       </header>
 
       <main className="sidepanel-content" aria-label="当前阅读伴读面板">
         <section className="sidepanel-page" aria-labelledby="current-reading-title">
           <div className="sidepanel-context">
-            <p className="sidepanel-kicker">当前阅读</p>
+            <p className="sidepanel-kicker">
+              {isPdfReaderActive ? '当前文档' : '当前阅读'}
+            </p>
             <h1 id="current-reading-title" title={currentHost}>{currentHost}</h1>
             <span title={lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : undefined}>
               {refreshLabel}
@@ -316,7 +397,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           </div>
 
           <div className="sidepanel-page__measure">
-            <span>本页内容覆盖</span>
+            <span>{coverageLabel}</span>
             <p>
               <strong>{currentPage?.hasData ? formatCount(currentPage.coveredWords) : '—'}</strong>
               <span> / {currentPage?.totalWords ? formatCount(currentPage.totalWords) : '—'} 词</span>
@@ -324,7 +405,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           </div>
           {currentPage && currentPage.totalWords > 0 ? (
             <ProgressBar
-              label="本页内容覆盖"
+              label={coverageLabel}
               max={currentPage.totalWords}
               value={currentPage.coveredWords}
               valueText={`覆盖 ${formatCount(currentPage.coveredWords)} / 总计 ${formatCount(currentPage.totalWords)} 词`}
@@ -333,7 +414,12 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
           <p className="sidepanel-page__meta">
             {currentPage?.hasData
               ? `累计有效 ${formatWords(currentPage.effectiveWords)} · ${formatMinutes(currentPage.effectiveMinutes)} · ${formatConfidence(currentPage.confidence)}`
-              : formatCurrentPageEmptyState(siteAccess, siteAccessFailed, currentPageFailed)}
+              : formatCurrentPageEmptyState(
+                pdfReaderState,
+                siteAccess,
+                siteAccessFailed,
+                currentPageFailed,
+              )}
           </p>
 
           {siteAccessFailed ? <InlineNotice tone="danger">当前页面状态暂时不可用。</InlineNotice> : null}
@@ -461,11 +547,23 @@ function subscribeToDefaultRefresh(refresh: (reason?: SidePanelRefreshReason) =>
       refresh('tick');
     }
   };
+  const handleStorageChange = (
+    changes: Record<string, unknown>,
+    areaName: string,
+  ) => {
+    if (
+      areaName === 'session'
+      && Object.keys(changes).some(isPdfReaderSessionStorageKey)
+    ) {
+      refresh('navigation');
+    }
+  };
 
   window.addEventListener('focus', refreshWhenVisible);
   document.addEventListener('visibilitychange', refreshWhenVisible);
   browser.tabs.onActivated.addListener(handleTabActivated);
   browser.tabs.onUpdated.addListener(handleTabUpdated);
+  browser.storage.onChanged.addListener(handleStorageChange);
   const intervalId = window.setInterval(refreshOnTick, 5_000);
 
   return () => {
@@ -473,17 +571,22 @@ function subscribeToDefaultRefresh(refresh: (reason?: SidePanelRefreshReason) =>
     document.removeEventListener('visibilitychange', refreshWhenVisible);
     browser.tabs.onActivated.removeListener(handleTabActivated);
     browser.tabs.onUpdated.removeListener(handleTabUpdated);
+    browser.storage.onChanged.removeListener(handleStorageChange);
     window.clearInterval(intervalId);
   };
 }
 
 function formatStatusText(
+  pdfReaderState: CurrentPdfReaderState | undefined,
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   summary: TodayReadingSummary | undefined,
   loadFailed: boolean,
 ): string {
   if (siteAccessFailed) return '状态未知';
+  if (pdfReaderState?.active) {
+    return pdfReaderState.session ? '记录中' : 'PDF 待打开';
+  }
   if (siteAccess?.supported && siteAccess.disabledReason === 'global-paused') return '全部暂停';
   if (siteAccess?.supported && siteAccess.disabledReason === 'site-paused') return '本站暂停';
   if (siteAccess?.supported && !siteAccess.enabled) return '访问受限';
@@ -499,11 +602,13 @@ function formatStatusText(
 }
 
 function getStatusTone(
+  pdfReaderState: CurrentPdfReaderState | undefined,
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   loadFailed: boolean,
 ): StatusTone {
   if (siteAccessFailed) return 'danger';
+  if (pdfReaderState?.active && pdfReaderState.session) return 'positive';
   if (siteAccess?.supported && siteAccess.enabled && siteAccess.collectorState === 'recording') return 'positive';
   if (siteAccess?.supported && siteAccess.disabledReason === 'browser-restricted') return 'warning';
   if (loadFailed) return 'danger';
@@ -511,9 +616,13 @@ function getStatusTone(
 }
 
 function formatCurrentHost(
+  pdfReaderState: CurrentPdfReaderState | undefined,
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
 ): string {
+  if (pdfReaderState?.active) {
+    return pdfReaderState.session?.displayName ?? 'PDF 阅读器';
+  }
   if (siteAccess?.supported) return siteAccess.host;
   if (siteAccess && !siteAccess.supported) return '当前页面';
   if (siteAccessFailed) return '当前页面状态不可用';
@@ -521,11 +630,17 @@ function formatCurrentHost(
 }
 
 function formatCurrentPageEmptyState(
+  pdfReaderState: CurrentPdfReaderState | undefined,
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   currentPageFailed: boolean,
 ): string {
   if (siteAccessFailed || currentPageFailed) return '本页状态暂时不可用';
+  if (pdfReaderState?.active) {
+    return pdfReaderState.session
+      ? '等待当前 PDF 产生有效阅读'
+      : '尚未打开 PDF';
+  }
   if (!siteAccess) return '正在读取当前页面';
   if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
   if (!siteAccess.supported) return '暂时无法确认当前页面';
