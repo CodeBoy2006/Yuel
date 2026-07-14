@@ -222,7 +222,13 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(renderedPage).toBeVisible();
   await expect.poll(async () => Number(await zoomInput.inputValue())).not.toBe(zoomBeforeRotation);
 
-  const zoomInButton = pdfReader.getByRole('button', { name: '放大' }).first();
+  const zoomInButton = pdfReader.getByRole('button', { name: '放大' });
+  await expect(zoomInButton).toHaveCount(1);
+  await expect(pdfReader.getByRole('button', { name: '缩小' })).toHaveCount(1);
+  await expect(pdfReader.getByLabel('当前缩放比例')).toHaveCount(0);
+  await expect(
+    pdfReader.locator('.pdf-reader__floating-controls').getByRole('button'),
+  ).toHaveCount(2);
   const initialZoom = Number(await zoomInput.inputValue());
   await zoomInButton.click();
   await expect.poll(async () => Number(await zoomInput.inputValue())).toBeGreaterThan(initialZoom);

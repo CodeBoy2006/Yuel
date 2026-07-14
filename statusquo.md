@@ -1413,3 +1413,9 @@
 - **Status:** Completed
 - **Next Steps:** Remove the duplicate zoom controls from the floating bottom page-navigation module while preserving the complete toolbar zoom controls.
 - **Context:** Only direct and local GoTo destinations are interactive; external actions remain inert. Raw PDF XYZ coordinates are intentionally not forwarded into the reader's top-left scroll coordinate system. Focused outline and plugin tests, TypeScript checks, production build, whitespace validation, and the packaged PDF reader test pass.
+
+## [2026-07-14 09:16] Single PDF Zoom Module
+- **Changes:** Reduced the floating bottom reader controls to page navigation only, removed their duplicate zoom buttons, percentage output, divider, and obsolete styles, and added a packaged-extension assertion that only the toolbar zoom module remains.
+- **Status:** Completed
+- **Next Steps:** Run the complete unit, type, production-build, packaged-extension, and large-PDF verification suite before pushing the branch.
+- **Context:** The top toolbar remains the single full zoom module with percentage input and fit modes; trackpad content zoom remains available through the document viewport. Focused tests, TypeScript checks, production build, whitespace validation, and the packaged PDF reader test pass.

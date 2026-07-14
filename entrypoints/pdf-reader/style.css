@@ -1116,22 +1116,6 @@ body,
   height: 16px;
 }
 
-.pdf-reader__floating-controls output {
-  min-width: 48px;
-  color: var(--y-ink-secondary);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 720;
-  text-align: center;
-}
-
-.pdf-reader__floating-divider {
-  width: 1px;
-  height: 22px;
-  margin: 0 3px;
-  background: var(--y-line);
-}
-
 .pdf-reader__empty,
 .pdf-reader__state {
   display: grid;
@@ -1473,10 +1457,6 @@ body,
   .pdf-reader__floating-controls {
     bottom: 10px;
     max-width: calc(100vw - 16px);
-  }
-
-  .pdf-reader__floating-controls output {
-    min-width: 42px;
   }
 
   .pdf-reader__page-control {

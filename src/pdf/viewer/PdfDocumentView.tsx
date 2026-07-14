@@ -220,7 +220,7 @@ export function PdfDocumentView({
                 overlay
               />
             ) : null}
-            {isLoaded ? <FloatingDocumentControls documentId={documentId} /> : null}
+            {isLoaded ? <FloatingPageControls documentId={documentId} /> : null}
           </>
         );
       }}
@@ -493,9 +493,8 @@ function PasswordPrompt({
   );
 }
 
-function FloatingDocumentControls({ documentId }: { documentId: string }) {
+function FloatingPageControls({ documentId }: { documentId: string }) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
-  const { provides: zoom, state: zoomState } = useZoom(documentId);
   const [visible, setVisible] = useState(true);
   const hideTimerRef = useRef<number | undefined>(undefined);
 
@@ -518,7 +517,7 @@ function FloatingDocumentControls({ documentId }: { documentId: string }) {
 
   useEffect(() => {
     revealTemporarily();
-  }, [revealTemporarily, scrollState.currentPage, zoomState.currentZoomLevel]);
+  }, [revealTemporarily, scrollState.currentPage]);
 
   useEffect(() => {
     if (!scroll) return;
@@ -569,28 +568,6 @@ function FloatingDocumentControls({ documentId }: { documentId: string }) {
         onClick={() => scroll?.scrollToNextPage('smooth')}
       >
         <ChevronRight aria-hidden="true" />
-      </button>
-      <span className="pdf-reader__floating-divider" aria-hidden="true" />
-      <button
-        type="button"
-        aria-label="缩小"
-        title="缩小"
-        disabled={!zoom}
-        onClick={() => zoom?.zoomOut()}
-      >
-        <ZoomOut aria-hidden="true" />
-      </button>
-      <output aria-label="当前缩放比例">
-        {Math.round((zoomState.currentZoomLevel || 1) * 100)}%
-      </output>
-      <button
-        type="button"
-        aria-label="放大"
-        title="放大"
-        disabled={!zoom}
-        onClick={() => zoom?.zoomIn()}
-      >
-        <ZoomIn aria-hidden="true" />
       </button>
     </div>
   );
