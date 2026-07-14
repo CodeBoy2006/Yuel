@@ -1431,3 +1431,9 @@
 - **Status:** Completed
 - **Next Steps:** Tune the five-minute session boundary or 30-second display threshold only from observed reading behavior; no historical backfill is planned.
 - **Context:** The feature reuses the existing Budgeted Exposure Model's effective attention time and does not introduce a second timer or count page-open duration. All 434 unit/UI tests, TypeScript checks, production build, whitespace validation, design-rule scan, and five packaged-extension Chromium tests pass; desktop and 520px screenshots were inspected without overlap or horizontal overflow.
+
+## [2026-07-14 10:31] Reading Duration Insight Hardening
+- **Changes:** Kept horizontally scrollable duration trends aligned with their date axis and focused on the latest days, added a native keyboard/touch/screen-reader disclosure for complete daily duration details, corrected sub-minute trend and source bars to use real positive denominators, and added focused regression coverage for all three cases.
+- **Status:** Completed
+- **Next Steps:** Keep the five-minute session boundary and 30-second focus-session threshold unchanged until observed reading behavior justifies tuning.
+- **Context:** The fixes are split across commits `b074693`, `9c16d91`, and `6580027`. All 437 unit/UI tests, TypeScript checks, production build, whitespace validation, design-rule scan, and five packaged-extension Chromium tests pass.
