@@ -6,12 +6,14 @@ import {
 } from './navigation';
 
 const resourceId = `pdf_${'a'.repeat(64)}`;
+const annotationId = 'pdf_annotation_saved_anchor';
 
 describe('PDF reader navigation targets', () => {
   it('serializes a precise PDF location without exposing selected text', () => {
     const url = createPdfReaderUrl('chrome-extension://yuel/dashboard.html', {
       resourceId,
       pageIndex: 2,
+      annotationId,
       pageCoordinates: {
         x: 72.12345,
         y: 184.98765,
@@ -19,7 +21,7 @@ describe('PDF reader navigation targets', () => {
     });
 
     expect(url).toBe(
-      `chrome-extension://yuel/pdf-reader.html?resource=${resourceId}&page=3&x=72.123&y=184.988`,
+      `chrome-extension://yuel/pdf-reader.html?resource=${resourceId}&page=3&annotation=${annotationId}&x=72.123&y=184.988`,
     );
   });
 
@@ -28,9 +30,12 @@ describe('PDF reader navigation targets', () => {
       resourceId,
       pageIndex: 3,
     });
-    expect(parsePdfReaderTarget(`?resource=${resourceId}&page=4&x=12.5&y=90`)).toEqual({
+    expect(parsePdfReaderTarget(
+      `?resource=${resourceId}&page=4&annotation=${annotationId}&x=12.5&y=90`,
+    )).toEqual({
       resourceId,
       pageIndex: 3,
+      annotationId,
       pageCoordinates: {
         x: 12.5,
         y: 90,
@@ -58,5 +63,23 @@ describe('PDF reader navigation targets', () => {
       resourceId,
       pageIndex: 1,
     });
+  });
+
+  it('drops an invalid annotation ID while preserving the source location', () => {
+    expect(parsePdfReaderTarget(
+      `?resource=${resourceId}&page=2&annotation=../../saved&x=5&y=10`,
+    )).toEqual({
+      resourceId,
+      pageIndex: 1,
+      pageCoordinates: { x: 5, y: 10 },
+    });
+  });
+
+  it('rejects invalid annotation IDs when creating a reader URL', () => {
+    expect(() => createPdfReaderUrl('chrome-extension://yuel/dashboard.html', {
+      resourceId,
+      pageIndex: 0,
+      annotationId: 'annotation-pdf',
+    })).toThrow('valid PDF annotation ID');
   });
 });

@@ -852,6 +852,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(openPdfReaderTarget).toHaveBeenCalledWith({
       resourceId,
       pageIndex: 2,
+      annotationId: 'annotation-pdf',
       pageCoordinates: { x: 72, y: 180 },
     });
   });
@@ -1967,6 +1968,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(openPdfReader).toHaveBeenCalledWith({
       resourceId,
       pageIndex: 4,
+      annotationId: 'annotation-pdf',
       pageCoordinates: { x: 64, y: 220 },
     });
   });

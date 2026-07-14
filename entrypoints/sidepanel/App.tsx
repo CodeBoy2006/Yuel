@@ -491,6 +491,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
                   onClick={() => void openPdfReader({
                     resourceId: savedPdfAnchor.resourceId,
                     pageIndex: savedPdfAnchor.pageIndex,
+                    annotationId: savedPdfAnchor.annotationId,
                     ...(savedPdfAnchor.pageCoordinates
                       ? { pageCoordinates: savedPdfAnchor.pageCoordinates }
                       : {}),

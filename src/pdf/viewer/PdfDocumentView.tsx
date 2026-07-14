@@ -86,6 +86,8 @@ import type {
 } from 'react';
 
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
+import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
+import type { PdfSourceRectRecord } from '../../storage/schema';
 import {
   PdfReadingAnalytics,
 } from '../analytics';
@@ -237,6 +239,12 @@ export function PdfDocumentView({
                                   className="pdf-reader__search-layer"
                                   highlightColor="rgb(243 207 91 / 42%)"
                                   activeHighlightColor="rgb(233 165 58 / 58%)"
+                                />
+                                <PdfBacklinkHighlightLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  scale={documentState.scale}
+                                  target={initialTarget}
                                 />
                                 <SelectionLayer
                                   documentId={documentId}
@@ -832,6 +840,76 @@ function PdfExternalLinkHandler({ documentId }: { documentId: string }) {
   }, [annotation, documentId]);
 
   return null;
+}
+
+function PdfBacklinkHighlightLayer({
+  documentId,
+  pageIndex,
+  scale,
+  target,
+}: {
+  documentId: string;
+  pageIndex: number;
+  scale: number;
+  target?: PdfReaderTarget;
+}) {
+  const [sourceRects, setSourceRects] = useState<PdfSourceRectRecord[]>([]);
+  const annotationId = target?.annotationId;
+  const targetPageIndex = target?.pageIndex;
+  const targetResourceId = target?.resourceId;
+
+  useEffect(() => {
+    let cancelled = false;
+    setSourceRects([]);
+    if (
+      !annotationId
+      || targetPageIndex === undefined
+      || targetResourceId !== documentId
+    ) {
+      return;
+    }
+
+    void getPdfBacklinkSourceRects({
+      annotationId,
+      resourceId: targetResourceId,
+      pageIndex: targetPageIndex,
+    }, pageIndex).then((rects) => {
+      if (!cancelled) setSourceRects(rects);
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    annotationId,
+    documentId,
+    pageIndex,
+    targetPageIndex,
+    targetResourceId,
+  ]);
+
+  if (sourceRects.length === 0) return null;
+
+  return (
+    <div
+      className="pdf-reader__backlink-layer"
+      data-pdf-annotation-id={annotationId}
+      aria-hidden="true"
+    >
+      {sourceRects.map((rect, index) => (
+        <span
+          className="pdf-reader__backlink-highlight"
+          key={`${rect.pageIndex}:${rect.x}:${rect.y}:${index}`}
+          style={{
+            left: rect.x * scale,
+            top: rect.y * scale,
+            width: rect.width * scale,
+            height: rect.height * scale,
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function PdfSelectionMenu({

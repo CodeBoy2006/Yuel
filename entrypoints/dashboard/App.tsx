@@ -1438,6 +1438,7 @@ function SavedHighlightCard({
       await onOpenPdfReaderTarget({
         resourceId: item.pdfAnchor.resourceId,
         pageIndex: item.pdfAnchor.pageIndex,
+        annotationId: item.pdfAnchor.annotationId,
         ...(item.pdfAnchor.pageCoordinates
           ? { pageCoordinates: item.pdfAnchor.pageCoordinates }
           : {}),

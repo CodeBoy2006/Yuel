@@ -264,6 +264,9 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect.poll(() => backlinkReader.locator(
     '.pdf-reader__document-tools .pdf-reader__page-control input',
   ).inputValue()).toBe('1');
+  await expect(backlinkReader.locator(
+    '.pdf-reader__backlink-highlight',
+  ).first()).toBeVisible();
   await backlinkReader.close();
   await excerptDashboard.close();
   await pdfReader.bringToFront();

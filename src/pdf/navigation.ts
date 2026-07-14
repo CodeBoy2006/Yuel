@@ -1,8 +1,10 @@
 const PDF_RESOURCE_ID_PATTERN = /^pdf_[a-f0-9]{64}$/;
+const PDF_ANNOTATION_ID_PATTERN = /^pdf_annotation_[a-z0-9_-]{1,160}$/;
 
 export interface PdfReaderTarget {
   resourceId: string;
   pageIndex: number;
+  annotationId?: string;
   pageCoordinates?: {
     x: number;
     y: number;
@@ -18,6 +20,9 @@ export function createPdfReaderUrl(
   url.searchParams.set('resource', target.resourceId);
   url.searchParams.set('page', String(target.pageIndex + 1));
 
+  if (target.annotationId) {
+    url.searchParams.set('annotation', target.annotationId);
+  }
   if (target.pageCoordinates) {
     url.searchParams.set('x', formatCoordinate(target.pageCoordinates.x));
     url.searchParams.set('y', formatCoordinate(target.pageCoordinates.y));
@@ -42,6 +47,7 @@ export function parsePdfReaderTarget(search: string): PdfReaderTarget | undefine
 
   const x = parseCoordinate(params.get('x'));
   const y = parseCoordinate(params.get('y'));
+  const annotationId = parseAnnotationId(params.get('annotation'));
   const pageCoordinates = x === undefined || y === undefined
     ? undefined
     : { x, y };
@@ -49,6 +55,7 @@ export function parsePdfReaderTarget(search: string): PdfReaderTarget | undefine
   return {
     resourceId,
     pageIndex: pageNumber - 1,
+    ...(annotationId ? { annotationId } : {}),
     ...(pageCoordinates ? { pageCoordinates } : {}),
   };
 }
@@ -61,6 +68,12 @@ function assertPdfReaderTarget(target: PdfReaderTarget): void {
     throw new RangeError('PDF reader targets require a non-negative page index.');
   }
   if (
+    target.annotationId
+    && !PDF_ANNOTATION_ID_PATTERN.test(target.annotationId)
+  ) {
+    throw new RangeError('PDF reader targets require a valid PDF annotation ID.');
+  }
+  if (
     target.pageCoordinates
     && (
       !isValidCoordinate(target.pageCoordinates.x)
@@ -69,6 +82,13 @@ function assertPdfReaderTarget(target: PdfReaderTarget): void {
   ) {
     throw new RangeError('PDF reader target coordinates must be finite and non-negative.');
   }
+}
+
+function parseAnnotationId(value: string | null): string | undefined {
+  const annotationId = value?.trim() ?? '';
+  return PDF_ANNOTATION_ID_PATTERN.test(annotationId)
+    ? annotationId
+    : undefined;
 }
 
 function parseCoordinate(value: string | null): number | undefined {

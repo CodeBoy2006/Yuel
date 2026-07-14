@@ -1449,3 +1449,9 @@
 - **Status:** Completed
 - **Next Steps:** Render saved PDF source rectangles when a Dashboard or Side Panel backlink reopens the document.
 - **Context:** Unsupported schemes, relative paths, and malformed URLs remain inert. Eleven focused link and plugin tests plus TypeScript checks pass.
+
+## [2026-07-14 14:01] PDF Backlink Source Highlight
+- **Changes:** Added opaque annotation IDs to reader launch targets, validated annotation/resource/page identity before reading local rectangles, and rendered a scaled non-interactive source highlight after Dashboard or Side Panel backlinks reopen a PDF.
+- **Status:** Completed
+- **Next Steps:** Harden view-state persistence after zoom and rotation layout changes.
+- **Context:** Selected text is not placed in the reader URL. One hundred fifteen focused storage, navigation, aggregation, and UI tests, TypeScript checks, the production build, and the packaged local-PDF backlink workflow pass.
