@@ -70,6 +70,32 @@ describe('ReadingDurationInsights', () => {
     }
   });
 
+  it('provides keyboard, touch, and screen-reader access to every daily duration', async () => {
+    const history = createHistory(3).map((day, index) => ({
+      ...day,
+      minutes: index + 1,
+    }));
+    const container = await renderForSmoke(
+      <ReadingDurationInsights history={history} sessions={[]} />,
+    );
+    const plot = container.querySelector('.reading-duration-trend__plot');
+    const details = container.querySelector<HTMLDetailsElement>(
+      '.reading-duration-trend__details',
+    );
+    const dailyItems = Array.from(
+      container.querySelectorAll<HTMLElement>('.reading-duration-trend__details li'),
+    );
+
+    expect(plot?.getAttribute('role')).toBe('img');
+    expect(details).toBeInstanceOf(HTMLDetailsElement);
+    expect(details?.querySelector('summary')?.textContent).toBe('逐日明细');
+    expect(dailyItems).toHaveLength(3);
+    expect(dailyItems[0].querySelector('time')?.getAttribute('dateTime')).toBe(history[2].date);
+    expect(dailyItems[0].textContent).toContain('3 分钟');
+    expect(dailyItems[2].querySelector('time')?.getAttribute('dateTime')).toBe(history[0].date);
+    expect(dailyItems[2].textContent).toContain('1 分钟');
+  });
+
   it('renders source totals and recent focus-session details', async () => {
     const startedAt = new Date(2026, 5, 27, 9, 0).getTime();
     const sessions: ReadingFocusSessionSummary[] = [

@@ -211,6 +211,22 @@ function DurationTrend({
           </div>
         </div>
       </div>
+
+      {history.length > 0 ? (
+        <details className="reading-duration-trend__details">
+          <summary>逐日明细</summary>
+          <ol aria-label="逐日有效时长">
+            {[...history].reverse().map((day) => (
+              <li key={day.date}>
+                <time dateTime={day.date}>
+                  {fullDateFormatter.format(parseLocalDate(day.date))}
+                </time>
+                <strong>{formatMinutes(day.minutes)}</strong>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
     </section>
   );
 }
