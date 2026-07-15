@@ -354,7 +354,9 @@ function hasValidReadingEventValue(kind: ReadingEventKind, value: unknown): bool
     return (
       isObject(value) &&
       isFiniteNumberAtLeast(value.scrollDeltaPx, 1) &&
-      (value.scrollDirection === undefined || value.scrollDirection === -1 || value.scrollDirection === 1) &&
+      (value.scrollDirection === -1 || value.scrollDirection === 1) &&
+      isNonNegativeFiniteNumber(value.scrollOffsetPx) &&
+      isFiniteNumberAtLeast(value.scrollableExtentPx, 1) &&
       isFiniteNumberAtLeast(value.elapsedMs, 100) &&
       isNonNegativeFiniteNumber(value.scrollSpeedWordsPerMinute)
     );

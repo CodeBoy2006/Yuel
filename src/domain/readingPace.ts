@@ -1,14 +1,14 @@
 import { DEFAULT_BASE_WORDS_PER_MINUTE } from './metrics';
 
 export type ReadingContentType = 'general' | 'tech' | 'academic';
-export type ReadingPaceProfileSource = 'default' | 'onboarding' | 'adaptive';
+export type ReadingPaceProfileSource = 'onboarding' | 'adaptive';
 
 export interface ReadingPaceProfile {
   id: string;
   language: string;
   contentType: ReadingContentType;
   baseWordsPerMinute: number;
-  sampleCount: number;
+  adaptiveSampleCount: number;
   source: ReadingPaceProfileSource;
   updatedAt: number;
 }
@@ -17,7 +17,7 @@ export interface OnboardingReadingPaceInput {
   language?: string;
   contentType?: ReadingContentType;
   wordCount: number;
-  startedAt: number;
+  readingDurationMs: number;
   completedAt: number;
   correctAnswers: number;
   questionCount: number;
@@ -27,7 +27,6 @@ export interface OnboardingReadingPaceInput {
 export interface AdaptiveReadingPaceSample {
   observedWordsPerMinute: number;
   confidence: number;
-  observedAt: number;
 }
 
 export interface AdaptiveReadingPaceProfileOptions {
@@ -44,7 +43,6 @@ interface ReadingPaceRange {
 
 export const DEFAULT_READING_LANGUAGE = 'en';
 export const DEFAULT_READING_CONTENT_TYPE: ReadingContentType = 'general';
-export const MIN_ADAPTIVE_READING_PACE_CONFIDENCE = 0.75;
 
 export const READING_PACE_RANGES: Record<ReadingContentType, ReadingPaceRange> = {
   general: { min: 100, max: 350 },
@@ -78,12 +76,16 @@ export function clampReadingPaceWpm(
 }
 
 export function calculateOnboardingObservedWordsPerMinute(input: OnboardingReadingPaceInput): number {
-  const elapsedMs = input.completedAt - input.startedAt;
-  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0 || !Number.isFinite(input.wordCount) || input.wordCount <= 0) {
+  if (
+    !Number.isFinite(input.readingDurationMs)
+    || input.readingDurationMs <= 0
+    || !Number.isFinite(input.wordCount)
+    || input.wordCount <= 0
+  ) {
     return DEFAULT_BASE_WORDS_PER_MINUTE;
   }
 
-  return (input.wordCount * 60_000) / elapsedMs;
+  return (input.wordCount * 60_000) / input.readingDurationMs;
 }
 
 export function getOnboardingConfidenceWeight(correctAnswers: number, questionCount: number): number {
@@ -135,7 +137,7 @@ export function upsertOnboardingReadingPaceProfile(
     language,
     contentType,
     baseWordsPerMinute,
-    sampleCount: 0,
+    adaptiveSampleCount: 0,
     source: 'onboarding',
     updatedAt: input.completedAt,
   };
@@ -146,7 +148,7 @@ export function updateAdaptiveReadingPaceProfile(
   sample: AdaptiveReadingPaceSample | undefined,
   options: AdaptiveReadingPaceProfileOptions,
 ): ReadingPaceProfile | undefined {
-  if (!sample || sample.confidence < MIN_ADAPTIVE_READING_PACE_CONFIDENCE) {
+  if (!sample || !Number.isFinite(sample.confidence) || sample.confidence <= 0) {
     return undefined;
   }
 
@@ -157,8 +159,12 @@ export function updateAdaptiveReadingPaceProfile(
     return undefined;
   }
 
-  const sampleCount = Math.max(0, Math.floor(existingProfile?.sampleCount ?? 0));
-  const alpha = getAdaptiveReadingPaceAlpha(sampleCount);
+  const adaptiveSampleCount = Math.max(
+    0,
+    Math.floor(existingProfile?.adaptiveSampleCount ?? 0),
+  );
+  const confidenceWeight = Math.min(1, sample.confidence);
+  const alpha = getAdaptiveReadingPaceAlpha(adaptiveSampleCount) * confidenceWeight;
   const currentWordsPerMinute = clampReadingPaceWpm(
     existingProfile?.baseWordsPerMinute ?? options.defaultWordsPerMinute ?? DEFAULT_BASE_WORDS_PER_MINUTE,
     contentType,
@@ -173,7 +179,7 @@ export function updateAdaptiveReadingPaceProfile(
       currentWordsPerMinute * (1 - alpha) + observedWordsPerMinute * alpha,
       contentType,
     ),
-    sampleCount: sampleCount + 1,
+    adaptiveSampleCount: adaptiveSampleCount + 1,
     source: 'adaptive',
     updatedAt: options.now,
   };
@@ -185,12 +191,12 @@ export function resolveReadingPaceBaseWordsPerMinute(
   return clampReadingPaceWpm(profile?.baseWordsPerMinute ?? DEFAULT_BASE_WORDS_PER_MINUTE, profile?.contentType);
 }
 
-function getAdaptiveReadingPaceAlpha(sampleCount: number): number {
-  if (sampleCount < 10) {
+function getAdaptiveReadingPaceAlpha(adaptiveSampleCount: number): number {
+  if (adaptiveSampleCount < 10) {
     return 0.12;
   }
 
-  if (sampleCount < 50) {
+  if (adaptiveSampleCount < 50) {
     return 0.06;
   }
 

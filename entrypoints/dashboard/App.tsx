@@ -152,6 +152,11 @@ const defaultDependencies: DashboardAppDependencies = {
 type DashboardViewState = 'loading' | 'error' | 'empty' | 'ready';
 type CalibrationStep = 'idle' | 'reading' | 'questions';
 
+interface CalibrationTimer {
+  activeSince?: number;
+  elapsedMs: number;
+}
+
 export function DashboardApp({ dependencies = defaultDependencies }: { dependencies?: DashboardAppDependencies }) {
   const [details, setDetails] = useState<ReadingDashboardDetails>();
   const [paceSummary, setPaceSummary] = useState<ReadingPaceSummary>();
@@ -169,8 +174,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [calibrationMaterial, setCalibrationMaterial] = useState<PaceCalibrationMaterial>(
     PACE_CALIBRATION_MATERIALS[0],
   );
-  const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
-  const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
+  const [calibrationReadingDurationMs, setCalibrationReadingDurationMs] = useState<number>();
+  const [calibrationCompletedAt, setCalibrationCompletedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
   const [calibrationSaveStatus, setCalibrationSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'rejected' | 'failed'>('idle');
   const [paceResetStatus, setPaceResetStatus] = useState<'idle' | 'resetting' | 'reset' | 'failed'>('idle');
@@ -193,6 +198,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const shareCardRef = useRef<HTMLDivElement>(null);
   const checkInGoalInputRef = useRef<HTMLInputElement>(null);
   const calibrationSessionRef = useRef(0);
+  const calibrationTimerRef = useRef<CalibrationTimer | undefined>(undefined);
+  const calibrationWindowFocusedRef = useRef(true);
   const pendingCalibrationFocusRef = useRef<{ id: string; scrollContainerId?: string } | undefined>(undefined);
   const mountedRef = useRef(false);
   const detailsRefreshSequenceRef = useRef(0);
@@ -274,10 +281,52 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       readingToolbarSettingsSequenceRef.current += 1;
       readingRecordingSettingsSequenceRef.current += 1;
       calibrationSessionRef.current += 1;
+      calibrationTimerRef.current = undefined;
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [refreshDashboard]);
+
+  useEffect(() => {
+    if (calibrationStep !== 'reading') return;
+
+    const pauseTimer = () => {
+      pauseCalibrationTimer(calibrationTimerRef.current, Date.now());
+    };
+    const resumeTimer = () => {
+      if (
+        document.visibilityState === 'visible'
+        && calibrationWindowFocusedRef.current
+      ) {
+        resumeCalibrationTimer(calibrationTimerRef.current, Date.now());
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pauseTimer();
+      } else {
+        resumeTimer();
+      }
+    };
+    const onWindowBlur = () => {
+      calibrationWindowFocusedRef.current = false;
+      pauseTimer();
+    };
+    const onWindowFocus = () => {
+      calibrationWindowFocusedRef.current = true;
+      resumeTimer();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, [calibrationStep]);
 
   useEffect(() => {
     const requestId = ++shareCardSettingsSequenceRef.current;
@@ -414,6 +463,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     : paceLoadFailed
       ? '阅读速度不可用'
       : '正在读取阅读速度';
+  const hasCustomReadingPace = paceSummary?.source === 'onboarding'
+    || paceSummary?.source === 'adaptive';
   const allCalibrationQuestionsAnswered = calibrationMaterial.questions.every(
     (question) => calibrationAnswers[question.id],
   );
@@ -706,8 +757,13 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       id: 'pace-calibration-reading-title',
       scrollContainerId: 'pace-calibration',
     };
-    setCalibrationStartedAt(Date.now());
-    setCalibrationReadingFinishedAt(undefined);
+    calibrationWindowFocusedRef.current = true;
+    calibrationTimerRef.current = {
+      activeSince: document.visibilityState === 'visible' ? Date.now() : undefined,
+      elapsedMs: 0,
+    };
+    setCalibrationReadingDurationMs(undefined);
+    setCalibrationCompletedAt(undefined);
     setCalibrationAnswers({});
     setCalibrationStep('reading');
     setCalibrationSaveStatus('idle');
@@ -716,9 +772,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
   function resetCalibration(restoreFocus = false) {
     calibrationSessionRef.current += 1;
+    calibrationTimerRef.current = undefined;
     setCalibrationStep('idle');
-    setCalibrationStartedAt(undefined);
-    setCalibrationReadingFinishedAt(undefined);
+    setCalibrationReadingDurationMs(undefined);
+    setCalibrationCompletedAt(undefined);
     setCalibrationAnswers({});
     setCalibrationSaveStatus('idle');
     if (restoreFocus) {
@@ -729,16 +786,20 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const cancelPaceCalibration = () => resetCalibration(true);
 
   const finishPaceReading = () => {
-    if (calibrationStartedAt === undefined) return;
+    const timer = calibrationTimerRef.current;
+    if (!timer) return;
+    const completedAt = Date.now();
+    pauseCalibrationTimer(timer, completedAt);
     pendingCalibrationFocusRef.current = { id: 'pace-calibration-questions-title' };
-    setCalibrationReadingFinishedAt(Date.now());
+    setCalibrationReadingDurationMs(timer.elapsedMs);
+    setCalibrationCompletedAt(completedAt);
     setCalibrationStep('questions');
   };
 
   const savePaceCalibrationResult = async () => {
     if (
-      calibrationStartedAt === undefined
-      || calibrationReadingFinishedAt === undefined
+      calibrationReadingDurationMs === undefined
+      || calibrationCompletedAt === undefined
       || !allCalibrationQuestionsAnswered
     ) return;
 
@@ -754,8 +815,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         language: 'en',
         contentType: 'general',
         wordCount: calibrationMaterial.wordCount,
-        startedAt: calibrationStartedAt,
-        completedAt: calibrationReadingFinishedAt,
+        readingDurationMs: calibrationReadingDurationMs,
+        completedAt: calibrationCompletedAt,
         correctAnswers,
         questionCount: calibrationMaterial.questions.length,
       });
@@ -764,8 +825,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       setPaceSummary(nextPaceSummary);
       pendingCalibrationFocusRef.current = { id: 'pace-calibration-trigger' };
       setCalibrationStep('idle');
-      setCalibrationStartedAt(undefined);
-      setCalibrationReadingFinishedAt(undefined);
+      calibrationTimerRef.current = undefined;
+      setCalibrationReadingDurationMs(undefined);
+      setCalibrationCompletedAt(undefined);
       setCalibrationSaveStatus(nextPaceSummary.calibrationAccepted === false ? 'rejected' : 'saved');
       setPaceResetStatus('idle');
     } catch (error) {
@@ -776,7 +838,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   };
 
   const restoreDefaultReadingPace = async () => {
-    if (!paceSummary?.hasProfile || paceActionBusy) return;
+    if (!hasCustomReadingPace || paceActionBusy) return;
 
     const sessionId = ++calibrationSessionRef.current;
     paceRefreshSequenceRef.current += 1;
@@ -1194,9 +1256,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   disabled={paceActionBusy}
                   onClick={startPaceCalibration}
                 >
-                  {paceSummary?.hasProfile ? '重新校准' : '开始校准'}
+                  {hasCustomReadingPace ? '重新校准' : '开始校准'}
                 </ActionButton>
-                {paceSummary?.hasProfile ? (
+                {hasCustomReadingPace ? (
                   <ActionButton
                     type="button"
                     variant="quiet"
@@ -1535,7 +1597,18 @@ function formatPaceSource(summary: ReadingPaceSummary): string {
   if (summary.source === 'onboarding') {
     return summary.updatedAt ? `${formatDateTime(summary.updatedAt)} 完成校准` : '已完成初始校准';
   }
-  return `${summary.sampleCount} 个可靠样本正在缓慢调整速度`;
+  return `${summary.adaptiveSampleCount} 个可靠样本正在缓慢调整速度`;
+}
+
+function pauseCalibrationTimer(timer: CalibrationTimer | undefined, now: number): void {
+  if (!timer || timer.activeSince === undefined) return;
+  timer.elapsedMs += Math.max(0, now - timer.activeSince);
+  timer.activeSince = undefined;
+}
+
+function resumeCalibrationTimer(timer: CalibrationTimer | undefined, now: number): void {
+  if (!timer || timer.activeSince !== undefined) return;
+  timer.activeSince = now;
 }
 
 function formatShareCardSettingsStatus(

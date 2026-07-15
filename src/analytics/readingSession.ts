@@ -88,10 +88,11 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
   let idleStartedAt: number | undefined;
   let scrollSpeedExpiryTimer: number | undefined;
   let deliveryInFlight: Promise<boolean> | undefined;
-  let lastScrollSample: ScrollVelocitySample = {
+  let settledScrollSample: ScrollVelocitySample = {
     offsetPx: readScrollMetrics(config.getScrollMetrics)?.offsetPx ?? 0,
     sampledAt: startedAt,
   };
+  let pendingScrollSample: ScrollVelocitySample | undefined;
 
   const emitEvent = (
     kind: ReadingEvent['kind'],
@@ -300,9 +301,28 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
       if (!pageHidden && latestScrollSpeedWordsPerMinute > 0) {
         closeCurrentViewportInterval();
       }
+      if (pendingScrollSample) {
+        settledScrollSample = pendingScrollSample;
+        pendingScrollSample = undefined;
+      }
       latestScrollSpeedWordsPerMinute = 0;
       latestScrollDirection = 0;
     }, scrollSpeedExpiryMs);
+  };
+
+  const resetScrollSampling = (now: number) => {
+    if (scrollSpeedExpiryTimer !== undefined) {
+      window.clearTimeout(scrollSpeedExpiryTimer);
+      scrollSpeedExpiryTimer = undefined;
+    }
+    const metrics = readScrollMetrics(config.getScrollMetrics);
+    settledScrollSample = {
+      offsetPx: metrics?.offsetPx ?? settledScrollSample.offsetPx,
+      sampledAt: now,
+    };
+    pendingScrollSample = undefined;
+    latestScrollSpeedWordsPerMinute = 0;
+    latestScrollDirection = 0;
   };
 
   const recordScroll = (now = Date.now()) => {
@@ -311,9 +331,17 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     }
 
     const metrics = readScrollMetrics(config.getScrollMetrics);
-    const measurement = metrics
-      ? measureScrollVelocity(lastScrollSample, metrics, config.page.totalWords, now)
-      : undefined;
+    if (!metrics) {
+      markUserActive(now);
+      return;
+    }
+
+    const measurement = measureScrollVelocity(
+      settledScrollSample,
+      metrics,
+      config.page.totalWords,
+      now,
+    );
     if (!measurement) {
       markUserActive(now);
       return;
@@ -321,7 +349,7 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
 
     closeCurrentViewportInterval(measurement.sampledAt);
     markUserActive(measurement.sampledAt);
-    lastScrollSample = {
+    pendingScrollSample = {
       offsetPx: measurement.offsetPx,
       sampledAt: measurement.sampledAt,
     };
@@ -333,6 +361,8 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
       value: {
         scrollDeltaPx: measurement.scrollDeltaPx,
         scrollDirection: measurement.scrollDirection,
+        scrollOffsetPx: measurement.offsetPx,
+        scrollableExtentPx: metrics.scrollableExtentPx,
         elapsedMs: measurement.elapsedMs,
         scrollSpeedWordsPerMinute: measurement.scrollSpeedWordsPerMinute,
       },
@@ -374,6 +404,7 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     }
     latestScrollSpeedWordsPerMinute = 0;
     latestScrollDirection = 0;
+    pendingScrollSample = undefined;
     visibleChunkIds.clear();
     appendPageHiddenOnce();
     void flush();
@@ -391,6 +422,7 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
       const now = Date.now();
       lastInteractionAt = now;
       lastViewportTickAt = now;
+      resetScrollSampling(now);
       resetIdleTimer();
       emitEvent('PageVisible', now, { confidence: 'medium' });
       setChunkVisibilities(readRestorableVisibilities(config.getRestorableChunkVisibilities), now);
@@ -415,6 +447,7 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     const now = Date.now();
     closeCurrentViewportInterval(now, false, document.visibilityState === 'visible');
     windowFocused = true;
+    resetScrollSampling(now);
     markUserActive(now);
   };
 

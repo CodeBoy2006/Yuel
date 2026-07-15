@@ -171,9 +171,8 @@ export interface ReadingPaceProfileRecord {
   language: string;
   contentType: ReadingContentType;
   baseWordsPerMinute: number;
-  sampleCount: number;
+  adaptiveSampleCount: number;
   source: ReadingPaceProfileSource;
-  recentAdaptiveWordsPerMinute?: number[];
   updatedAt: number;
 }
 
@@ -196,6 +195,7 @@ export interface ReadingPaceEpisodeRecord {
   completedSegmentIds: string[];
   segmentStates: Record<string, ReadingPaceEpisodeSegmentState>;
   lastScrollDirection: -1 | 0 | 1;
+  maxScrollOffsetPx?: number;
 }
 
 export interface MetadataRecord {

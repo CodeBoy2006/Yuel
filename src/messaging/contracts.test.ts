@@ -578,6 +578,9 @@ describe('isReadingEventBatchMessage', () => {
       kind: 'ScrollVelocityChanged',
       value: {
         scrollDeltaPx: 12,
+        scrollDirection: 1,
+        scrollableExtentPx: 1_000,
+        elapsedMs: 100,
         scrollSpeedWordsPerMinute: 240,
       },
     });
@@ -587,6 +590,9 @@ describe('isReadingEventBatchMessage', () => {
       kind: 'ScrollVelocityChanged',
       value: {
         scrollDeltaPx: 0.5,
+        scrollDirection: 1,
+        scrollOffsetPx: 120,
+        scrollableExtentPx: 1_000,
         elapsedMs: 100,
         scrollSpeedWordsPerMinute: 240,
       },
@@ -597,6 +603,9 @@ describe('isReadingEventBatchMessage', () => {
       kind: 'ScrollVelocityChanged',
       value: {
         scrollDeltaPx: 12,
+        scrollDirection: 1,
+        scrollOffsetPx: 120,
+        scrollableExtentPx: 1_000,
         elapsedMs: 99,
         scrollSpeedWordsPerMinute: -1,
       },

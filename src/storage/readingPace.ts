@@ -15,10 +15,9 @@ export interface ReadingPaceSummary {
   language: string;
   contentType: ReadingContentType;
   baseWordsPerMinute: number;
-  sampleCount: number;
-  source: ReadingPaceProfileSource;
+  adaptiveSampleCount: number;
+  source: ReadingPaceProfileSource | 'default';
   updatedAt?: number;
-  hasProfile: boolean;
   calibrationAccepted?: boolean;
 }
 
@@ -111,9 +110,8 @@ function toReadingPaceSummary(
       language,
       contentType,
       baseWordsPerMinute: resolveReadingPaceBaseWordsPerMinute(undefined),
-      sampleCount: 0,
+      adaptiveSampleCount: 0,
       source: 'default',
-      hasProfile: false,
     };
   }
 
@@ -121,9 +119,8 @@ function toReadingPaceSummary(
     language: profile.language,
     contentType: profile.contentType,
     baseWordsPerMinute: resolveReadingPaceBaseWordsPerMinute(profile),
-    sampleCount: profile.sampleCount,
+    adaptiveSampleCount: Math.max(0, Math.floor(profile.adaptiveSampleCount ?? 0)),
     source: profile.source,
     updatedAt: profile.updatedAt,
-    hasProfile: true,
   };
 }

@@ -42,6 +42,13 @@ function findButton(container: HTMLElement, label: string): HTMLButtonElement | 
   return Array.from(container.querySelectorAll('button')).find((button) => button.textContent === label);
 }
 
+function setDocumentVisibility(visibilityState: DocumentVisibilityState): void {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visibilityState,
+  });
+}
+
 async function clickButton(button: HTMLButtonElement | undefined) {
   expect(button).toBeInstanceOf(HTMLButtonElement);
   await act(async () => {
@@ -142,9 +149,8 @@ function createReadingPaceSummary(overrides: Partial<ReadingPaceSummaryFixture> 
     language: 'en',
     contentType: 'general',
     baseWordsPerMinute: 220,
-    sampleCount: 0,
+    adaptiveSampleCount: 0,
     source: 'default',
-    hasProfile: false,
     ...overrides,
   };
 }
@@ -194,9 +200,8 @@ function createDashboardDependencies(
     saveOnboardingReadingPaceCalibration: async (input) => createReadingPaceSummary({
       language: input.language ?? 'en',
       contentType: input.contentType ?? 'general',
-      sampleCount: 1,
+      adaptiveSampleCount: 0,
       source: 'onboarding',
-      hasProfile: true,
       calibrationAccepted: true,
     }),
     resetReadingPaceCalibration: async () => createReadingPaceSummary(),
@@ -1125,7 +1130,6 @@ describe('extension UI entrypoint smoke rendering', () => {
         baseWordsPerMinute: 233,
         source: 'onboarding',
         updatedAt: 61_000,
-        hasProfile: true,
       }));
       await saveResult.promise;
     });
@@ -1140,7 +1144,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       expect.objectContaining({
         language: 'en',
         contentType: 'general',
-        startedAt: 1_000,
+        readingDurationMs: 60_000,
         completedAt: 61_000,
         correctAnswers: 3,
         questionCount: 3,
@@ -1159,13 +1163,69 @@ describe('extension UI entrypoint smoke rendering', () => {
     nowSpy.mockRestore();
   });
 
+  it('excludes hidden and unfocused time from calibration duration', async () => {
+    setDocumentVisibility('visible');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const saveOnboardingReadingPaceCalibration = vi.fn(async () => createReadingPaceSummary({
+      baseWordsPerMinute: 230,
+      source: 'onboarding',
+      calibrationAccepted: true,
+    }));
+    const container = await renderDashboard({
+      saveOnboardingReadingPaceCalibration,
+    });
+
+    await clickButton(findButton(container, '开始校准'));
+
+    nowSpy.mockReturnValue(11_000);
+    await act(async () => {
+      window.dispatchEvent(new Event('blur'));
+    });
+
+    nowSpy.mockReturnValue(31_000);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    nowSpy.mockReturnValue(41_000);
+    setDocumentVisibility('hidden');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    nowSpy.mockReturnValue(61_000);
+    setDocumentVisibility('visible');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    nowSpy.mockReturnValue(71_000);
+    await clickButton(findButton(container, '我已读完'));
+    for (const fieldset of container.querySelectorAll('fieldset')) {
+      await act(async () => {
+        fieldset.querySelector<HTMLInputElement>('input[type="radio"]')?.click();
+      });
+    }
+    await clickButton(findButton(container, '保存校准'));
+    await flushReactMicrotasks(2);
+
+    expect(saveOnboardingReadingPaceCalibration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readingDurationMs: 30_000,
+        completedAt: 71_000,
+      }),
+    );
+
+    nowSpy.mockRestore();
+    setDocumentVisibility('visible');
+  });
+
   it('keeps one randomly selected calibration material through reading and questions', async () => {
     const selectedMaterial = PACE_CALIBRATION_MATERIALS[1];
     const selectPaceCalibrationMaterial = vi.fn(() => selectedMaterial);
     const saveOnboardingReadingPaceCalibration = vi.fn(async () => createReadingPaceSummary({
       baseWordsPerMinute: 231,
       source: 'onboarding',
-      hasProfile: true,
       calibrationAccepted: true,
     }));
     const container = await renderDashboard({
@@ -1215,14 +1275,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     const container = await renderDashboard({
       getReadingPaceSummary: async () => createReadingPaceSummary({
         baseWordsPerMinute: 248,
-        sampleCount: 3,
+        adaptiveSampleCount: 3,
         source: 'adaptive',
-        hasProfile: true,
       }),
       resetReadingPaceCalibration,
     });
 
     expect(container.textContent).toContain('248 WPM');
+    expect(container.textContent).toContain('3 个可靠样本正在缓慢调整速度');
     await clickButton(findButton(container, '恢复默认速度'));
     await flushReactMicrotasks(2);
 
@@ -1241,7 +1301,6 @@ describe('extension UI entrypoint smoke rendering', () => {
       saveOnboardingReadingPaceCalibration: async () => createReadingPaceSummary({
         baseWordsPerMinute: 230,
         source: 'onboarding',
-        hasProfile: true,
       }),
     });
 

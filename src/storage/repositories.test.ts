@@ -182,6 +182,36 @@ function createPayload(): ReadingEventBatchPayload {
   };
 }
 
+function createAdaptiveEpisodeSeedPayload(): ReadingEventBatchPayload {
+  const payload = createPayload();
+  payload.page = {
+    ...payload.page,
+    totalWords: 300,
+  };
+  payload.events = [
+    {
+      ...payload.events[0],
+      value: {
+        ...payload.events[0].value,
+        tickMs: 1_000,
+        visibleChunks: [
+          {
+            chunkId: 'chunk-1',
+            wordCount: 8,
+            visibleRatio: 1,
+            centerDistance: 0,
+            viewportY: 0.5,
+            attentionMass: 8,
+            contentMultiplier: 1,
+            contentWeight: 1,
+          },
+        ],
+      },
+    },
+  ];
+  return payload;
+}
+
 describe('recordReadingEventBatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1056,7 +1086,7 @@ describe('recordReadingEventBatch', () => {
       language: 'en',
       contentType: 'general',
       baseWordsPerMinute: 120,
-      sampleCount: 0,
+      adaptiveSampleCount: 0,
       source: 'onboarding',
       updatedAt: capturedAt - 1_000,
     });
@@ -1129,14 +1159,14 @@ describe('recordReadingEventBatch', () => {
     );
   });
 
-  it('builds forward-reading episodes across batches and applies a rolling-median adaptive sample', async () => {
+  it('updates the profile once for every qualified forward-reading episode', async () => {
     const profiles = new Map<string, Record<string, unknown>>([
       ['en:general', {
         id: 'en:general',
         language: 'en',
         contentType: 'general',
         baseWordsPerMinute: 120,
-        sampleCount: 0,
+        adaptiveSampleCount: 0,
         source: 'onboarding',
         updatedAt: capturedAt - 1_000,
       }],
@@ -1210,6 +1240,8 @@ describe('recordReadingEventBatch', () => {
               value: {
                 scrollDeltaPx: 100,
                 scrollDirection: 1,
+                scrollOffsetPx: 100,
+                scrollableExtentPx: 10_000,
                 elapsedMs: 500,
                 scrollSpeedWordsPerMinute: 120,
               },
@@ -1241,55 +1273,134 @@ describe('recordReadingEventBatch', () => {
       };
     };
 
+    let expectedBaseWordsPerMinute = 120;
     for (let sessionIndex = 1; sessionIndex <= 3; sessionIndex += 1) {
       await recordReadingEventBatch(createEpisodePayload(sessionIndex, 'center'));
       expect(episodes.size).toBe(1);
       await recordReadingEventBatch(createEpisodePayload(sessionIndex, 'complete'));
       expect(episodes.size).toBe(0);
-      if (sessionIndex < 3) {
-        expect(profiles.get('en:general')).toEqual(expect.objectContaining({
-          recentAdaptiveWordsPerMinute: Array.from({ length: sessionIndex }, () => 240),
-          source: 'onboarding',
-          updatedAt: capturedAt - 1_000,
-        }));
-      }
+      expectedBaseWordsPerMinute += (240 - expectedBaseWordsPerMinute) * 0.08;
+      expect(profiles.get('en:general')).toEqual(expect.objectContaining({
+        baseWordsPerMinute: expect.closeTo(expectedBaseWordsPerMinute, 6),
+        adaptiveSampleCount: sessionIndex,
+        source: 'adaptive',
+      }));
     }
-
-    expect(profiles.get('en:general')).toEqual(expect.objectContaining({
-      baseWordsPerMinute: expect.closeTo(134.4, 6),
-      recentAdaptiveWordsPerMinute: [240, 240, 240],
-      sampleCount: 1,
-      source: 'adaptive',
-    }));
   });
 
-  it('ends a persisted calibration episode immediately on a fast forward jump', async () => {
-    const payload = createPayload();
-    payload.page = {
-      ...payload.page,
-      totalWords: 300,
-    };
+  it('keeps a forward burst below the fast-jump threshold', async () => {
+    const payload = createAdaptiveEpisodeSeedPayload();
+
+    await recordReadingEventBatch(payload);
+    const episode = mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0];
+
+    mocks.readingPaceEpisodes.get.mockResolvedValue(episode);
+    mocks.readingPaceEpisodes.delete.mockClear();
+    mocks.readingPaceEpisodes.put.mockClear();
     payload.events = [
       {
-        ...payload.events[0],
+        id: 'ScrollVelocityChanged_normal-burst',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollVelocityChanged',
+        occurredAt: capturedAt + 2_000,
+        confidence: 'medium',
         value: {
-          ...payload.events[0].value,
-          tickMs: 1_000,
-          visibleChunks: [
-            {
-              chunkId: 'chunk-1',
-              wordCount: 8,
-              visibleRatio: 1,
-              centerDistance: 0,
-              viewportY: 0.5,
-              attentionMass: 8,
-              contentMultiplier: 1,
-              contentWeight: 1,
-            },
-          ],
+          scrollDeltaPx: 300,
+          scrollDirection: 1,
+          scrollOffsetPx: 300,
+          scrollableExtentPx: 10_000,
+          elapsedMs: 500,
+          scrollSpeedWordsPerMinute: 600,
         },
       },
     ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceEpisodes.delete).not.toHaveBeenCalled();
+    expect(mocks.readingPaceEpisodes.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxScrollOffsetPx: 300,
+      }),
+    );
+  });
+
+  it('allows a small reverse correction and ends after retreat exceeds tolerance', async () => {
+    const payload = createAdaptiveEpisodeSeedPayload();
+
+    await recordReadingEventBatch(payload);
+    const episode = mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0];
+
+    mocks.readingPaceEpisodes.get.mockResolvedValue(episode);
+    mocks.readingPaceEpisodes.delete.mockClear();
+    mocks.readingPaceEpisodes.put.mockClear();
+    payload.events = [
+      {
+        id: 'ScrollVelocityChanged_small-reverse',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollVelocityChanged',
+        occurredAt: capturedAt + 2_000,
+        confidence: 'low',
+        value: {
+          scrollDeltaPx: 100,
+          scrollDirection: -1,
+          scrollOffsetPx: 400,
+          scrollableExtentPx: 10_000,
+          elapsedMs: 200,
+          scrollSpeedWordsPerMinute: 2_000,
+        },
+      },
+      {
+        ...payload.events[0],
+        id: 'TextViewportExposureTick_small-reverse',
+        occurredAt: capturedAt + 3_000,
+        value: {
+          ...payload.events[0].value,
+          scrollDirection: -1,
+          scrollSpeedWordsPerMinute: 2_000,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceEpisodes.delete).not.toHaveBeenCalled();
+    const correctedEpisode = mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0];
+    expect(correctedEpisode).toEqual(expect.objectContaining({
+      lastScrollDirection: -1,
+      maxScrollOffsetPx: 500,
+    }));
+
+    mocks.readingPaceEpisodes.get.mockResolvedValue(correctedEpisode);
+    mocks.readingPaceEpisodes.delete.mockClear();
+    payload.events = [
+      {
+        id: 'ScrollVelocityChanged_large-reverse',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollVelocityChanged',
+        occurredAt: capturedAt + 4_000,
+        confidence: 'low',
+        value: {
+          scrollDeltaPx: 100,
+          scrollDirection: -1,
+          scrollOffsetPx: 300,
+          scrollableExtentPx: 10_000,
+          elapsedMs: 200,
+          scrollSpeedWordsPerMinute: 2_000,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceEpisodes.delete).toHaveBeenCalledWith('session-1:page-1');
+  });
+
+  it('ends a persisted calibration episode on a fast forward jump', async () => {
+    const payload = createAdaptiveEpisodeSeedPayload();
 
     await recordReadingEventBatch(payload);
     const episode = mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0];
@@ -1308,8 +1419,10 @@ describe('recordReadingEventBatch', () => {
         value: {
           scrollDeltaPx: 900,
           scrollDirection: 1,
+          scrollOffsetPx: 900,
+          scrollableExtentPx: 10_000,
           elapsedMs: 200,
-          scrollSpeedWordsPerMinute: 1_000,
+          scrollSpeedWordsPerMinute: 1_200,
         },
       },
     ];

@@ -40,9 +40,8 @@ describe('reading pace storage', () => {
       language: 'en',
       contentType: 'general',
       baseWordsPerMinute: 220,
-      sampleCount: 0,
+      adaptiveSampleCount: 0,
       source: 'default',
-      hasProfile: false,
     });
     expect(store.readingPaceProfiles.put).not.toHaveBeenCalled();
   });
@@ -55,7 +54,7 @@ describe('reading pace storage', () => {
         language: 'en-US',
         contentType: 'general',
         wordCount: 240,
-        startedAt: 1_000,
+        readingDurationMs: 60_000,
         completedAt: 61_000,
         correctAnswers: 3,
         questionCount: 3,
@@ -68,7 +67,7 @@ describe('reading pace storage', () => {
         id: 'en:general',
         language: 'en',
         contentType: 'general',
-        sampleCount: 0,
+        adaptiveSampleCount: 0,
         source: 'onboarding',
         updatedAt: 61_000,
       }),
@@ -78,7 +77,6 @@ describe('reading pace storage', () => {
       contentType: 'general',
       baseWordsPerMinute: expect.closeTo(227, 6),
       source: 'onboarding',
-      hasProfile: true,
       calibrationAccepted: true,
     });
   });
@@ -89,7 +87,7 @@ describe('reading pace storage', () => {
       language: 'en',
       contentType: 'general',
       baseWordsPerMinute: 205,
-      sampleCount: 4,
+      adaptiveSampleCount: 4,
       source: 'adaptive',
       updatedAt: 500,
     };
@@ -100,7 +98,7 @@ describe('reading pace storage', () => {
         language: 'en',
         contentType: 'general',
         wordCount: 240,
-        startedAt: 1_000,
+        readingDurationMs: 60_000,
         completedAt: 61_000,
         correctAnswers: 1,
         questionCount: 3,
@@ -112,7 +110,6 @@ describe('reading pace storage', () => {
     expect(summary).toMatchObject({
       baseWordsPerMinute: 205,
       source: 'adaptive',
-      hasProfile: true,
       calibrationAccepted: false,
     });
   });
@@ -123,7 +120,7 @@ describe('reading pace storage', () => {
       language: 'en',
       contentType: 'general',
       baseWordsPerMinute: 248,
-      sampleCount: 3,
+      adaptiveSampleCount: 3,
       source: 'adaptive',
       updatedAt: 500,
     };
@@ -133,15 +130,14 @@ describe('reading pace storage', () => {
       language: 'en',
       contentType: 'general',
       baseWordsPerMinute: 220,
-      sampleCount: 0,
+      adaptiveSampleCount: 0,
       source: 'default',
-      hasProfile: false,
     });
     expect(store.readingPaceProfiles.delete).toHaveBeenCalledWith('en:general');
     expect(store.readingPaceEpisodes.clear).toHaveBeenCalledOnce();
     await expect(getReadingPaceSummary(store)).resolves.toMatchObject({
       baseWordsPerMinute: 220,
-      hasProfile: false,
+      source: 'default',
     });
   });
 });

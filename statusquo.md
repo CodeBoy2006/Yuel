@@ -1485,3 +1485,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe whether material variety reduces repeat familiarity without increasing calibration abandonment.
 - **Context:** The existing 3/3 and 2/3 confidence weights remain unchanged. All 473 unit/UI tests, TypeScript checks, the production build, and whitespace validation pass.
+
+## [2026-07-15 11:41] Reading Pace Calibration Hardening
+- **Changes:** Smoothed scroll WPM across complete gestures, separated adaptive fast-jump termination from the earlier engagement-decay threshold, added bounded reverse-scroll hysteresis, paused onboarding timing while hidden or unfocused, made adaptive confidence scale EMA weight, removed the three-sample/default-profile buffer, renamed the accepted-episode counter to `adaptiveSampleCount`, and removed redundant `hasProfile` state.
+- **Status:** Completed
+- **Next Steps:** Validate the 80–240 px reverse band and `5 x` fast-jump threshold against real mouse-wheel, trackpad, keyboard, and PDF reading sessions before further tuning.
+- **Context:** Every accepted adaptive episode now updates the profile once, so the displayed count matches qualified episode usage. All 477 unit/UI tests, TypeScript checks, production builds, generated-extension smoke validation, and whitespace validation pass.

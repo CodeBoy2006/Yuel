@@ -317,6 +317,8 @@ describe('startReadingSession', () => {
             scrollDeltaPx: 100,
             elapsedMs: 500,
             scrollDirection: 1,
+            scrollOffsetPx: 100,
+            scrollableExtentPx: 1_000,
           }),
         }),
         expect.objectContaining({
@@ -327,6 +329,54 @@ describe('startReadingSession', () => {
           }),
         }),
       ]));
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('measures continuous scroll events over one gesture window', async () => {
+    const source = createPdfSource();
+    const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);
+    let offsetPx = 0;
+    const controller = startReadingSession({
+      ...source,
+      deliverBatch,
+      getChunkMeasurement: () => undefined,
+      getScrollMetrics: () => ({
+        offsetPx,
+        scrollableExtentPx: 1_000,
+      }),
+    });
+
+    try {
+      await flushPromises();
+      deliverBatch.mockClear();
+
+      await vi.advanceTimersByTimeAsync(500);
+      offsetPx = 100;
+      controller.recordScroll();
+      await vi.advanceTimersByTimeAsync(100);
+      offsetPx = 120;
+      controller.recordScroll();
+      await controller.flush();
+
+      const scrollEvents = deliverBatch.mock.calls[0][0].events.filter(
+        (event) => event.kind === 'ScrollVelocityChanged',
+      );
+      expect(scrollEvents).toHaveLength(2);
+      expect(scrollEvents[0].value).toEqual(expect.objectContaining({
+        scrollDeltaPx: 100,
+        elapsedMs: 500,
+      }));
+      expect(scrollEvents[1].value).toEqual(expect.objectContaining({
+        scrollDeltaPx: 120,
+        elapsedMs: 600,
+        scrollOffsetPx: 120,
+      }));
+      expect(scrollEvents[1].value?.scrollSpeedWordsPerMinute).toBe(
+        scrollEvents[0].value?.scrollSpeedWordsPerMinute,
+      );
     } finally {
       controller.stop();
       await flushPromises();

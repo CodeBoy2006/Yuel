@@ -43,6 +43,10 @@ const MIN_ADAPTIVE_CENTER_DWELL_MS = 1_000;
 const ADAPTIVE_CENTER_BAND_TOP = 0.3;
 const ADAPTIVE_CENTER_BAND_BOTTOM = 0.7;
 const ADAPTIVE_COMPLETION_Y = 0.2;
+const MAX_ADAPTIVE_SCROLL_MULTIPLIER = 5;
+const MIN_ADAPTIVE_REVERSE_SCROLL_PX = 80;
+const MAX_ADAPTIVE_REVERSE_SCROLL_PX = 240;
+const ADAPTIVE_REVERSE_SCROLL_EXTENT_RATIO = 0.015;
 const MAX_ADAPTIVE_EPISODE_MS = 10 * 60_000;
 const READING_SESSION_MERGE_GAP_MS = 5 * 60_000;
 const READING_DATA_CLEARED_AT_KEY = 'readingDataClearedAt';
@@ -412,71 +416,16 @@ async function recordAdaptiveReadingPaceSample(
     return;
   }
 
-  const recentAdaptiveWordsPerMinute = [
-    ...(existingProfile?.recentAdaptiveWordsPerMinute ?? []),
-    sample.observedWordsPerMinute,
-  ].slice(-5);
-  if (recentAdaptiveWordsPerMinute.length < 3) {
-    await db.readingPaceProfiles.put(createProfileWithBufferedAdaptiveHistory(
-      existingProfile,
-      language,
-      baseWordsPerMinute,
-      recentAdaptiveWordsPerMinute,
-      now,
-    ));
-    return;
-  }
-
-  const medianObservedWordsPerMinute = median(recentAdaptiveWordsPerMinute);
-  const nextProfile = updateAdaptiveReadingPaceProfile(existingProfile, {
-    ...sample,
-    observedWordsPerMinute: medianObservedWordsPerMinute,
-  }, {
+  const nextProfile = updateAdaptiveReadingPaceProfile(existingProfile, sample, {
     language,
     contentType: DEFAULT_READING_CONTENT_TYPE,
     now,
+    defaultWordsPerMinute: baseWordsPerMinute,
   });
 
   if (nextProfile) {
-    await db.readingPaceProfiles.put({
-      ...nextProfile,
-      recentAdaptiveWordsPerMinute,
-    });
-  } else {
-    await db.readingPaceProfiles.put(createProfileWithBufferedAdaptiveHistory(
-      existingProfile,
-      language,
-      baseWordsPerMinute,
-      recentAdaptiveWordsPerMinute,
-      now,
-    ));
+    await db.readingPaceProfiles.put(nextProfile);
   }
-}
-
-function createProfileWithBufferedAdaptiveHistory(
-  existingProfile: ReadingPaceProfileRecord | undefined,
-  language: string,
-  baseWordsPerMinute: number,
-  recentAdaptiveWordsPerMinute: number[],
-  now: number,
-): ReadingPaceProfileRecord {
-  if (existingProfile) {
-    return {
-      ...existingProfile,
-      recentAdaptiveWordsPerMinute,
-    };
-  }
-
-  return {
-    id: createReadingPaceProfileId(language, DEFAULT_READING_CONTENT_TYPE),
-    language,
-    contentType: DEFAULT_READING_CONTENT_TYPE,
-    baseWordsPerMinute,
-    sampleCount: 0,
-    source: 'default',
-    recentAdaptiveWordsPerMinute,
-    updatedAt: now,
-  };
 }
 
 async function recordDailyStatIncrements(
@@ -767,11 +716,17 @@ function advanceAdaptiveReadingPaceEpisode(
       const value = readObject(event.value);
       const direction = readScrollDirection(value);
       const scrollSpeedWordsPerMinute = readNumber(value, 'scrollSpeedWordsPerMinute', 0);
-      if (direction < 0 || scrollSpeedWordsPerMinute > baseWordsPerMinute * 1.6) {
+      if (
+        updateAdaptiveEpisodeScrollProgress(episode, value)
+        || (
+          direction > 0
+          && scrollSpeedWordsPerMinute > baseWordsPerMinute * MAX_ADAPTIVE_SCROLL_MULTIPLIER
+        )
+      ) {
         ended = true;
         break;
       }
-      if (direction > 0) episode.lastScrollDirection = direction;
+      episode.lastScrollDirection = direction;
       continue;
     }
 
@@ -790,13 +745,15 @@ function advanceAdaptiveReadingPaceEpisode(
       !tick.activeTab ||
       !tick.documentVisible ||
       tick.idleAgeMs > MAX_ADAPTIVE_IDLE_MS ||
-      Math.abs(tick.scrollSpeedWordsPerMinute) > baseWordsPerMinute * 1.6 ||
-      tick.scrollDirection < 0
+      (
+        tick.scrollDirection > 0
+        && tick.scrollSpeedWordsPerMinute > baseWordsPerMinute * MAX_ADAPTIVE_SCROLL_MULTIPLIER
+      )
     ) {
       ended = true;
       break;
     }
-    if (tick.scrollDirection > 0) episode.lastScrollDirection = tick.scrollDirection;
+    if (tick.scrollDirection !== 0) episode.lastScrollDirection = tick.scrollDirection;
 
     const reliableVisibleChunks = tick.visibleChunks.filter((visibleChunk) => (
       chunksById.has(visibleChunk.chunkId) &&
@@ -861,7 +818,7 @@ function advanceAdaptiveReadingPaceEpisode(
   }
 
   episode.completedSegmentIds = Array.from(completedSegmentIds);
-  const sample = ended ? createAdaptiveReadingPaceEpisodeSample(episode, payload.page.totalWords) : undefined;
+  const sample = ended ? createAdaptiveReadingPaceEpisodeSample(episode) : undefined;
   return { episode, sample, ended };
 }
 
@@ -878,7 +835,6 @@ function completeAdaptiveSegment(
 
 function createAdaptiveReadingPaceEpisodeSample(
   episode: ReadingPaceEpisodeRecord,
-  pageWordCount: number,
 ): AdaptiveReadingPaceSample | undefined {
   if (
     episode.completedSegmentIds.length < MIN_ADAPTIVE_CHUNKS ||
@@ -888,10 +844,15 @@ function createAdaptiveReadingPaceEpisodeSample(
     return undefined;
   }
 
+  const confidence = (
+    adaptiveEvidenceRatio(episode.completedWords, MIN_ADAPTIVE_SAMPLE_WORDS * 2)
+    + adaptiveEvidenceRatio(episode.completedSegmentIds.length, MIN_ADAPTIVE_CHUNKS * 2)
+    + adaptiveEvidenceRatio(episode.activeMs, MIN_ADAPTIVE_ENGAGED_MS * 2)
+  ) / 3;
+
   return {
     observedWordsPerMinute: episode.completedWords * 60_000 / episode.activeMs,
-    confidence: Math.min(1, 0.75 + episode.completedWords / Math.max(1, pageWordCount) * 0.25),
-    observedAt: episode.lastObservedAt,
+    confidence,
   };
 }
 
@@ -904,11 +865,37 @@ function readScrollDirection(value: Record<string, unknown> | undefined): -1 | 0
   return direction === -1 || direction === 1 ? direction : 0;
 }
 
-function median(values: number[]): number {
-  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
-  if (sorted.length === 0) return Number.NaN;
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+function updateAdaptiveEpisodeScrollProgress(
+  episode: ReadingPaceEpisodeRecord,
+  value: Record<string, unknown> | undefined,
+): boolean {
+  const direction = readScrollDirection(value);
+  const scrollDeltaPx = readPositiveNumber(value, 'scrollDeltaPx');
+  const scrollOffsetPx = readPositiveNumber(value, 'scrollOffsetPx');
+  const scrollableExtentPx = Math.max(1, readPositiveNumber(value, 'scrollableExtentPx'));
+  // Velocity events share one settled gesture anchor, so infer it before tracking furthest progress.
+  const gestureStartOffsetPx = direction < 0
+    ? scrollOffsetPx + scrollDeltaPx
+    : Math.max(0, scrollOffsetPx - scrollDeltaPx);
+  episode.maxScrollOffsetPx = Math.max(
+    episode.maxScrollOffsetPx ?? gestureStartOffsetPx,
+    gestureStartOffsetPx,
+    scrollOffsetPx,
+  );
+
+  const reverseDistancePx = episode.maxScrollOffsetPx - scrollOffsetPx;
+  const reverseTolerancePx = Math.min(
+    MAX_ADAPTIVE_REVERSE_SCROLL_PX,
+    Math.max(
+      MIN_ADAPTIVE_REVERSE_SCROLL_PX,
+      scrollableExtentPx * ADAPTIVE_REVERSE_SCROLL_EXTENT_RATIO,
+    ),
+  );
+  return reverseDistancePx > reverseTolerancePx;
+}
+
+function adaptiveEvidenceRatio(value: number, target: number): number {
+  return Math.min(1, Math.max(0, value / target));
 }
 
 function createChunkSessionId(sessionId: string, chunkId: string): string {
