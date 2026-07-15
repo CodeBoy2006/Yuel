@@ -2113,15 +2113,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(openDashboard).toHaveBeenCalledOnce();
   });
 
-  it('opens the PDF reader from the side panel companion action', async () => {
-    const openPdfReader = vi.fn(async () => undefined);
-    const container = await renderSidePanel({
-      openPdfReader,
-    });
+  it('does not expose a manual PDF reader launch in the side panel', async () => {
+    const container = await renderSidePanel();
 
-    await clickButton(findButton(container, '打开 PDF 阅读器'));
-
-    expect(openPdfReader).toHaveBeenCalledOnce();
+    expect(container.textContent).not.toContain('打开 PDF 阅读器');
   });
 
   it('opens a saved PDF excerpt from the side panel at its source position', async () => {
@@ -2158,18 +2153,39 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
   });
 
-  it('shows a side panel PDF reader launch failure', async () => {
+  it('shows a side panel PDF backlink launch failure', async () => {
+    const resourceId = `pdf_${'c'.repeat(64)}`;
     const openPdfReader = vi.fn(async () => {
       throw new Error('tab creation failed');
     });
     const container = await renderSidePanel({
+      getSidePanelReadingDetails: async () => ({
+        ...createSidePanelDetails(createDashboardDetails(320).summary),
+        recentSavedItems: [{
+          id: 'saved-pdf',
+          text: 'Return to the evidence.',
+          type: 'quote',
+          sourceDomain: 'pdf.local',
+          tags: ['selection', 'pdf'],
+          pdfAnchor: {
+            annotationId: 'annotation-pdf',
+            resourceId,
+            pageIndex: 2,
+          },
+          createdAt: Date.UTC(2026, 6, 14, 9, 30, 0),
+        }],
+      }),
       openPdfReader,
     });
 
-    await clickButton(findButton(container, '打开 PDF 阅读器'));
+    await clickButton(findButton(container, '第 3 页 · 跳回原文'));
     await flushReactMicrotasks();
 
-    expect(openPdfReader).toHaveBeenCalledOnce();
+    expect(openPdfReader).toHaveBeenCalledWith({
+      resourceId,
+      pageIndex: 2,
+      annotationId: 'annotation-pdf',
+    });
     expect(container.textContent).toContain('PDF 阅读器暂时不可用');
   });
 

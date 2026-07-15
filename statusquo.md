@@ -1509,3 +1509,9 @@
 - **Status:** Completed
 - **Next Steps:** Exercise the native one-use stream path in a Chrome build where the public MIME handler feature is enabled; the current packaged-browser run validates the DNR compatibility path.
 - **Context:** The DNR fallback handles top-level HTTP/HTTPS GET PDFs only, repeats the origin request with applicable cookies, and leaves attachments, embedded PDFs, POST responses, local files, and blob/data URLs to Chrome. All 517 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, whitespace validation, and six packaged-extension Chromium tests pass.
+
+## [2026-07-15 16:23] Remove Side Panel Manual PDF Launch
+- **Changes:** Removed the generic “Open PDF Reader” action from the Side Panel footer, tightened its PDF navigation dependency to require a concrete document target, and retained saved-excerpt source backlinks.
+- **Status:** Completed
+- **Next Steps:** Keep manual blank-reader launching in the Popup only; Chrome PDF interception remains the primary network-document entry.
+- **Context:** The Popup PDF action, automatic Chrome PDF handling, active PDF status, and anchored excerpt restoration are unchanged. TypeScript checks, 64 entrypoint UI tests, the production build, whitespace validation, and the packaged Side Panel browser check pass.

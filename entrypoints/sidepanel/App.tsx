@@ -3,7 +3,6 @@ import {
   BookMarked,
   BookOpen,
   ExternalLink,
-  FileText,
   Languages,
   Quote,
   Sparkles,
@@ -58,7 +57,7 @@ export type SidePanelRefreshReason = 'tab' | 'navigation' | 'resume' | 'tick';
 
 export interface SidePanelAppDependencies {
   openDashboard: (target?: 'share-card') => Promise<void>;
-  openPdfReader: (target?: PdfReaderTarget) => Promise<void>;
+  openPdfReader: (target: PdfReaderTarget) => Promise<void>;
   getCurrentPdfReaderState: typeof getCurrentPdfReaderState;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
   getCurrentPageReadingSummary: typeof getCurrentPageReadingSummary;
@@ -83,9 +82,7 @@ const defaultDependencies: SidePanelAppDependencies = {
   },
   openPdfReader: async (target) => {
     await browser.tabs.create({
-      url: target
-        ? createPdfReaderUrl(window.location.href, target)
-        : new URL('/pdf-reader.html', window.location.href).toString(),
+      url: createPdfReaderUrl(window.location.href, target),
     });
   },
 };
@@ -357,7 +354,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     }
   };
 
-  const openPdfReader = async (target?: PdfReaderTarget) => {
+  const openPdfReader = async (target: PdfReaderTarget) => {
     if (pdfReaderBusyRef.current) return;
     pdfReaderBusyRef.current = true;
     setPdfReaderBusy(true);
@@ -536,17 +533,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             onClick={() => void openDashboard()}
           >
             {dashboardBusy ? '打开中...' : '打开仪表盘'}
-          </ActionButton>
-          <ActionButton
-            className="sidepanel-actions__reader"
-            type="button"
-            icon={FileText}
-            variant="secondary"
-            disabled={pdfReaderBusy}
-            aria-busy={pdfReaderBusy}
-            onClick={() => void openPdfReader()}
-          >
-            {pdfReaderBusy ? '打开中...' : '打开 PDF 阅读器'}
           </ActionButton>
         </div>
         {dashboardFailed ? <InlineNotice tone="danger">仪表盘暂时不可用。</InlineNotice> : null}

@@ -310,10 +310,6 @@ body {
   min-height: 44px;
 }
 
-.sidepanel-actions__reader {
-  grid-column: 1 / -1;
-}
-
 .sidepanel-actions .yuel-notice {
   margin-top: 8px;
   text-align: center;
