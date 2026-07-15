@@ -52,8 +52,13 @@ describe('ReadingInsights heatmap', () => {
       expect(getHeatLevel(lowGoalContainer, day.date)).toBe(expectedLevels[index]);
       expect(getHeatLevel(highGoalContainer, day.date)).toBe(expectedLevels[index]);
     });
-    expect(lowGoalContainer.textContent).toContain('自适应分级');
+    expect(lowGoalContainer.textContent).not.toContain('自适应分级');
     expect(lowGoalContainer.textContent).not.toContain('达标及以上');
+    expect(lowGoalContainer.querySelector('.reading-heatmap__scroller')?.getAttribute('aria-label'))
+      .toContain('颜色越深表示相对阅读量越多');
+    expect(lowGoalContainer.querySelector('#weekday-chart-title')?.textContent).toBe('星期日均');
+    expect(lowGoalContainer.textContent).not.toContain('按星期统计日均有效词');
+    expect(lowGoalContainer.textContent).not.toContain('首次接触与复习词量');
   });
 
   it('keeps ordinary active days distinguishable when one day is an extreme outlier', async () => {

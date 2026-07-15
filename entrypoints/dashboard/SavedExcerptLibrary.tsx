@@ -330,12 +330,12 @@ export function SavedExcerptLibrary({
         </label>
       </div>
 
-      <div className="excerpt-library__summary" aria-live="polite">
-        <span>{filteredItems.length === items.length ? `共 ${items.length} 条` : `找到 ${filteredItems.length} 条`}</span>
-        {hasActiveFilters ? (
+      {hasActiveFilters ? (
+        <div className="excerpt-library__summary" aria-live="polite">
+          <span>找到 {filteredItems.length} 条</span>
           <button type="button" onClick={clearFilters}>清除筛选</button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {notice ? <InlineNotice tone={notice.tone}>{notice.message}</InlineNotice> : null}
 

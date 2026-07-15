@@ -14,8 +14,13 @@ describe('ReadingDurationInsights', () => {
     const container = await renderForSmoke(
       <ReadingDurationInsights history={createHistory(31)} sessions={[]} />,
     );
+    const method = container.querySelector<HTMLDetailsElement>('.reading-duration__method');
 
     expect(container.querySelector('.reading-duration__summary dd')?.textContent).toBe('30 分钟');
+    expect(method).toBeInstanceOf(HTMLDetailsElement);
+    expect(method?.open).toBe(false);
+    expect(method?.querySelector('summary')?.textContent).toBe('计算说明');
+    expect(method?.textContent).toContain('相邻 5 分钟内的阅读合并为一次会话');
 
     const fourteenDayButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === '14 天',
@@ -177,6 +182,9 @@ describe('ReadingDurationInsights', () => {
     expect(container.textContent).toContain('pdf.local');
     expect(container.textContent).toContain('2 个页面 · 240 个有效词');
     expect(container.textContent).toContain('12 分钟');
+    expect(container.querySelector('.reading-duration-recent .reading-chart-heading > span')?.textContent)
+      .toBe('≥30 秒 · 2 次');
+    expect(container.querySelector('.reading-duration-sources .reading-chart-heading p')).toBeNull();
   });
 });
 

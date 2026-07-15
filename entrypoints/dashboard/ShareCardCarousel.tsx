@@ -13,14 +13,13 @@ export type { ShareCardThemeId } from '../../src/storage/shareCardSettings';
 interface ShareCardTheme {
   id: ShareCardThemeId;
   name: string;
-  description: string;
 }
 
 export const SHARE_CARD_THEMES: readonly ShareCardTheme[] = [
-  { id: 'forest', name: '松影', description: '深绿与柔和微光，沉静耐看。' },
-  { id: 'mist', name: '雾白', description: '清晰留白与编辑感，轻盈克制。' },
-  { id: 'midnight', name: '星夜', description: '深蓝高对比，数据感更利落。' },
-  { id: 'berry', name: '莓影', description: '深莓与珊瑚色，温润而醒目。' },
+  { id: 'forest', name: '松影' },
+  { id: 'mist', name: '雾白' },
+  { id: 'midnight', name: '星夜' },
+  { id: 'berry', name: '莓影' },
 ];
 
 export function getShareCardTheme(themeId: ShareCardThemeId): ShareCardTheme {
@@ -92,7 +91,6 @@ export function ShareCardCarousel({
         <div className="share-carousel__caption" aria-live="polite" aria-atomic="true">
           <span>{String(activeIndex + 1).padStart(2, '0')} / {String(SHARE_CARD_THEMES.length).padStart(2, '0')}</span>
           <strong>{activeTheme.name}</strong>
-          <p>{activeTheme.description}</p>
         </div>
         <div className="share-carousel__arrows" aria-label="切换卡片样式">
           <button

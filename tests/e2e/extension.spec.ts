@@ -732,7 +732,7 @@ test('updates the toolbar logo through completion and supports static mode', asy
 
   await expect.poll(() => readReadingToolbarActionState(extensionWorker)).toMatchObject({
     title: expect.stringContaining('Yuel Reading · 今日已达标'),
-    badgeText: '✓',
+    badgeText: '',
   });
 
   const progressIconToggle = dashboard.locator('#reading-toolbar-progress-enabled');

@@ -95,7 +95,6 @@ import { exportSummaryCardPng as exportSummaryCardImage } from '../../src/ui/sha
 import { createShareCardContent, createShareCardCopyText } from '../../src/ui/shareCardContent';
 import { getWebsiteFaviconUrl, SiteFavicon } from '../../src/ui/siteFavicon';
 import {
-  getShareCardTheme,
   ShareCardCarousel,
   type ShareCardThemeId,
 } from './ShareCardCarousel';
@@ -517,7 +516,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const todayDomain = shareCardContent?.domains[0] ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardTheme = shareCardSettings.theme;
-  const selectedShareCardStyle = getShareCardTheme(selectedShareCardTheme);
+  const shareCardSettingsStatusText = formatShareCardSettingsStatus(shareCardSettingsStatus);
   const insightHistory = details?.history ?? [];
   const readingToolbarSettingsBusy = readingToolbarSettingsStatus === 'loading'
     || readingToolbarSettingsStatus === 'saving';
@@ -537,6 +536,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       : readingRecordingSettings.recordingEnabled
         ? '已开启'
         : '已暂停';
+  const readingRecordingDescription = readingRecordingSettings.recordingEnabled
+    ? '仅在 Chrome 已授权网页中记录。'
+    : '已暂停；现有数据和网站偏好仍会保留。';
   const paceActionBusy = calibrationSaveStatus === 'saving' || paceResetStatus === 'resetting';
 
   const retryLoading = () => {
@@ -1065,11 +1067,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                     ? `已完成今日打卡目标，共 ${formatCount(checkInEffectiveWords)} 词`
                     : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
                 />
-                <p>
-                  {checkInCompleted
-                    ? `已达到每日 ${formatCount(checkInThresholdWords)} 词目标。`
-                    : `再读 ${formatCount(checkInRemainingWords)} 个有效词，才会计入连续打卡。`}
-                </p>
               </div>
               <div className="today-ledger__metrics">
                 <Metric icon={BookOpen} label="有效阅读" value={`${effectiveWordsValue} 词`} />
@@ -1082,7 +1079,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
             {shareCardOpen && checkInCompleted ? (
               <section id="share-card" className="dashboard-panel share-section" aria-labelledby="share-card-title">
-                <SectionHeader icon={Share2} meta="4 款 · 手动切换">
+                <SectionHeader icon={Share2} meta="4 款">
                   <span id="share-card-title" tabIndex={-1}>今日打卡卡片</span>
                 </SectionHeader>
                 <div className="share-section__layout">
@@ -1098,19 +1095,16 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                     />
                   ) : null}
                   <aside className="share-section__actions" aria-label="打卡卡片操作">
-                    <div className="share-section__action-copy">
-                      <span>当前样式</span>
-                      <h3>{selectedShareCardStyle.name}</h3>
-                      <p aria-live="polite">导出会使用当前选择的卡片，轮播不会自动播放。</p>
-                    </div>
                     <fieldset className="share-content-settings" disabled={shareActionBusy}>
                       <legend>卡片内容</legend>
-                      <p
-                        className={`share-content-settings__status${shareCardSettingsStatus === 'failed' ? ' is-failed' : ''}`}
-                        aria-live="polite"
-                      >
-                        {formatShareCardSettingsStatus(shareCardSettingsStatus)}
-                      </p>
+                      {shareCardSettingsStatusText ? (
+                        <p
+                          className={`share-content-settings__status${shareCardSettingsStatus === 'failed' ? ' is-failed' : ''}`}
+                          aria-live="polite"
+                        >
+                          {shareCardSettingsStatusText}
+                        </p>
+                      ) : null}
                       <div className="share-content-settings__limit">
                         <span>网站数量</span>
                         <div className="share-site-limit" aria-label="卡片显示的网站数量">
@@ -1131,7 +1125,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                       <label className="share-content-toggle">
                         <span>
                           <strong>网站图标</strong>
-                          <small>快速识别阅读来源</small>
                         </span>
                         <input
                           type="checkbox"
@@ -1145,7 +1138,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                       <label className="share-content-toggle">
                         <span>
                           <strong>连续天数</strong>
-                          <small>显示本次连续打卡</small>
                         </span>
                         <input
                           type="checkbox"
@@ -1199,9 +1191,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div className="check-in-setting reading-recording-setting">
             <div className="check-in-setting__copy">
               <h3>自动记录阅读</h3>
-              <p id="reading-recording-description">
-                在 Chrome 允许访问的网页中自动记录英文阅读；暂停后保留已有本地数据和各网站偏好。
-              </p>
+              <p id="reading-recording-description">{readingRecordingDescription}</p>
             </div>
             <SwitchControl
               id="reading-recording-enabled"
@@ -1224,7 +1214,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div className="check-in-setting">
             <div className="check-in-setting__copy">
               <h3>每日打卡目标</h3>
-              <p>当天达到目标后才计入连续打卡；修改后会按新目标重算历史记录。</p>
             </div>
             {checkInGoalEditing ? (
               <form className="check-in-setting__form" noValidate onSubmit={(event) => void persistCheckInGoal(event)}>
@@ -1270,7 +1259,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   </div>
                 </div>
                 <p id="daily-check-in-threshold-hint">
-                  可设置 {formatCount(MIN_DAILY_CHECK_IN_THRESHOLD_WORDS)}–{formatCount(MAX_DAILY_CHECK_IN_THRESHOLD_WORDS)} 个有效词。
+                  可设置 {formatCount(MIN_DAILY_CHECK_IN_THRESHOLD_WORDS)}–{formatCount(MAX_DAILY_CHECK_IN_THRESHOLD_WORDS)} 个有效词；保存后会重算历史连续记录。
                 </p>
                 {checkInGoalSaveStatus === 'invalid' ? (
                   <InlineNotice tone="danger">请输入范围内的整数词数。</InlineNotice>
@@ -1301,14 +1290,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div className="check-in-setting reading-toolbar-setting">
             <div className="check-in-setting__copy">
               <h3>浏览器进度图标</h3>
-              <p id="reading-toolbar-progress-description">
-                工具栏 Logo 随当天阅读进度变化，达标后在右下角显示紧凑勾选。
-              </p>
             </div>
             <SwitchControl
               id="reading-toolbar-progress-enabled"
               label="浏览器图标随阅读进度变化"
-              describedBy="reading-toolbar-progress-description"
               checked={readingToolbarSettings.progressIconEnabled}
               disabled={readingToolbarSettingsBusy}
               busy={readingToolbarSettingsBusy}
@@ -1644,12 +1629,11 @@ function resumeCalibrationTimer(timer: CalibrationTimer | undefined, now: number
 
 function formatShareCardSettingsStatus(
   status: 'idle' | 'loading' | 'saving' | 'saved' | 'failed',
-): string {
+): string | undefined {
   if (status === 'loading') return '正在读取偏好';
   if (status === 'saving') return '正在自动保存';
   if (status === 'failed') return '设置仅对本次有效';
-  if (status === 'saved') return '已自动保存到本地';
-  return '调整会自动保存';
+  return undefined;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

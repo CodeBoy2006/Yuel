@@ -914,13 +914,16 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('今日有效阅读');
     expect(container.textContent).toContain('阅读活动热力图');
     expect(container.textContent).toContain('有效阅读趋势');
-    expect(container.textContent).toContain('一周节律');
+    expect(container.textContent).toContain('星期日均');
     expect(container.textContent).toContain('输入构成');
     expect(container.textContent).toContain('每日有效时长');
     expect(container.textContent).toContain('最近会话');
     expect(container.textContent).toContain('2 个页面 · 340 个有效词');
     expect(container.textContent).toContain('有效时长 3 分钟');
     expect(container.querySelectorAll('.reading-heatmap__week')).toHaveLength(13);
+    expect(container.querySelector('.excerpt-library__summary')).toBeNull();
+    expect(container.textContent).not.toContain('当天达到目标后才计入连续打卡');
+    expect(container.textContent).not.toContain('工具栏 Logo 随当天阅读进度变化');
 
     const thirtyDayRange = findButton(container, '30 天');
     const fourteenDayRange = findButton(container, '14 天');
@@ -1099,7 +1102,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const lockedShareButton = findButton(container, '达标后可打卡');
     expect(lockedShareButton?.disabled).toBe(true);
     expect(container.textContent).toContain('今日未达标');
-    expect(container.textContent).toContain('再读 180 个有效词');
+    expect(container.textContent).not.toContain('再读 180 个有效词');
     expect(container.textContent).not.toContain('今日打卡卡片');
 
     const checkInProgress = container.querySelector<HTMLElement>('[aria-label="今日打卡进度"]');
@@ -1110,6 +1113,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '调整目标'));
     const goalInput = container.querySelector<HTMLInputElement>('#daily-check-in-threshold');
     expect(goalInput).toBeInstanceOf(HTMLInputElement);
+    expect(container.querySelector('#daily-check-in-threshold-hint')?.textContent)
+      .toContain('保存后会重算历史连续记录');
     await act(async () => {
       if (!goalInput) return;
       const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -1181,6 +1186,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(recordingToggle?.checked).toBe(false);
     expect(container.textContent).toContain('自动记录阅读');
     expect(container.textContent).toContain('已暂停');
+    expect(container.querySelector('#reading-recording-description')?.textContent)
+      .toBe('已暂停；现有数据和网站偏好仍会保留。');
 
     await act(async () => {
       recordingToggle?.click();
@@ -1190,6 +1197,8 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(setGlobalReadingRecordingEnabled).toHaveBeenCalledWith(true);
     expect(recordingToggle?.checked).toBe(true);
     expect(container.textContent).toContain('已开启');
+    expect(container.querySelector('#reading-recording-description')?.textContent)
+      .toBe('仅在 Chrome 已授权网页中记录。');
   });
 
   it('restores the previous global recording preference when saving fails', async () => {
@@ -1688,6 +1697,24 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
   });
 
+  it('keeps failed share-card preference saves visible', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => createDashboardDetails(960, 'developer.mozilla.org'),
+      saveShareCardSettings: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+
+    await revealTodayCard(container);
+    await act(async () => {
+      container.querySelector<HTMLInputElement>('input[name="share-card-site-limit"][value="2"]')?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(container.textContent).toContain('设置仅对本次有效');
+  });
+
   it('switches the static card carousel and exports the selected style as a PNG', async () => {
     const exportSummaryCardPng = vi.fn<DashboardAppDependencies['exportSummaryCardPng']>(
       async () => undefined,
@@ -1698,6 +1725,12 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     await revealTodayCard(container);
+    expect(container.textContent).not.toContain('当前样式');
+    expect(container.textContent).not.toContain('导出会使用当前选择的卡片');
+    expect(container.textContent).not.toContain('已自动保存到本地');
+    expect(container.textContent).not.toContain('快速识别阅读来源');
+    expect(container.textContent).not.toContain('显示本次连续打卡');
+    expect(container.textContent).not.toContain('深绿与柔和微光');
     const themeInputs = Array.from(
       container.querySelectorAll<HTMLInputElement>('input[name="share-card-theme"]'),
     );

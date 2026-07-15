@@ -79,9 +79,10 @@ export function ReadingDurationInsights({
         <span id="reading-duration-title" tabIndex={-1}>有效时长</span>
       </SectionHeader>
 
-      <p className="reading-duration__method">
-        由可见文本、前台焦点、空闲与滚动状态估算；相邻 5 分钟内的阅读合并为一次会话。
-      </p>
+      <details className="reading-duration__method">
+        <summary>计算说明</summary>
+        <p>由可见文本、前台焦点、空闲与滚动状态估算；相邻 5 分钟内的阅读合并为一次会话。</p>
+      </details>
 
       <dl className="reading-insights__summary reading-duration__summary" aria-label="有效阅读时长摘要">
         <DurationMetric
@@ -240,7 +241,6 @@ function SourceBreakdown({ sources }: { sources: SourceTotal[] }) {
       <div className="reading-chart-heading reading-chart-heading--compact">
         <div>
           <h3 id="reading-duration-sources-title">时长来源</h3>
-          <p>按有效时长汇总阅读网站与本地 PDF</p>
         </div>
       </div>
 
@@ -276,9 +276,8 @@ function RecentSessions({ sessions }: { sessions: ReadingFocusSessionSummary[] }
       <div className="reading-chart-heading">
         <div>
           <h3 id="reading-duration-recent-title">最近会话</h3>
-          <p>仅列出有效时长达到 30 秒的阅读会话</p>
         </div>
-        <span>{sessions.length} 次</span>
+        <span>≥30 秒 · {sessions.length} 次</span>
       </div>
 
       {sessions.length > 0 ? (

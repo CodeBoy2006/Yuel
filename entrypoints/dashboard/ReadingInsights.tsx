@@ -113,7 +113,6 @@ function ReadingHeatmap({
       <div className="reading-chart-heading">
         <div>
           <h3 id="reading-heatmap-title">阅读活动热力图</h3>
-          <p>颜色按近十三周每日有效词量自适应分级，空白代表当天没有有效阅读。</p>
         </div>
         <span>{formatCount(totalWords)} 词</span>
       </div>
@@ -264,8 +263,7 @@ function WeekdayChart({ history }: { history: ReadingHistoryDay[] }) {
     <section className="weekday-chart" aria-labelledby="weekday-chart-title">
       <div className="reading-chart-heading reading-chart-heading--compact">
         <div>
-          <h3 id="weekday-chart-title">一周节律</h3>
-          <p>按星期统计日均有效词</p>
+          <h3 id="weekday-chart-title">星期日均</h3>
         </div>
       </div>
       <div className="weekday-chart__plot" role="img" aria-label={chartLabel}>
@@ -306,7 +304,6 @@ function CompositionChart({ history }: { history: ReadingHistoryDay[] }) {
       <div className="reading-chart-heading reading-chart-heading--compact">
         <div>
           <h3 id="composition-chart-title">输入构成</h3>
-          <p>首次接触与复习词量</p>
         </div>
       </div>
       <div className="composition-chart__body" role="img" aria-label={`近十三周输入构成：${compositionLabel}`}>

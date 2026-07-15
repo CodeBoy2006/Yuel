@@ -1533,3 +1533,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe the pinned action at common Chrome display scales and adjust the fixed 38% medallion ratio only if browser compositing differs from the verified raster previews.
 - **Context:** The Logo remains the primary signal while completion stays distinguishable without color alone. Eleven focused toolbar tests, 66 entrypoint smoke tests, TypeScript checks, the production build, whitespace validation, and 16/24/32px light/dark visual previews pass.
+
+## [2026-07-15 21:45] Dashboard Copy Distillation
+- **Changes:** Removed redundant persistent explanations from check-in progress, charts, reading settings, share-card controls, and unfiltered excerpt counts; moved duration methodology into a collapsed disclosure and historical goal recalculation into the edit form; made recording guidance state-aware; removed dead styles and aligned the packaged toolbar assertion with the integrated completion medallion.
+- **Status:** Completed
+- **Next Steps:** Treat the ready-state “本地数据 · 已读取” trust signal as a separate boundary decision and remove it only if observed use shows that the privacy cue no longer earns its space.
+- **Context:** Error, empty, destructive, loading, saving, and share-setting failure copy remains visible; progress and chart meaning remain available through accessible labels. All 537 unit/UI tests, TypeScript checks, the production build, whitespace validation, three packaged-extension Chromium regressions, and desktop/mobile visual checks pass.
