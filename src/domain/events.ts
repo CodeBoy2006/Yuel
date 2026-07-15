@@ -67,6 +67,38 @@ export function createChunkId(pageId: string, text: string, sourceKey?: string):
   return `${pageId}_${hashText(identity)}`;
 }
 
+export function createPageSnapshotId(
+  page: PageSnapshot,
+  chunks: TextChunkSnapshot[],
+): string {
+  const fingerprint = JSON.stringify({
+    page: [
+      page.pageId,
+      page.domain,
+      page.resourceType ?? '',
+      page.resourceId ?? '',
+      page.titleHash,
+      page.urlHash,
+      page.language,
+      page.totalWords,
+      page.metricModelVersion ?? 1,
+      page.capturedAt,
+    ],
+    chunks: chunks.map((chunk) => [
+      chunk.chunkId,
+      chunk.pageId,
+      chunk.sectionId ?? '',
+      chunk.textHash,
+      chunk.sourceKey ?? '',
+      chunk.wordCount,
+      chunk.sentenceCount,
+      chunk.selector,
+    ]),
+  });
+
+  return `page_snapshot_${Math.trunc(page.capturedAt).toString(36)}_${hashText(fingerprint)}`;
+}
+
 export function getDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');

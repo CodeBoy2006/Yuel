@@ -9,13 +9,21 @@ Yuel Reading starts as a local-first, event-driven MV3 extension. The core produ
 ```text
 Supported English website
   -> WXT content script
-  -> text block snapshots and reading events
+  -> one page snapshot registration, then snapshot-referenced reading events
   -> MV3 background service worker
   -> Dexie / IndexedDB local tables
   -> popup, side panel, dashboard
 ```
 
 The content script owns continuous page observation because it has direct DOM access. It keeps a per-page collector run for the current snapshot and uses a lightweight dynamic-page manager around that run: readable DOM mutations schedule a debounced same-route snapshot refresh, while URL changes from client-side navigation trigger a page lifecycle flush and a fresh page snapshot. The background service worker stays limited to routing, alarms, side panel setup, and database writes because MV3 workers are not reliable long-running timers.
+
+## Page Snapshot Transport
+
+Web collectors derive a stable `snapshotId` from the current page metadata and ordered text chunks. The first event flush for that snapshot uses `yuel.readingPageSnapshot.register`, carrying the complete page, chunks, and current events in one authorized message. Once accepted, later flushes use `yuel.readingEvents.referenceBatch` and carry only the `snapshotId` plus events; page metadata and raw chunk text are not serialized again.
+
+The background keeps accepted web snapshots in a sender-scoped, least-recently-used memory registry capped at 32 entries with a 30-minute inactivity TTL. It reconstructs the existing storage payload from the registered snapshot and referenced events, then runs the same full contract validation, authorization, deduplication, and aggregation path as legacy batches. MV3 worker suspension intentionally clears this ephemeral registry. A later reference then receives `snapshot-missing`, causing the content script to re-register the current snapshot and replay the same event IDs safely.
+
+The original `yuel.readingEvents.batch` contract remains available for old content scripts during extension updates and for PDF analytics. PDF documents continue to send only chunks referenced by each event batch, avoiding a one-time full-document runtime message and preserving bounded long-document processing.
 
 ## First-Version Scope
 

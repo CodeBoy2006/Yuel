@@ -9,8 +9,13 @@ import {
 } from '../storage/readingRecordingSettings';
 
 export interface ReadingMessageSender {
+  documentId?: string;
+  frameId?: number;
   url?: string;
-  tab?: { url?: string };
+  tab?: {
+    id?: number;
+    url?: string;
+  };
 }
 
 export interface ReadingAccessRuntime {

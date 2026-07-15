@@ -1,6 +1,7 @@
 import { analyzeEnglishText } from '../analysis/english';
 import {
   createChunkId,
+  createPageSnapshotId,
   hashText,
   type PageSnapshot,
   type ReadingConfidence,
@@ -12,6 +13,8 @@ import {
 
 export const MESSAGE_TYPES = {
   readingEventsBatch: 'yuel.readingEvents.batch',
+  readingPageSnapshotRegister: 'yuel.readingPageSnapshot.register',
+  readingEventsReferenceBatch: 'yuel.readingEvents.referenceBatch',
   readingCollectorStatusRequest: 'yuel.readingCollector.status.request',
   readingCollectorStatusResponse: 'yuel.readingCollector.status.response',
   readingToolbarRefreshRequest: 'yuel.readingToolbar.refresh.request',
@@ -36,6 +39,25 @@ export interface ReadingEventBatchPayload {
 export interface ReadingEventBatchMessage {
   type: typeof MESSAGE_TYPES.readingEventsBatch;
   payload: ReadingEventBatchPayload;
+}
+
+export interface ReadingPageSnapshotRegistrationPayload extends ReadingEventBatchPayload {
+  snapshotId: string;
+}
+
+export interface ReadingPageSnapshotRegistrationMessage {
+  type: typeof MESSAGE_TYPES.readingPageSnapshotRegister;
+  payload: ReadingPageSnapshotRegistrationPayload;
+}
+
+export interface ReadingEventReferenceBatchPayload {
+  snapshotId: string;
+  events: ReadingEvent[];
+}
+
+export interface ReadingEventReferenceBatchMessage {
+  type: typeof MESSAGE_TYPES.readingEventsReferenceBatch;
+  payload: ReadingEventReferenceBatchPayload;
 }
 
 export interface ReadingToolbarRefreshRequest {
@@ -90,6 +112,40 @@ export function isReadingEventBatchMessage(message: unknown): message is Reading
   );
 }
 
+export function isReadingPageSnapshotRegistrationMessage(
+  message: unknown,
+): message is ReadingPageSnapshotRegistrationMessage {
+  if (
+    !isObject(message) ||
+    message.type !== MESSAGE_TYPES.readingPageSnapshotRegister ||
+    !isObject(message.payload)
+  ) {
+    return false;
+  }
+
+  const { snapshotId, page, chunks, events } = message.payload;
+  const batchPayload = { page, chunks, events };
+  if (
+    !isNonBlankString(snapshotId) ||
+    !isReadingEventBatchPayload(batchPayload) ||
+    batchPayload.page.resourceType === 'pdf'
+  ) {
+    return false;
+  }
+
+  return snapshotId === createPageSnapshotId(batchPayload.page, batchPayload.chunks);
+}
+
+export function isReadingEventReferenceBatchMessage(
+  message: unknown,
+): message is ReadingEventReferenceBatchMessage {
+  return (
+    isObject(message) &&
+    message.type === MESSAGE_TYPES.readingEventsReferenceBatch &&
+    isReadingEventReferenceBatchPayload(message.payload)
+  );
+}
+
 export function isReadingCollectorStatusRequest(message: unknown): message is ReadingCollectorStatusRequest {
   return isObject(message) && message.type === MESSAGE_TYPES.readingCollectorStatusRequest;
 }
@@ -107,7 +163,7 @@ export function isReadingToolbarRefreshRequest(message: unknown): message is Rea
   return isObject(message) && message.type === MESSAGE_TYPES.readingToolbarRefreshRequest;
 }
 
-function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBatchPayload {
+export function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBatchPayload {
   if (!isObject(payload)) {
     return false;
   }
@@ -125,6 +181,65 @@ function isReadingEventBatchPayload(payload: unknown): payload is ReadingEventBa
   }
 
   return hasConsistentBatchLinks(page, chunks, events);
+}
+
+function isReadingEventReferenceBatchPayload(
+  payload: unknown,
+): payload is ReadingEventReferenceBatchPayload {
+  if (!isObject(payload)) {
+    return false;
+  }
+
+  const { snapshotId, events } = payload;
+  if (
+    !isNonBlankString(snapshotId) ||
+    !Array.isArray(events) ||
+    events.length === 0 ||
+    !events.every(isReadingEvent)
+  ) {
+    return false;
+  }
+
+  const eventIds = new Set(events.map((event) => event.id));
+  const eventSessionIds = new Set(events.map((event) => event.sessionId));
+  const eventPageIds = new Set(events.map((event) => event.pageId));
+
+  return (
+    eventIds.size === events.length &&
+    eventSessionIds.size <= 1 &&
+    eventPageIds.size <= 1 &&
+    hasChronologicalEvents(events) &&
+    events.every(hasValidReferenceEventScope)
+  );
+}
+
+function hasValidReferenceEventScope(event: ReadingEvent): boolean {
+  if (PAGE_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
+    if (event.chunkId !== undefined) {
+      return false;
+    }
+
+    return event.kind !== 'TextViewportExposureTick' || hasUniqueVisibleChunkLinks(event.value);
+  }
+
+  return CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind) && event.chunkId !== undefined;
+}
+
+function hasUniqueVisibleChunkLinks(value: Record<string, unknown> | undefined): boolean {
+  const visibleChunks = value?.visibleChunks;
+  if (!Array.isArray(visibleChunks)) {
+    return false;
+  }
+
+  const chunkIds = new Set<string>();
+  return visibleChunks.every((candidate) => {
+    if (!isObject(candidate) || !isNonBlankString(candidate.chunkId) || chunkIds.has(candidate.chunkId)) {
+      return false;
+    }
+
+    chunkIds.add(candidate.chunkId);
+    return true;
+  });
 }
 
 function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[], events: ReadingEvent[]): boolean {

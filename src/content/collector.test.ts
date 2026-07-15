@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createPageId } from '../domain/events';
+import { MESSAGE_TYPES } from '../messaging/contracts';
 import { startReadingCollector } from './collector';
 
 const mocks = vi.hoisted(() => ({
@@ -218,7 +219,7 @@ describe('startReadingCollector', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
     expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({
-      type: 'yuel.readingEvents.batch',
+      type: MESSAGE_TYPES.readingPageSnapshotRegister,
       payload: {
         events: [
           {
@@ -244,7 +245,7 @@ describe('startReadingCollector', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
     expect(mocks.sendMessage.mock.calls[1][0]).toMatchObject({
-      type: 'yuel.readingEvents.batch',
+      type: MESSAGE_TYPES.readingPageSnapshotRegister,
       payload: {
         events: [
           {
@@ -798,6 +799,7 @@ describe('startReadingCollector', () => {
 
     try {
       await flushPromises();
+      const registeredChunks = mocks.sendMessage.mock.calls[0][0].payload.chunks;
       mocks.sendMessage.mockClear();
 
       const longBlock = document.querySelector('#long');
@@ -819,11 +821,11 @@ describe('startReadingCollector', () => {
       );
       const visibleChunkIds = viewportTick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId);
 
-      expect(batch.payload.chunks.length).toBeGreaterThan(1);
-      expect(batch.payload.chunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 24)).toBe(true);
+      expect(registeredChunks.length).toBeGreaterThan(1);
+      expect(registeredChunks.every((chunk: { wordCount: number }) => chunk.wordCount <= 24)).toBe(true);
       expect(visibleChunkIds.length).toBeGreaterThan(0);
-      expect(visibleChunkIds.length).toBeLessThan(batch.payload.chunks.length);
-      expect(visibleChunkIds).toContain(batch.payload.chunks[0].chunkId);
+      expect(visibleChunkIds.length).toBeLessThan(registeredChunks.length);
+      expect(visibleChunkIds).toContain(registeredChunks[0].chunkId);
     } finally {
       controller.stop();
       await flushPromises();
@@ -847,6 +849,7 @@ describe('startReadingCollector', () => {
 
     try {
       await flushPromises();
+      const registeredChunks = mocks.sendMessage.mock.calls[0][0].payload.chunks;
       mocks.sendMessage.mockClear();
 
       const longBlock = document.querySelector('#long');
@@ -868,8 +871,8 @@ describe('startReadingCollector', () => {
       );
       const visibleChunkIds = viewportTick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId);
 
-      expect(batch.payload.chunks.length).toBeGreaterThan(1);
-      expect(visibleChunkIds).toEqual([batch.payload.chunks[1].chunkId]);
+      expect(registeredChunks.length).toBeGreaterThan(1);
+      expect(visibleChunkIds).toEqual([registeredChunks[1].chunkId]);
     } finally {
       controller.stop();
       await flushPromises();
@@ -1346,9 +1349,10 @@ describe('startReadingCollector', () => {
     mocks.sendMessage.mockRejectedValueOnce(new Error('message port closed')).mockResolvedValueOnce({ ok: true });
 
     controller.stop();
-    await flushPromises();
+    await vi.waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
+    });
 
-    expect(mocks.sendMessage).toHaveBeenCalledTimes(2);
     expect(mocks.sendMessage.mock.calls[1][0].payload.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

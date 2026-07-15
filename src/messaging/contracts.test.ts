@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { createChunkId, createPageId, hashText } from '../domain/events';
+import {
+  createChunkId,
+  createPageId,
+  createPageSnapshotId,
+  hashText,
+} from '../domain/events';
 import {
   isReadingCollectorStatusRequest,
   isReadingCollectorStatusResponse,
   isReadingEventBatchMessage,
+  isReadingEventReferenceBatchMessage,
+  isReadingPageSnapshotRegistrationMessage,
   isReadingToolbarRefreshRequest,
   MESSAGE_TYPES,
   type ReadingEventBatchMessage,
@@ -127,6 +134,84 @@ describe('reading toolbar messages', () => {
     })).toBe(true);
     expect(isReadingToolbarRefreshRequest({
       type: MESSAGE_TYPES.readingEventsBatch,
+    })).toBe(false);
+  });
+});
+
+describe('reading snapshot reference messages', () => {
+  it('accepts a complete web snapshot registration with a derived identity', () => {
+    const snapshotId = createPageSnapshotId(
+      validMessage.payload.page,
+      validMessage.payload.chunks,
+    );
+
+    expect(isReadingPageSnapshotRegistrationMessage({
+      type: MESSAGE_TYPES.readingPageSnapshotRegister,
+      payload: {
+        snapshotId,
+        ...validMessage.payload,
+      },
+    })).toBe(true);
+  });
+
+  it('rejects stale snapshot identities and PDF registrations', () => {
+    expect(isReadingPageSnapshotRegistrationMessage({
+      type: MESSAGE_TYPES.readingPageSnapshotRegister,
+      payload: {
+        snapshotId: 'page_snapshot_stale',
+        ...validMessage.payload,
+      },
+    })).toBe(false);
+
+    expect(isReadingPageSnapshotRegistrationMessage({
+      type: MESSAGE_TYPES.readingPageSnapshotRegister,
+      payload: {
+        snapshotId: createPageSnapshotId(
+          {
+            ...validMessage.payload.page,
+            resourceType: 'pdf',
+            resourceId: 'pdf_abc123',
+          },
+          validMessage.payload.chunks.map((chunk) => ({
+            ...chunk,
+            sectionId: 'pdf_abc123_page_1',
+          })),
+        ),
+        page: {
+          ...validMessage.payload.page,
+          resourceType: 'pdf',
+          resourceId: 'pdf_abc123',
+        },
+        chunks: validMessage.payload.chunks.map((chunk) => ({
+          ...chunk,
+          sectionId: 'pdf_abc123_page_1',
+        })),
+        events: validMessage.payload.events,
+      },
+    })).toBe(false);
+  });
+
+  it('accepts event-only references while enforcing standalone event ordering and scope', () => {
+    expect(isReadingEventReferenceBatchMessage({
+      type: MESSAGE_TYPES.readingEventsReferenceBatch,
+      payload: {
+        snapshotId: 'page_snapshot_1',
+        events: validMessage.payload.events,
+      },
+    })).toBe(true);
+
+    expect(isReadingEventReferenceBatchMessage({
+      type: MESSAGE_TYPES.readingEventsReferenceBatch,
+      payload: {
+        snapshotId: 'page_snapshot_1',
+        events: [
+          validMessage.payload.events[0],
+          {
+            ...validMessage.payload.events[0],
+            occurredAt: validMessage.payload.events[0].occurredAt - 1,
+          },
+        ],
+      },
     })).toBe(false);
   });
 });

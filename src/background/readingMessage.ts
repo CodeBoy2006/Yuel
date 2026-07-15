@@ -1,6 +1,16 @@
-import { isReadingEventBatchMessage } from '../messaging/contracts';
+import {
+  isReadingEventBatchMessage,
+  isReadingEventBatchPayload,
+  isReadingEventReferenceBatchMessage,
+  isReadingPageSnapshotRegistrationMessage,
+  type ReadingEventBatchPayload,
+} from '../messaging/contracts';
 import { recordReadingEventBatch } from '../storage/repositories';
 import { canRecordReadingBatch, type ReadingMessageSender } from './readingAccess';
+import {
+  readingPageSnapshotRegistry,
+  type ReadingPageSnapshotRegistry,
+} from './readingSnapshotRegistry';
 import { syncReadingToolbarIcon } from './readingToolbar';
 
 export type ReadingEventBatchRecorder = typeof recordReadingEventBatch;
@@ -10,11 +20,15 @@ export type ReadingToolbarIconSyncer = () => Promise<unknown>;
 export interface ReadingMessageDependencies {
   authorize?: ReadingEventBatchAuthorizer;
   recordBatch?: ReadingEventBatchRecorder;
+  snapshotRegistry?: ReadingPageSnapshotRegistry;
   syncToolbarIcon?: ReadingToolbarIconSyncer;
 }
 
 export interface ReadingMessageResponse {
   ok: boolean;
+  accepted?: boolean;
+  reason?: 'snapshot-missing' | 'invalid-snapshot-reference' | 'snapshot-registration-rejected';
+  snapshotRegistered?: boolean;
 }
 
 export function handleReadingRuntimeMessage(
@@ -23,39 +37,129 @@ export function handleReadingRuntimeMessage(
   {
     authorize = canRecordReadingBatch,
     recordBatch = recordReadingEventBatch,
+    snapshotRegistry = readingPageSnapshotRegistry,
     syncToolbarIcon = syncReadingToolbarIcon,
   }: ReadingMessageDependencies = {},
-): Promise<void> | undefined {
-  if (!isReadingEventBatchMessage(message)) {
-    return undefined;
+): Promise<ReadingMessageResponse> | undefined {
+  if (isReadingPageSnapshotRegistrationMessage(message)) {
+    const { snapshotId, page, chunks, events } = message.payload;
+    const payload = { page, chunks, events };
+
+    return (async () => {
+      const allowed = await authorizeReadingBatch(payload, sender, authorize);
+      if (allowed === undefined) {
+        return { ok: false };
+      }
+      if (!allowed) {
+        return { ok: true, accepted: false };
+      }
+      if (!snapshotRegistry.register(snapshotId, { page, chunks }, sender)) {
+        return { ok: false, reason: 'snapshot-registration-rejected' };
+      }
+
+      return recordAuthorizedReadingBatch(payload, recordBatch, syncToolbarIcon, {
+        snapshotRegistered: true,
+      });
+    })();
   }
 
-  return (async () => {
-    let allowed: boolean;
-    try {
-      allowed = await authorize(message.payload, sender);
-    } catch (error) {
-      console.error('Failed to authorize Yuel reading batch', error);
-      throw error;
-    }
+  if (isReadingEventReferenceBatchMessage(message)) {
+    return (async () => {
+      const snapshot = snapshotRegistry.resolve(message.payload.snapshotId, sender);
+      if (!snapshot) {
+        return { ok: false, reason: 'snapshot-missing' };
+      }
 
-    if (!allowed) return;
+      const payload: ReadingEventBatchPayload = {
+        ...snapshot,
+        events: message.payload.events,
+      };
+      if (!isReadingEventBatchPayload(payload)) {
+        return { ok: false, reason: 'invalid-snapshot-reference' };
+      }
 
-    try {
-      await recordBatch(message.payload);
-    } catch (error) {
-      console.error('Failed to record Yuel reading batch', error);
-      throw error;
-    }
+      return authorizeAndRecordReadingBatch(
+        payload,
+        sender,
+        authorize,
+        recordBatch,
+        syncToolbarIcon,
+      );
+    })();
+  }
 
-    try {
-      await syncToolbarIcon();
-    } catch (error) {
-      // Reading data is already durable. Toolbar feedback is best-effort and
-      // must not make the collector retry a successfully stored batch.
-      console.error('Failed to refresh Yuel reading toolbar icon', error);
-    }
-  })();
+  if (isReadingEventBatchMessage(message)) {
+    return authorizeAndRecordReadingBatch(
+      message.payload,
+      sender,
+      authorize,
+      recordBatch,
+      syncToolbarIcon,
+    );
+  }
+
+  return undefined;
+}
+
+async function authorizeAndRecordReadingBatch(
+  payload: ReadingEventBatchPayload,
+  sender: ReadingMessageSender | undefined,
+  authorize: ReadingEventBatchAuthorizer,
+  recordBatch: ReadingEventBatchRecorder,
+  syncToolbarIcon: ReadingToolbarIconSyncer,
+): Promise<ReadingMessageResponse> {
+  const allowed = await authorizeReadingBatch(payload, sender, authorize);
+  if (allowed === undefined) {
+    return { ok: false };
+  }
+  if (!allowed) {
+    return { ok: true, accepted: false };
+  }
+
+  return recordAuthorizedReadingBatch(payload, recordBatch, syncToolbarIcon);
+}
+
+async function authorizeReadingBatch(
+  payload: ReadingEventBatchPayload,
+  sender: ReadingMessageSender | undefined,
+  authorize: ReadingEventBatchAuthorizer,
+): Promise<boolean | undefined> {
+  try {
+    return await authorize(payload, sender);
+  } catch (error) {
+    console.error('Failed to authorize Yuel reading batch', error);
+    return undefined;
+  }
+}
+
+async function recordAuthorizedReadingBatch(
+  payload: ReadingEventBatchPayload,
+  recordBatch: ReadingEventBatchRecorder,
+  syncToolbarIcon: ReadingToolbarIconSyncer,
+  responseDetails: Pick<ReadingMessageResponse, 'snapshotRegistered'> = {},
+): Promise<ReadingMessageResponse> {
+  try {
+    await recordBatch(payload);
+  } catch (error) {
+    console.error('Failed to record Yuel reading batch', error);
+    return {
+      ok: false,
+      ...responseDetails,
+    };
+  }
+
+  try {
+    await syncToolbarIcon();
+  } catch (error) {
+    // Reading data is already durable. Toolbar feedback is best-effort and
+    // must not make the collector retry a successfully stored batch.
+    console.error('Failed to refresh Yuel reading toolbar icon', error);
+  }
+
+  return {
+    ok: true,
+    ...responseDetails,
+  };
 }
 
 export function respondToReadingRuntimeMessage(
@@ -68,7 +172,7 @@ export function respondToReadingRuntimeMessage(
   if (!pending) return undefined;
 
   void pending.then(
-    () => sendResponse({ ok: true }),
+    (response) => sendResponse(response),
     () => sendResponse({ ok: false }),
   );
   // Chrome 116 requires a literal true to keep sendResponse valid after the

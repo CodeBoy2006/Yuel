@@ -1497,3 +1497,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe coordinate resets in real dynamic-page and PDF sessions before changing their trigger set.
 - **Context:** PDF resize notifications intentionally remain visibility-only because resetting on every resize interfered with rotated-position restoration. All 481 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, whitespace validation, and five packaged-extension Chromium tests pass; the focused PDF rotation-resume scenario also passed twice consecutively.
+
+## [2026-07-15 13:28] Web Page Snapshot Reference Protocol
+- **Changes:** Added deterministic web page snapshot identities, an initial snapshot-registration message, event-only reference batches, automatic re-registration after MV3 worker cache loss, a sender-scoped bounded background snapshot registry, structured delivery responses, backward-compatible legacy batches, and focused protocol/client/background/collector coverage.
+- **Status:** Completed
+- **Next Steps:** Observe registration churn under real MV3 suspension and tune the 32-entry or 30-minute cache bounds only if measured multi-tab workloads require it.
+- **Context:** Web chunk text is serialized once per active snapshot during normal operation. PDF analytics retain their existing event-referenced sparse batches to avoid a full-document registration message. A failed first storage write can retry by reference when the snapshot was already accepted, and duplicate event IDs remain storage-idempotent.
