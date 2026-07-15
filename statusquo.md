@@ -1473,3 +1473,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe the header alongside real reading data and keep future dashboard copy equally concise.
 - **Context:** TypeScript checks, all 59 entrypoint smoke tests, the production build, whitespace validation, the packaged-extension page-load test, and desktop/mobile browser geometry checks pass. The 1280px header is 52px high; the 390px layout has no overlap or horizontal overflow.
+
+## [2026-07-15 10:38] Expanded Reading Pace Calibration
+- **Changes:** Expanded the onboarding calibration passage from 203 to 340 words across six readable paragraphs, increased the comprehension check from three to five questions, made the question-count heading data-driven, and synchronized focused tests and calibration documentation.
+- **Status:** Completed
+- **Next Steps:** Observe completion and abandonment rates during real calibration sessions before increasing the passage length again.
+- **Context:** Scoring remains unchanged in principle: 5/5 answers use weight 0.35, 4/5 uses 0.15, and two or more wrong answers reject the timing sample. All 70 focused calibration/UI tests, TypeScript checks, the production build, and whitespace validation pass.

@@ -1347,6 +1347,14 @@
   line-height: 1.78;
 }
 
+.calibration-passage p {
+  margin: 0;
+}
+
+.calibration-passage p + p {
+  margin-top: 1.1em;
+}
+
 .calibration-questions {
   display: grid;
   gap: 24px;

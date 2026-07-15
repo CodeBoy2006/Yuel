@@ -57,8 +57,8 @@ describe('reading pace storage', () => {
         wordCount: 240,
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 3,
-        questionCount: 3,
+        correctAnswers: 5,
+        questionCount: 5,
       },
       store,
     );
@@ -102,8 +102,8 @@ describe('reading pace storage', () => {
         wordCount: 240,
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 1,
-        questionCount: 3,
+        correctAnswers: 3,
+        questionCount: 5,
       },
       store,
     );

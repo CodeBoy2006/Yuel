@@ -1215,7 +1215,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   <X aria-hidden="true" />
                 </button>
               </div>
-              <article className="calibration-passage" lang="en">{PACE_CALIBRATION_PASSAGE}</article>
+              <article className="calibration-passage" lang="en">
+                {PACE_CALIBRATION_PARAGRAPHS.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              </article>
               <ActionButton variant="primary" icon={CheckCircle2} onClick={finishPaceReading}>我已读完</ActionButton>
             </div>
           ) : null}
@@ -1225,7 +1227,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               <div className="calibration-flow__heading">
                 <div lang="en">
                   <p className="dashboard-kicker">Comprehension check</p>
-                  <h3 id="pace-calibration-questions-title" tabIndex={-1}>Answer three questions</h3>
+                  <h3 id="pace-calibration-questions-title" tabIndex={-1}>
+                    Answer all {paceCalibrationQuestions.length} questions
+                  </h3>
                 </div>
                 <button
                   type="button"
@@ -1499,40 +1503,68 @@ function SavedHighlightCard({
   );
 }
 
-const PACE_CALIBRATION_PASSAGE =
-  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should start with one realistic pace for the reader, then divide that attention across the text that is actually visible. When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become cautious. When the reader stays with a stable viewport and several body paragraphs remain visible, the sample becomes more useful. Yuel uses this calibration passage to set an initial baseline for your personal reading pace. The result is not a grade. It is a local starting point that can improve later as real pages provide stronger evidence. Comprehension questions help decide how much weight to give the timing measurement. If the answers are solid, the observed pace can influence the baseline more. If the answers are weak, the timing sample is discarded and the system waits for future high confidence evidence. Over time, adaptive updates should move slowly, so one unusual page does not suddenly rewrite the baseline. This keeps daily word counts practical without rewarding fast skimming or accidental exposure.';
+const PACE_CALIBRATION_PARAGRAPHS = [
+  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should begin with one realistic pace for the reader and divide attention across text that is actually visible. Headings, code, lists, and body paragraphs demand different effort, so they should not be counted equally.',
+  'When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become conservative. A stable viewport containing several body paragraphs provides better evidence. Forward progress also matters: a paragraph that remains near the center and later moves toward the top is more likely to have been read than text that only flashes past during a jump.',
+  'Yuel uses this calibration passage to establish a local starting point for personal reading pace. The result is not a grade, and future pages will not all be read at the same speed. Technical difficulty, prior knowledge, screen size, fatigue, and inspecting examples can all change a person\'s pace. The baseline only gives the attention model a practical initial budget.',
+  'Comprehension questions determine how much weight the timing measurement receives. Strong answers allow the observed pace to influence the baseline more. If several answers are wrong, the timing sample is discarded instead of rewarding a quick skim. The questions are answered after timing stops, so answering them does not lengthen the measured reading interval.',
+  'Later, real pages can provide stronger evidence. Adaptive updates look for sustained attention to ordinary prose, normal forward movement, enough completed words, and enough active time. Hidden pages, long idle periods, rapid jumps, and reverse reading end an episode. Recent qualified episodes are compared, and the baseline changes slowly so one unusually easy article or distracted session cannot suddenly rewrite it.',
+  'All of this processing remains local to the browser. The goal is a stable, explainable estimate that keeps daily word counts useful without treating accidental exposure, duplicated visible text, or fast skimming as completed reading.',
+];
+
+const PACE_CALIBRATION_PASSAGE = PACE_CALIBRATION_PARAGRAPHS.join('\n\n');
 
 const PACE_CALIBRATION_WORD_COUNT = analyzeEnglishText(PACE_CALIBRATION_PASSAGE).wordCount;
 
 const paceCalibrationQuestions = [
   {
-    id: 'budget',
-    prompt: 'What should a useful reading estimate avoid?',
-    correctOptionId: 'duplicate',
+    id: 'visibility',
+    prompt: 'What should a useful reading estimate avoid doing?',
+    correctOptionId: 'count-all',
     options: [
-      { id: 'duplicate', label: 'Duplicating visible paragraphs' },
-      { id: 'notes', label: 'Using browser notes' },
-      { id: 'local', label: 'Keeping data local' },
+      { id: 'count-all', label: 'Counting every visible paragraph in full' },
+      { id: 'body-focus', label: 'Giving body text stronger evidence' },
+      { id: 'personal-pace', label: 'Starting from a personal reading pace' },
     ],
   },
   {
-    id: 'confidence',
-    prompt: 'When should timing receive more calibration weight?',
-    correctOptionId: 'solid',
+    id: 'evidence',
+    prompt: 'What provides better reading evidence?',
+    correctOptionId: 'stable',
     options: [
-      { id: 'solid', label: 'When answers are solid' },
-      { id: 'hidden', label: 'When the tab is hidden' },
-      { id: 'fast', label: 'When scrolling is fast' },
+      { id: 'stable', label: 'A stable viewport with body paragraphs' },
+      { id: 'hidden', label: 'A hidden tab with cached content' },
+      { id: 'jump', label: 'A rapid jump across the page' },
+    ],
+  },
+  {
+    id: 'comprehension',
+    prompt: 'Why can a timing sample be discarded?',
+    correctOptionId: 'wrong-answers',
+    options: [
+      { id: 'wrong-answers', label: 'Several comprehension answers are wrong' },
+      { id: 'inspect-example', label: 'The reader inspected an example' },
+      { id: 'local', label: 'The passage was processed locally' },
     ],
   },
   {
     id: 'adaptive',
-    prompt: 'What improves the baseline after onboarding?',
-    correctOptionId: 'samples',
+    prompt: 'What does later adaptation look for?',
+    correctOptionId: 'sustained',
     options: [
-      { id: 'samples', label: 'High confidence real-page samples' },
-      { id: 'skimming', label: 'Fast skimming exposure' },
-      { id: 'opening', label: 'Opening unread pages' },
+      { id: 'sustained', label: 'Sustained prose attention and forward progress' },
+      { id: 'opening', label: 'Repeatedly opening the same page' },
+      { id: 'fastest', label: 'The fastest available scroll movement' },
+    ],
+  },
+  {
+    id: 'stability',
+    prompt: 'Why does the baseline change slowly?',
+    correctOptionId: 'unusual-session',
+    options: [
+      { id: 'unusual-session', label: 'One unusual session should not rewrite it' },
+      { id: 'same-speed', label: 'Every page must keep exactly the same speed' },
+      { id: 'longer-timer', label: 'Questions should extend the reading timer' },
     ],
   },
 ];

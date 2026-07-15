@@ -1073,13 +1073,22 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '开始校准'));
     expect(container.textContent).toContain('我已读完');
     expect(container.querySelector('article.calibration-passage')?.getAttribute('lang')).toBe('en');
+    expect(container.querySelectorAll('article.calibration-passage p')).toHaveLength(6);
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-reading-title'));
 
     nowSpy.mockReturnValue(61_000);
     await clickButton(findButton(container, '我已读完'));
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-questions-title'));
+    expect(container.querySelector('#pace-calibration-questions-title')?.textContent).toContain('Answer all 5 questions');
+    expect(container.querySelectorAll('.calibration-questions fieldset')).toHaveLength(5);
 
-    for (const label of ['Duplicating visible paragraphs', 'When answers are solid', 'High confidence real-page samples']) {
+    for (const label of [
+      'Counting every visible paragraph in full',
+      'A stable viewport with body paragraphs',
+      'Several comprehension answers are wrong',
+      'Sustained prose attention and forward progress',
+      'One unusual session should not rewrite it',
+    ]) {
       const optionLabel = Array.from(container.querySelectorAll('label')).find((candidate) => candidate.textContent === label);
       const optionInput = optionLabel?.querySelector<HTMLInputElement>('input[type="radio"]');
       expect(optionInput).toBeInstanceOf(HTMLInputElement);
@@ -1137,13 +1146,13 @@ describe('extension UI entrypoint smoke rendering', () => {
         contentType: 'general',
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 3,
-        questionCount: 3,
+        correctAnswers: 5,
+        questionCount: 5,
       }),
     );
     const calibrationInput = saveOnboardingReadingPaceCalibration.mock.calls[0]?.[0];
-    expect(calibrationInput?.wordCount).toBeGreaterThanOrEqual(200);
-    expect(calibrationInput?.wordCount).toBeLessThanOrEqual(260);
+    expect(calibrationInput?.wordCount).toBeGreaterThanOrEqual(320);
+    expect(calibrationInput?.wordCount).toBeLessThanOrEqual(360);
     expect(container.textContent).toContain('233 WPM');
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
 
