@@ -54,6 +54,7 @@ body {
 
 .popup-current-site,
 .popup-today,
+.popup-pdf-handler,
 .popup-destinations {
   border-top: 1px solid var(--y-line);
 }
@@ -188,6 +189,43 @@ body {
 .popup-metrics .yuel-metric__value {
   margin-top: 5px;
   font-size: 14px;
+}
+
+.popup-pdf-handler {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+}
+
+.popup-pdf-handler > div {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.popup-pdf-handler h2 {
+  margin: 0;
+  color: var(--y-ink);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 1.35;
+}
+
+.popup-pdf-handler p {
+  margin: 4px 0 0;
+  color: var(--y-ink-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.popup-pdf-handler .yuel-switch {
+  flex: 0 0 auto;
+}
+
+.popup-pdf-handler > .yuel-notice {
+  flex-basis: 100%;
 }
 
 .popup-destinations {

@@ -15,6 +15,11 @@ import {
   isUnsupportedPageAccess,
   type SiteAccessState,
 } from '../../src/permissions/siteAccess';
+import {
+  getPdfHandlerSettings,
+  savePdfHandlerSettings,
+  type PdfHandlerSettings,
+} from '../../src/storage/pdfHandlerSettings';
 import { setSiteReadingRecordingEnabled } from '../../src/storage/readingRecordingSettings';
 import { getTodayReadingSummary, type TodayReadingSummary } from '../../src/storage/readingStats';
 import { formatMinutes, formatWords } from '../../src/ui/formatters';
@@ -31,6 +36,8 @@ import {
 export interface PopupAppDependencies {
   getTodayReadingSummary: typeof getTodayReadingSummary;
   getCurrentTabSiteAccess: typeof getCurrentTabSiteAccess;
+  getPdfHandlerSettings: typeof getPdfHandlerSettings;
+  savePdfHandlerSettings: typeof savePdfHandlerSettings;
   setSiteReadingRecordingEnabled: typeof setSiteReadingRecordingEnabled;
   openDashboard: () => Promise<void>;
   openPdfReader: () => Promise<void>;
@@ -40,6 +47,8 @@ export interface PopupAppDependencies {
 const defaultDependencies: PopupAppDependencies = {
   getTodayReadingSummary,
   getCurrentTabSiteAccess,
+  getPdfHandlerSettings,
+  savePdfHandlerSettings,
   setSiteReadingRecordingEnabled,
   openDashboard: async () => {
     await browser.tabs.create({ url: new URL('/dashboard.html', window.location.href).toString() });
@@ -58,6 +67,10 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [siteRecordingStatus, setSiteRecordingStatus] = useState<
     'idle' | 'saving' | 'saved' | 'failed'
   >('idle');
+  const [pdfHandlerSettings, setPdfHandlerSettings] = useState<PdfHandlerSettings>();
+  const [pdfHandlerStatus, setPdfHandlerStatus] = useState<
+    'loading' | 'idle' | 'saving' | 'failed'
+  >('loading');
   const [sidePanelBusy, setSidePanelBusy] = useState(false);
   const [sidePanelFailed, setSidePanelFailed] = useState(false);
   const [dashboardBusy, setDashboardBusy] = useState(false);
@@ -85,6 +98,26 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         console.error('Failed to load Yuel reading stats', error);
         if (!mounted) return;
         setLoadFailed(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [dependencies]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void dependencies.getPdfHandlerSettings()
+      .then((settings) => {
+        if (!mounted) return;
+        setPdfHandlerSettings(settings);
+        setPdfHandlerStatus('idle');
+      })
+      .catch((error) => {
+        console.error('Failed to load Yuel PDF handler settings', error);
+        if (!mounted) return;
+        setPdfHandlerStatus('failed');
       });
 
     return () => {
@@ -177,10 +210,40 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
     }
   };
 
+  const updatePdfHandler = async (enabled: boolean) => {
+    if (!pdfHandlerSettings || pdfHandlerStatus === 'saving') return;
+
+    const previousSettings = pdfHandlerSettings;
+    const nextSettings = { openPdfInYuel: enabled };
+    setPdfHandlerSettings(nextSettings);
+    setPdfHandlerStatus('saving');
+
+    try {
+      const savedSettings = await dependencies.savePdfHandlerSettings(nextSettings);
+      if (!mountedRef.current) return;
+      setPdfHandlerSettings(savedSettings);
+      setPdfHandlerStatus('idle');
+    } catch (error) {
+      console.error('Failed to save Yuel PDF handler settings', error);
+      if (!mountedRef.current) return;
+      setPdfHandlerSettings(previousSettings);
+      setPdfHandlerStatus('failed');
+    }
+  };
+
   const hasLoaded = Boolean(summary) || loadFailed;
   const currentSiteLoading = !siteAccess && !siteAccessFailed;
   const currentSiteUnavailable = siteAccessFailed || siteAccess?.supported === false;
   const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
+  const pdfHandlerStatusLabel = pdfHandlerStatus === 'loading'
+    ? '读取中'
+    : pdfHandlerStatus === 'saving'
+      ? '保存中'
+      : !pdfHandlerSettings
+        ? '不可用'
+        : pdfHandlerSettings.openPdfInYuel
+          ? 'Yuel'
+          : 'Chrome';
 
   return (
     <main className="yuel-app popup-app">
@@ -264,6 +327,35 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             <Metric label="学习中词汇" value={loadFailed ? '不可用' : summary ? `${summary.learningWords} 个` : '读取中'} />
           </div>
           {loadFailed ? <InlineNotice tone="danger">本地数据暂时不可用。</InlineNotice> : null}
+        </section>
+
+        <section className="popup-pdf-handler" aria-labelledby="popup-pdf-handler-title">
+          <div>
+            <span className="popup-eyebrow">PDF 打开方式</span>
+            <h2 id="popup-pdf-handler-title">默认使用 Yuel</h2>
+            <p id="popup-pdf-handler-description">Chrome 顶层网络 PDF</p>
+          </div>
+          <SwitchControl
+            id="popup-pdf-handler-enabled"
+            label="默认用 Yuel 打开 Chrome PDF"
+            describedBy="popup-pdf-handler-description"
+            checked={pdfHandlerSettings?.openPdfInYuel ?? true}
+            disabled={
+              !pdfHandlerSettings
+              || pdfHandlerStatus === 'loading'
+              || pdfHandlerStatus === 'saving'
+            }
+            busy={pdfHandlerStatus === 'saving'}
+            status={pdfHandlerStatusLabel}
+            onChange={(enabled) => void updatePdfHandler(enabled)}
+          />
+          {pdfHandlerStatus === 'failed' ? (
+            <InlineNotice tone="danger">
+              {pdfHandlerSettings
+                ? 'PDF 打开方式保存失败，原设置未改变。'
+                : 'PDF 打开方式暂时不可用。'}
+            </InlineNotice>
+          ) : null}
         </section>
 
         <nav className="popup-destinations" aria-label="阅量页面">

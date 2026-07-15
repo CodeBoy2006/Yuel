@@ -1503,3 +1503,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe registration churn under real MV3 suspension and tune the 32-entry or 30-minute cache bounds only if measured multi-tab workloads require it.
 - **Context:** Web chunk text is serialized once per active snapshot during normal operation. PDF analytics retain their existing event-referenced sparse batches to avoid a full-document registration message. A failed first storage write can retry by reference when the snapshot was already accepted, and duplicate event IDs remain storage-idempotent.
+
+## [2026-07-15 15:54] Chrome Default PDF Handler
+- **Changes:** Added a default-on popup preference for opening top-level Chrome PDFs in Yuel, public `chrome.mimeHandler` manifest/API integration with native fallback, conservative response-header DNR rules for current Chrome versions, authenticated redirect-source loading, attachment/download preservation, and focused unit, build-smoke, and packaged-extension coverage.
+- **Status:** Completed
+- **Next Steps:** Exercise the native one-use stream path in a Chrome build where the public MIME handler feature is enabled; the current packaged-browser run validates the DNR compatibility path.
+- **Context:** The DNR fallback handles top-level HTTP/HTTPS GET PDFs only, repeats the origin request with applicable cookies, and leaves attachments, embedded PDFs, POST responses, local files, and blob/data URLs to Chrome. All 517 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, whitespace validation, and six packaged-extension Chromium tests pass.

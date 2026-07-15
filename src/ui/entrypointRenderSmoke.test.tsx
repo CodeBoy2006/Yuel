@@ -161,6 +161,10 @@ function createPopupDependencies(
   return {
     getTodayReadingSummary: async () => createTodayReadingSummary(),
     getCurrentTabSiteAccess: async () => createSupportedSiteAccess(),
+    getPdfHandlerSettings: async () => ({
+      openPdfInYuel: true,
+    }),
+    savePdfHandlerSettings: async (settings) => ({ ...settings }),
     setSiteReadingRecordingEnabled: async (_url, enabled) => ({
       recordingEnabled: true,
       excludedSiteDomains: enabled ? [] : ['example.com'],
@@ -384,6 +388,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.querySelector<HTMLElement>('.popup-header .yuel-brand__mark')?.dataset.state).toBe('complete');
     expect(text).toContain('当前站点');
     expect(text).toContain('今日有效阅读');
+    expect(text).toContain('默认使用 Yuel');
     expect(text).toContain('打开侧栏');
     expect(text).toContain('查看仪表盘');
     expect(text).not.toContain('启用当前网站');
@@ -676,6 +681,69 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(siteToggle?.checked).toBe(true);
     expect(container.textContent).toContain('网站记录设置保存失败，原设置未改变。');
+  });
+
+  it('loads and toggles the default PDF reader preference', async () => {
+    const savePdfHandlerSettings = vi.fn(async (settings: {
+      openPdfInYuel: boolean;
+    }) => settings);
+    const container = await renderPopup({
+      savePdfHandlerSettings,
+    });
+    const pdfToggle = container.querySelector<HTMLInputElement>(
+      '#popup-pdf-handler-enabled',
+    );
+
+    expect(pdfToggle).toBeInstanceOf(HTMLInputElement);
+    expect(pdfToggle?.checked).toBe(true);
+    await act(async () => {
+      pdfToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(savePdfHandlerSettings).toHaveBeenCalledWith({
+      openPdfInYuel: false,
+    });
+    expect(pdfToggle?.checked).toBe(false);
+    expect(container.textContent).toContain('Chrome');
+  });
+
+  it('restores the default PDF reader preference when saving fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderPopup({
+      savePdfHandlerSettings: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    const pdfToggle = container.querySelector<HTMLInputElement>(
+      '#popup-pdf-handler-enabled',
+    );
+
+    await act(async () => {
+      pdfToggle?.click();
+    });
+    await flushReactMicrotasks(2);
+
+    expect(pdfToggle?.checked).toBe(true);
+    expect(container.textContent).toContain(
+      'PDF 打开方式保存失败，原设置未改变。',
+    );
+  });
+
+  it('disables the PDF reader preference when its stored value is unavailable', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const container = await renderPopup({
+      getPdfHandlerSettings: async () => {
+        throw new Error('storage unavailable');
+      },
+    });
+    const pdfToggle = container.querySelector<HTMLInputElement>(
+      '#popup-pdf-handler-enabled',
+    );
+
+    expect(pdfToggle?.disabled).toBe(true);
+    expect(container.textContent).toContain('不可用');
+    expect(container.textContent).toContain('PDF 打开方式暂时不可用。');
   });
 
   it('opens the side panel companion from the popup action', async () => {

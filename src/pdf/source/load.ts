@@ -1,3 +1,4 @@
+import type { BrowserPdfStreamInfo } from '../browserHandler';
 import { PdfSourceError, isPdfSourceError } from './errors';
 import { createPdfResourceId, createPdfSha256 } from './hash';
 import type {
@@ -74,6 +75,68 @@ export async function loadRemotePdfSource(
   }
 
   const finalUrl = parseRemotePdfUrl(response.url || requestedUrl.toString());
+  const buffer = await readPdfResponse(response, maxBytes, options);
+
+  return finalizePdfSource(buffer, {
+    kind: 'remote',
+    displayName: createRemoteDisplayName(finalUrl),
+    mediaType: response.headers.get('Content-Type')?.split(';', 1)[0]?.trim() || 'application/pdf',
+    origin: finalUrl.origin,
+    sourceUrl: requestedUrl.toString(),
+  }, options);
+}
+
+export async function loadBrowserPdfSource(
+  input: BrowserPdfStreamInfo,
+  options: RemotePdfSourceLoadOptions,
+): Promise<PdfSourceHandle> {
+  const maxBytes = normalizeMaxBytes(options.maxBytes);
+  const streamUrl = parseAbsoluteUrl(input.streamUrl, 'browser PDF stream');
+  const originalUrl = parseBrowserPdfOriginalUrl(input.originalUrl);
+  const fetcher = options.fetcher ?? globalThis.fetch;
+  if (!fetcher) {
+    throw new PdfSourceError('network-error', 'Browser PDF stream loading is unavailable in this environment.');
+  }
+
+  throwIfAborted(options.signal);
+
+  let response: Response;
+  try {
+    response = await fetcher(streamUrl, {
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'follow',
+      signal: options.signal,
+    });
+  } catch (error) {
+    throw normalizeReadError(error, options.signal, 'network-error');
+  }
+
+  if (!response.ok) {
+    throw new PdfSourceError('http-error', `Browser PDF stream failed with HTTP ${response.status}.`, {
+      status: response.status,
+    });
+  }
+
+  const remote = originalUrl.protocol === 'http:' || originalUrl.protocol === 'https:';
+  const buffer = await readPdfResponse(response, maxBytes, options);
+
+  return finalizePdfSource(buffer, {
+    kind: remote ? 'remote' : 'local',
+    displayName: createRemoteDisplayName(originalUrl),
+    mediaType: input.mimeType || 'application/pdf',
+    ...(remote ? {
+      origin: originalUrl.origin,
+      sourceUrl: originalUrl.toString(),
+    } : {}),
+  }, options);
+}
+
+async function readPdfResponse(
+  response: Response,
+  maxBytes: number,
+  options: PdfSourceLoadOptions,
+): Promise<ArrayBuffer> {
   const contentLength = parseContentLength(response.headers.get('Content-Length'));
   if (contentLength !== undefined) {
     throwIfTooLarge(contentLength, maxBytes);
@@ -85,22 +148,13 @@ export async function loadRemotePdfSource(
     ...(contentLength === undefined ? {} : { totalBytes: contentLength }),
   });
 
-  let buffer: ArrayBuffer;
   try {
-    buffer = response.body
+    return response.body
       ? await readBoundedStream(response.body, contentLength, maxBytes, options)
       : await readResponseBuffer(response, maxBytes, options);
   } catch (error) {
     throw normalizeReadError(error, options.signal, 'network-error');
   }
-
-  return finalizePdfSource(buffer, {
-    kind: 'remote',
-    displayName: createRemoteDisplayName(finalUrl),
-    mediaType: response.headers.get('Content-Type')?.split(';', 1)[0]?.trim() || 'application/pdf',
-    origin: finalUrl.origin,
-    sourceUrl: requestedUrl.toString(),
-  }, options);
 }
 
 interface PdfSourceMetadataInput {
@@ -296,6 +350,29 @@ function parseRemotePdfUrl(input: string): URL {
     throw new PdfSourceError('unsupported-protocol', 'Remote PDFs must use HTTP or HTTPS.');
   }
   return parsed;
+}
+
+function parseBrowserPdfOriginalUrl(input: string): URL {
+  const parsed = parseAbsoluteUrl(input, 'original PDF URL');
+  if (
+    parsed.protocol !== 'http:'
+    && parsed.protocol !== 'https:'
+    && parsed.protocol !== 'file:'
+  ) {
+    throw new PdfSourceError(
+      'unsupported-protocol',
+      'Browser PDF streams must originate from HTTP, HTTPS, or local files.',
+    );
+  }
+  return parsed;
+}
+
+function parseAbsoluteUrl(input: string, label: string): URL {
+  try {
+    return new URL(input);
+  } catch {
+    throw new PdfSourceError('invalid-url', `Enter a valid ${label}.`);
+  }
 }
 
 function parseContentLength(value: string | null): number | undefined {

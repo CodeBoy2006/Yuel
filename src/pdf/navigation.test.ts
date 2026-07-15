@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createPdfReaderUrl,
   parsePdfReaderTarget,
+  parsePdfRedirectSource,
 } from './navigation';
 
 const resourceId = `pdf_${'a'.repeat(64)}`;
@@ -81,5 +82,21 @@ describe('PDF reader navigation targets', () => {
       pageIndex: 0,
       annotationId: 'annotation-pdf',
     })).toThrow('valid PDF annotation ID');
+  });
+
+  it('preserves a DNR PDF source URL including its query string', () => {
+    expect(parsePdfRedirectSource(
+      '?DNR:https://example.com/report?id=42&token=one%2Btwo',
+    )).toBe('https://example.com/report?id=42&token=one%2Btwo');
+  });
+
+  it.each([
+    '?DNR:',
+    '?DNR:not-a-url',
+    '?DNR:file:///tmp/report.pdf',
+    '?DNR:chrome-extension://other/report.pdf',
+    '?resource=pdf',
+  ])('rejects an invalid DNR PDF source: %s', (search) => {
+    expect(parsePdfRedirectSource(search)).toBeUndefined();
   });
 });

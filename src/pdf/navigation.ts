@@ -1,5 +1,6 @@
 const PDF_RESOURCE_ID_PATTERN = /^pdf_[a-f0-9]{64}$/;
 const PDF_ANNOTATION_ID_PATTERN = /^pdf_annotation_[a-z0-9_-]{1,160}$/;
+const PDF_REDIRECT_SOURCE_PREFIX = '?DNR:';
 
 export interface PdfReaderTarget {
   resourceId: string;
@@ -58,6 +59,19 @@ export function parsePdfReaderTarget(search: string): PdfReaderTarget | undefine
     ...(annotationId ? { annotationId } : {}),
     ...(pageCoordinates ? { pageCoordinates } : {}),
   };
+}
+
+export function parsePdfRedirectSource(search: string): string | undefined {
+  if (!search.startsWith(PDF_REDIRECT_SOURCE_PREFIX)) return undefined;
+
+  const input = search.slice(PDF_REDIRECT_SOURCE_PREFIX.length);
+  try {
+    const url = new URL(input);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function assertPdfReaderTarget(target: PdfReaderTarget): void {

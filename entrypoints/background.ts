@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 
 import { handleMaintenanceAlarm, YUEL_MAINTENANCE_ALARM } from '../src/background/maintenance';
+import { initializePdfHandler } from '../src/background/pdfHandler';
 import { respondToReadingRuntimeMessage } from '../src/background/readingMessage';
 import {
   getNextReadingToolbarDayRolloverAt,
@@ -16,6 +17,7 @@ export default defineBackground({
   main() {
     registerSaveSelectionClickHandler();
     initializeReadingToolbar();
+    initializePdfHandler();
 
     browser.runtime.onInstalled.addListener(() => {
       void browser.alarms.create(YUEL_MAINTENANCE_ALARM, { periodInMinutes: 60 });

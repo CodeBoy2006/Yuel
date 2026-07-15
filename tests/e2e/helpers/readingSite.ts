@@ -6,7 +6,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { createPdfSmokeFixture } from './pdf';
+
 export const READING_SITE_HOST = 'reader.example.test';
+export const READING_SITE_PDF_PATH = '/documents/default-reader';
+export const READING_SITE_PDF_COOKIE_NAME = 'yuel_pdf_session';
+export const READING_SITE_PDF_COOKIE_VALUE = 'allowed';
 
 const execFileAsync = promisify(execFile);
 
@@ -18,7 +23,36 @@ export async function withReadingSite<T>(runTest: (url: string) => Promise<T>): 
   try {
     await createSelfSignedCertificate(keyPath, certPath);
     const [key, cert] = await Promise.all([readFile(keyPath), readFile(certPath)]);
-    const server = createServer({ cert, key }, (_request, response) => {
+    const pdfFixture = createPdfSmokeFixture();
+    const server = createServer({ cert, key }, (request, response) => {
+      const requestPath = new URL(
+        request.url ?? '/',
+        `https://${READING_SITE_HOST}`,
+      ).pathname;
+      if (requestPath === READING_SITE_PDF_PATH) {
+        const cookies = request.headers.cookie
+          ?.split(';')
+          .map((cookie) => cookie.trim());
+        if (!cookies?.includes(
+          `${READING_SITE_PDF_COOKIE_NAME}=${READING_SITE_PDF_COOKIE_VALUE}`,
+        )) {
+          response.writeHead(401, {
+            'cache-control': 'no-store',
+            'content-type': 'text/plain; charset=utf-8',
+          });
+          response.end('Missing PDF session');
+          return;
+        }
+
+        response.writeHead(200, {
+          'cache-control': 'no-store',
+          'content-length': String(pdfFixture.byteLength),
+          'content-type': 'application/pdf',
+        });
+        response.end(pdfFixture);
+        return;
+      }
+
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       response.end(createReadingSiteHtml());
     });
@@ -109,5 +143,6 @@ async function closeServer(server: Server): Promise<void> {
       if (error) reject(error);
       else resolve();
     });
+    server.closeAllConnections();
   });
 }

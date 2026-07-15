@@ -32,11 +32,18 @@ import {
   getRecentPdfDocumentStates,
 } from '../documentState';
 import {
+  fallbackToNativePdfHandler,
+  readBrowserPdfStreamInfo,
+  type BrowserPdfStreamInfo,
+} from '../browserHandler';
+import {
   parsePdfReaderTarget,
+  parsePdfRedirectSource,
   type PdfReaderTarget,
 } from '../navigation';
 import {
   isPdfSourceError,
+  loadBrowserPdfSource,
   loadLocalPdfSource,
   loadRemotePdfSource,
 } from '../source';
@@ -115,7 +122,11 @@ export function PdfReaderWorkspace({
   const launchTargetRef = useRef<PdfReaderTarget | undefined>(
     parsePdfReaderTarget(window.location.search),
   );
+  const redirectSourceRef = useRef<string | undefined>(
+    parsePdfRedirectSource(window.location.search),
+  );
   const launchTargetHandledRef = useRef(false);
+  const browserLaunchHandledRef = useRef(false);
 
   const isBusy = activity.kind === 'loading' || activity.kind === 'opening';
   const canOpenSource = pluginsReady && Boolean(documentManager) && !isBusy;
@@ -322,12 +333,26 @@ export function PdfReaderWorkspace({
   const openRemoteDocument = useCallback((
     url: string,
     options?: OpenSourceOptions,
+    credentials: RequestCredentials = 'omit',
   ) => openSource('remote', (signal, onProgress) =>
     loadRemotePdfSource(url, {
       maxBytes: REMOTE_PDF_MAX_BYTES,
       signal,
       onProgress,
+      request: { credentials },
     }), options), [openSource]);
+
+  const openBrowserStreamDocument = useCallback((
+    streamInfo: BrowserPdfStreamInfo,
+  ) => {
+    const local = new URL(streamInfo.originalUrl).protocol === 'file:';
+    return openSource(local ? 'local' : 'remote', (signal, onProgress) =>
+      loadBrowserPdfSource(streamInfo, {
+        maxBytes: local ? LOCAL_PDF_MAX_BYTES : REMOTE_PDF_MAX_BYTES,
+        signal,
+        onProgress,
+      }));
+  }, [openSource]);
 
   const handleRemoteSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -357,6 +382,46 @@ export function PdfReaderWorkspace({
 
     requestLocalFile({ state });
   }, [canOpenSource, openRemoteDocument, requestLocalFile]);
+
+  useEffect(() => {
+    if (
+      launchTargetRef.current
+      || browserLaunchHandledRef.current
+      || !canOpenSource
+    ) {
+      return;
+    }
+    browserLaunchHandledRef.current = true;
+
+    void (async () => {
+      const streamInfo = await readBrowserPdfStreamInfo();
+      if (!mountedRef.current) return;
+
+      if (streamInfo) {
+        const opened = await openBrowserStreamDocument(streamInfo);
+        if (!opened && mountedRef.current) {
+          await fallbackToNativePdfHandler().catch((error) => {
+            console.warn('Failed to return the PDF to Chrome', error);
+          });
+        }
+        return;
+      }
+
+      const redirectSource = redirectSourceRef.current;
+      if (redirectSource) {
+        window.history.replaceState(
+          null,
+          '',
+          browser.runtime.getURL('/pdf-reader.html'),
+        );
+        await openRemoteDocument(redirectSource, undefined, 'include');
+      }
+    })();
+  }, [
+    canOpenSource,
+    openBrowserStreamDocument,
+    openRemoteDocument,
+  ]);
 
   useEffect(() => {
     const target = launchTargetRef.current;

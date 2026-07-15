@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PdfSourceError } from './errors';
 import { createPdfResourceId, createPdfSha256 } from './hash';
-import { loadLocalPdfSource, loadRemotePdfSource } from './load';
+import {
+  loadBrowserPdfSource,
+  loadLocalPdfSource,
+  loadRemotePdfSource,
+} from './load';
 import type { LocalPdfFile, PdfSourceProgress } from './types';
 
 const VALID_PDF_TEXT = '%PDF-1.7\n%%EOF\n';
@@ -121,6 +125,46 @@ describe('PDF source loading', () => {
       chunkLengths[0],
       chunkLengths[0] + chunkLengths[1],
     ]);
+  });
+
+  it('consumes a browser-provided PDF stream once while preserving its original URL', async () => {
+    const response = createResponse([
+      new TextEncoder().encode(VALID_PDF_TEXT),
+    ], {
+      url: 'chrome-extension://stream-provider/pdf/1',
+      headers: {
+        'Content-Length': String(new TextEncoder().encode(VALID_PDF_TEXT).byteLength),
+        'Content-Type': 'application/pdf',
+      },
+    });
+    const fetcher = vi.fn<typeof fetch>(async () => response);
+
+    const source = await loadBrowserPdfSource({
+      streamUrl: 'chrome-extension://stream-provider/pdf/1',
+      originalUrl: 'https://example.com/books/Reading%20Notes.pdf?token=one',
+      mimeType: 'application/pdf',
+      embedded: false,
+    }, {
+      fetcher,
+      maxBytes: 1_024,
+    });
+
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('chrome-extension://stream-provider/pdf/1'),
+      expect.objectContaining({
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'follow',
+      }),
+    );
+    expect(source.metadata).toMatchObject({
+      kind: 'remote',
+      displayName: 'Reading Notes.pdf',
+      mediaType: 'application/pdf',
+      origin: 'https://example.com',
+      sourceUrl: 'https://example.com/books/Reading%20Notes.pdf?token=one',
+    });
   });
 
   it('rejects a declared oversized response before reading its body', async () => {

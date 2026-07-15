@@ -8,7 +8,13 @@ import {
   test,
 } from './helpers/extension';
 import { createRuntimeReadingBatchMessage, RUNTIME_LOOP_DOMAIN } from './helpers/reading';
-import { READING_SITE_HOST, withReadingSite } from './helpers/readingSite';
+import {
+  READING_SITE_HOST,
+  READING_SITE_PDF_COOKIE_NAME,
+  READING_SITE_PDF_COOKIE_VALUE,
+  READING_SITE_PDF_PATH,
+  withReadingSite,
+} from './helpers/readingSite';
 import { createPdfSmokeFixture } from './helpers/pdf';
 
 test('loads the packaged extension pages', async ({ context, extensionId }) => {
@@ -41,6 +47,87 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
   const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
   await expect(pdfReader.locator('body')).toContainText('打开 PDF，继续你的阅读');
   await pdfReader.close();
+});
+
+test('opens a top-level network PDF in the Yuel reader by default', async ({
+  context,
+  extensionId,
+  extensionWorker,
+}) => {
+  await expect.poll(() => extensionWorker.evaluate(async () => {
+    type DynamicRule = { id: number };
+    type DnrApi = {
+      getDynamicRules: () => Promise<DynamicRule[]>;
+    };
+    const dnr = (globalThis as typeof globalThis & {
+      chrome: { declarativeNetRequest: DnrApi };
+    }).chrome.declarativeNetRequest;
+    return (await dnr.getDynamicRules()).map((rule) => rule.id);
+  })).toContain(81_002);
+
+  await withReadingSite(async (readingSiteUrl) => {
+    await context.addCookies([{
+      name: READING_SITE_PDF_COOKIE_NAME,
+      value: READING_SITE_PDF_COOKIE_VALUE,
+      domain: READING_SITE_HOST,
+      path: '/',
+      sameSite: 'None',
+      secure: true,
+    }]);
+    const pdfUrl = new URL(READING_SITE_PDF_PATH, readingSiteUrl).toString();
+    await expect.poll(async () => (await context.cookies(pdfUrl))
+      .some((cookie) =>
+        cookie.name === READING_SITE_PDF_COOKIE_NAME
+        && cookie.value === READING_SITE_PDF_COOKIE_VALUE))
+      .toBe(true);
+    const page = await context.newPage();
+
+    try {
+      await page.goto(pdfUrl, { waitUntil: 'domcontentloaded' });
+    } catch (error) {
+      if (!String(error).includes('ERR_ABORTED')) throw error;
+    }
+
+    await expect.poll(() => page.url()).toBe(
+      `chrome-extension://${extensionId}/pdf-reader.html`,
+    );
+    await expect(page.locator('.pdf-reader__document-name')).toContainText(
+      'default-reader',
+    );
+    await expect(page.locator('.pdf-reader__page-shell').first()).toBeVisible();
+    await page.close();
+
+    await extensionWorker.evaluate(async () => {
+      type StorageArea = {
+        set: (items: Record<string, unknown>) => Promise<void>;
+      };
+      const storage = (globalThis as typeof globalThis & {
+        chrome: { storage: { local: StorageArea } };
+      }).chrome.storage.local;
+      await storage.set({
+        pdfHandlerSettings: { openPdfInYuel: false },
+      });
+    });
+    await expect.poll(() => extensionWorker.evaluate(async () => {
+      type DynamicRule = { id: number };
+      type DnrApi = {
+        getDynamicRules: () => Promise<DynamicRule[]>;
+      };
+      const dnr = (globalThis as typeof globalThis & {
+        chrome: { declarativeNetRequest: DnrApi };
+      }).chrome.declarativeNetRequest;
+      return (await dnr.getDynamicRules()).map((rule) => rule.id);
+    })).not.toContain(81_002);
+
+    const chromePdfPage = await context.newPage();
+    try {
+      await chromePdfPage.goto(pdfUrl, { waitUntil: 'domcontentloaded' });
+    } catch (error) {
+      if (!String(error).includes('ERR_ABORTED')) throw error;
+    }
+    await expect.poll(() => chromePdfPage.url()).toBe(pdfUrl);
+    await chromePdfPage.close();
+  });
 });
 
 test('renders a local PDF through packaged PDFium WASM and records analytics without remote requests', async ({

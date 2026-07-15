@@ -5,6 +5,10 @@ export interface ExtensionBuildManifest {
   manifest_version: number;
   permissions?: string[];
   host_permissions?: string[];
+  mime_types_handler?: Record<string, {
+    handler_url?: string;
+    can_embed?: boolean;
+  }>;
   icons?: Record<string, string>;
   action?: {
     default_icon?: Record<string, string>;
@@ -22,6 +26,11 @@ export interface ExtensionBuildManifest {
   content_scripts?: Array<{
     js?: string[];
     matches?: string[];
+  }>;
+  web_accessible_resources?: Array<{
+    resources?: string[];
+    matches?: string[];
+    use_dynamic_url?: boolean;
   }>;
 }
 
