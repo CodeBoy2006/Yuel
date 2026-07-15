@@ -13,13 +13,13 @@ describe('reading pace calibration', () => {
       wordCount: 240,
       startedAt: 1_000,
       completedAt: 61_000,
-      questionCount: 5,
+      questionCount: 3,
       defaultWordsPerMinute: 220,
     };
 
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 5 })).toBeCloseTo(227, 6);
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 4 })).toBeCloseTo(223, 6);
-    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 3 })).toBeCloseTo(220, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 3 })).toBeCloseTo(227, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 2 })).toBeCloseTo(223, 6);
+    expect(calculateOnboardingBaseWordsPerMinute({ ...input, correctAnswers: 1 })).toBeCloseTo(220, 6);
   });
 
   it('clamps onboarding pace to the content-type range', () => {
@@ -29,8 +29,8 @@ describe('reading pace calibration', () => {
         wordCount: 240,
         startedAt: 1_000,
         completedAt: 16_000,
-        correctAnswers: 5,
-        questionCount: 5,
+        correctAnswers: 3,
+        questionCount: 3,
         defaultWordsPerMinute: 220,
       }),
     ).toBeLessThanOrEqual(280);
@@ -53,8 +53,8 @@ describe('reading pace calibration', () => {
         wordCount: 240,
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 5,
-        questionCount: 5,
+        correctAnswers: 3,
+        questionCount: 3,
       },
     );
 
@@ -76,8 +76,8 @@ describe('reading pace calibration', () => {
         wordCount: 240,
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 3,
-        questionCount: 5,
+        correctAnswers: 1,
+        questionCount: 3,
       }),
     ).toBeUndefined();
   });

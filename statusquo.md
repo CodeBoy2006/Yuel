@@ -1479,3 +1479,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe completion and abandonment rates during real calibration sessions before increasing the passage length again.
 - **Context:** Scoring remains unchanged in principle: 5/5 answers use weight 0.35, 4/5 uses 0.15, and two or more wrong answers reject the timing sample. All 70 focused calibration/UI tests, TypeScript checks, the production build, and whitespace validation pass.
+
+## [2026-07-15 10:47] Randomized Reading Pace Materials
+- **Changes:** Replaced the single expanded calibration passage with a local pool of four 200–260-word English materials, each with three matched comprehension questions; each calibration session now selects one material at random and keeps it fixed through reading, questions, and saving. Added deterministic selection injection, material validation, random-boundary coverage, selected-material save assertions, and synchronized calibration documentation.
+- **Status:** Completed
+- **Next Steps:** Observe whether material variety reduces repeat familiarity without increasing calibration abandonment.
+- **Context:** The existing 3/3 and 2/3 confidence weights remain unchanged. All 473 unit/UI tests, TypeScript checks, the production build, and whitespace validation pass.

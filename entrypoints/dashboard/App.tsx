@@ -21,7 +21,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 
-import { analyzeEnglishText } from '../../src/analysis/english';
 import {
   DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS,
   MAX_DAILY_CHECK_IN_THRESHOLD_WORDS,
@@ -95,6 +94,11 @@ import {
 } from './ShareCardCarousel';
 import { ReadingDurationInsights } from './ReadingDurationInsights';
 import { ReadingInsights } from './ReadingInsights';
+import {
+  PACE_CALIBRATION_MATERIALS,
+  selectRandomPaceCalibrationMaterial,
+  type PaceCalibrationMaterial,
+} from './paceCalibration';
 
 export interface DashboardAppDependencies {
   getReadingDashboardDetails: typeof getReadingDashboardDetails;
@@ -115,6 +119,7 @@ export interface DashboardAppDependencies {
   saveReadingToolbarSettings: typeof saveReadingToolbarSettings;
   saveShareCardSettings: typeof saveShareCardSettings;
   refreshReadingToolbarIcon: typeof requestReadingToolbarIconRefresh;
+  selectPaceCalibrationMaterial: () => PaceCalibrationMaterial;
 }
 
 const defaultDependencies: DashboardAppDependencies = {
@@ -140,6 +145,7 @@ const defaultDependencies: DashboardAppDependencies = {
   resetReadingPaceCalibration,
   saveReadingToolbarSettings,
   saveShareCardSettings,
+  selectPaceCalibrationMaterial: selectRandomPaceCalibrationMaterial,
   setGlobalReadingRecordingEnabled,
 };
 
@@ -160,6 +166,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const [shareCardSettings, setShareCardSettings] = useState<ShareCardSettings>(DEFAULT_SHARE_CARD_SETTINGS);
   const [shareCardSettingsStatus, setShareCardSettingsStatus] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'failed'>('loading');
   const [calibrationStep, setCalibrationStep] = useState<CalibrationStep>('idle');
+  const [calibrationMaterial, setCalibrationMaterial] = useState<PaceCalibrationMaterial>(
+    PACE_CALIBRATION_MATERIALS[0],
+  );
   const [calibrationStartedAt, setCalibrationStartedAt] = useState<number>();
   const [calibrationReadingFinishedAt, setCalibrationReadingFinishedAt] = useState<number>();
   const [calibrationAnswers, setCalibrationAnswers] = useState<Record<string, string>>({});
@@ -405,7 +414,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     : paceLoadFailed
       ? '阅读速度不可用'
       : '正在读取阅读速度';
-  const allCalibrationQuestionsAnswered = paceCalibrationQuestions.every((question) => calibrationAnswers[question.id]);
+  const allCalibrationQuestionsAnswered = calibrationMaterial.questions.every(
+    (question) => calibrationAnswers[question.id],
+  );
   const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
   const todayDomain = shareCardContent?.domains[0] ?? '暂无今日网站';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
@@ -690,6 +701,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
   const startPaceCalibration = () => {
     calibrationSessionRef.current += 1;
+    setCalibrationMaterial(dependencies.selectPaceCalibrationMaterial());
     pendingCalibrationFocusRef.current = {
       id: 'pace-calibration-reading-title',
       scrollContainerId: 'pace-calibration',
@@ -730,7 +742,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       || !allCalibrationQuestionsAnswered
     ) return;
 
-    const correctAnswers = paceCalibrationQuestions.filter((question) => calibrationAnswers[question.id] === question.correctOptionId).length;
+    const correctAnswers = calibrationMaterial.questions.filter(
+      (question) => calibrationAnswers[question.id] === question.correctOptionId,
+    ).length;
     const sessionId = calibrationSessionRef.current;
     paceRefreshSequenceRef.current += 1;
     setCalibrationSaveStatus('saving');
@@ -739,11 +753,11 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       const nextPaceSummary = await dependencies.saveOnboardingReadingPaceCalibration({
         language: 'en',
         contentType: 'general',
-        wordCount: PACE_CALIBRATION_WORD_COUNT,
+        wordCount: calibrationMaterial.wordCount,
         startedAt: calibrationStartedAt,
         completedAt: calibrationReadingFinishedAt,
         correctAnswers,
-        questionCount: paceCalibrationQuestions.length,
+        questionCount: calibrationMaterial.questions.length,
       });
       if (!mountedRef.current || sessionId !== calibrationSessionRef.current) return;
       paceRefreshSequenceRef.current += 1;
@@ -1202,7 +1216,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <div id="pace-calibration" className="calibration-flow">
               <div className="calibration-flow__heading">
                 <div>
-                  <p className="dashboard-kicker">速度校准 · {PACE_CALIBRATION_WORD_COUNT} 词</p>
+                  <p className="dashboard-kicker">速度校准 · {calibrationMaterial.wordCount} 词</p>
                   <h3 id="pace-calibration-reading-title" tabIndex={-1}>按平常速度阅读</h3>
                 </div>
                 <button
@@ -1216,7 +1230,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 </button>
               </div>
               <article className="calibration-passage" lang="en">
-                {PACE_CALIBRATION_PARAGRAPHS.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                {calibrationMaterial.paragraphs.map((paragraph, index) => (
+                  <p key={`${calibrationMaterial.id}-${index}`}>{paragraph}</p>
+                ))}
               </article>
               <ActionButton variant="primary" icon={CheckCircle2} onClick={finishPaceReading}>我已读完</ActionButton>
             </div>
@@ -1228,7 +1244,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 <div lang="en">
                   <p className="dashboard-kicker">Comprehension check</p>
                   <h3 id="pace-calibration-questions-title" tabIndex={-1}>
-                    Answer all {paceCalibrationQuestions.length} questions
+                    Answer all {calibrationMaterial.questions.length} questions
                   </h3>
                 </div>
                 <button
@@ -1242,7 +1258,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 </button>
               </div>
               <div className="calibration-questions" lang="en">
-                {paceCalibrationQuestions.map((question, index) => (
+                {calibrationMaterial.questions.map((question, index) => (
                   <fieldset key={question.id} disabled={calibrationSaveStatus === 'saving'}>
                     <legend><span>{index + 1}</span>{question.prompt}</legend>
                     <div className="calibration-options">
@@ -1502,72 +1518,6 @@ function SavedHighlightCard({
     </article>
   );
 }
-
-const PACE_CALIBRATION_PARAGRAPHS = [
-  'Many people read technical pages in short sessions, switching between notes, examples, and browser tabs. A useful reading estimate should not treat every visible paragraph as fully read at the same time. It should begin with one realistic pace for the reader and divide attention across text that is actually visible. Headings, code, lists, and body paragraphs demand different effort, so they should not be counted equally.',
-  'When the tab is hidden, the page is idle, or the reader scrolls too quickly, the estimate should become conservative. A stable viewport containing several body paragraphs provides better evidence. Forward progress also matters: a paragraph that remains near the center and later moves toward the top is more likely to have been read than text that only flashes past during a jump.',
-  'Yuel uses this calibration passage to establish a local starting point for personal reading pace. The result is not a grade, and future pages will not all be read at the same speed. Technical difficulty, prior knowledge, screen size, fatigue, and inspecting examples can all change a person\'s pace. The baseline only gives the attention model a practical initial budget.',
-  'Comprehension questions determine how much weight the timing measurement receives. Strong answers allow the observed pace to influence the baseline more. If several answers are wrong, the timing sample is discarded instead of rewarding a quick skim. The questions are answered after timing stops, so answering them does not lengthen the measured reading interval.',
-  'Later, real pages can provide stronger evidence. Adaptive updates look for sustained attention to ordinary prose, normal forward movement, enough completed words, and enough active time. Hidden pages, long idle periods, rapid jumps, and reverse reading end an episode. Recent qualified episodes are compared, and the baseline changes slowly so one unusually easy article or distracted session cannot suddenly rewrite it.',
-  'All of this processing remains local to the browser. The goal is a stable, explainable estimate that keeps daily word counts useful without treating accidental exposure, duplicated visible text, or fast skimming as completed reading.',
-];
-
-const PACE_CALIBRATION_PASSAGE = PACE_CALIBRATION_PARAGRAPHS.join('\n\n');
-
-const PACE_CALIBRATION_WORD_COUNT = analyzeEnglishText(PACE_CALIBRATION_PASSAGE).wordCount;
-
-const paceCalibrationQuestions = [
-  {
-    id: 'visibility',
-    prompt: 'What should a useful reading estimate avoid doing?',
-    correctOptionId: 'count-all',
-    options: [
-      { id: 'count-all', label: 'Counting every visible paragraph in full' },
-      { id: 'body-focus', label: 'Giving body text stronger evidence' },
-      { id: 'personal-pace', label: 'Starting from a personal reading pace' },
-    ],
-  },
-  {
-    id: 'evidence',
-    prompt: 'What provides better reading evidence?',
-    correctOptionId: 'stable',
-    options: [
-      { id: 'stable', label: 'A stable viewport with body paragraphs' },
-      { id: 'hidden', label: 'A hidden tab with cached content' },
-      { id: 'jump', label: 'A rapid jump across the page' },
-    ],
-  },
-  {
-    id: 'comprehension',
-    prompt: 'Why can a timing sample be discarded?',
-    correctOptionId: 'wrong-answers',
-    options: [
-      { id: 'wrong-answers', label: 'Several comprehension answers are wrong' },
-      { id: 'inspect-example', label: 'The reader inspected an example' },
-      { id: 'local', label: 'The passage was processed locally' },
-    ],
-  },
-  {
-    id: 'adaptive',
-    prompt: 'What does later adaptation look for?',
-    correctOptionId: 'sustained',
-    options: [
-      { id: 'sustained', label: 'Sustained prose attention and forward progress' },
-      { id: 'opening', label: 'Repeatedly opening the same page' },
-      { id: 'fastest', label: 'The fastest available scroll movement' },
-    ],
-  },
-  {
-    id: 'stability',
-    prompt: 'Why does the baseline change slowly?',
-    correctOptionId: 'unusual-session',
-    options: [
-      { id: 'unusual-session', label: 'One unusual session should not rewrite it' },
-      { id: 'same-speed', label: 'Every page must keep exactly the same speed' },
-      { id: 'longer-timer', label: 'Questions should extend the reading timer' },
-    ],
-  },
-];
 
 function scrollToSection(root: HTMLElement | null, id: string) {
   const target = root?.querySelector<HTMLElement>(`#${id}`);

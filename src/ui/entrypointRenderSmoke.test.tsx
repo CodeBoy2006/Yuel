@@ -3,6 +3,7 @@ import { act } from 'react';
 import { readFileSync } from 'node:fs';
 
 import { DashboardApp, type DashboardAppDependencies } from '../../entrypoints/dashboard/App';
+import { PACE_CALIBRATION_MATERIALS } from '../../entrypoints/dashboard/paceCalibration';
 import { PopupApp, type PopupAppDependencies } from '../../entrypoints/popup/App';
 import {
   SidePanelApp,
@@ -203,6 +204,7 @@ function createDashboardDependencies(
     saveDailyCheckInThresholdWords: async (thresholdWords) => thresholdWords,
     saveReadingToolbarSettings: async (settings) => ({ ...settings }),
     saveShareCardSettings: async (settings) => ({ ...settings }),
+    selectPaceCalibrationMaterial: () => PACE_CALIBRATION_MATERIALS[0],
     setGlobalReadingRecordingEnabled: async (recordingEnabled) => ({
       recordingEnabled,
       excludedSiteDomains: [],
@@ -1073,22 +1075,16 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '开始校准'));
     expect(container.textContent).toContain('我已读完');
     expect(container.querySelector('article.calibration-passage')?.getAttribute('lang')).toBe('en');
-    expect(container.querySelectorAll('article.calibration-passage p')).toHaveLength(6);
+    expect(container.querySelectorAll('article.calibration-passage p')).toHaveLength(3);
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-reading-title'));
 
     nowSpy.mockReturnValue(61_000);
     await clickButton(findButton(container, '我已读完'));
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-questions-title'));
-    expect(container.querySelector('#pace-calibration-questions-title')?.textContent).toContain('Answer all 5 questions');
-    expect(container.querySelectorAll('.calibration-questions fieldset')).toHaveLength(5);
+    expect(container.querySelector('#pace-calibration-questions-title')?.textContent).toContain('Answer all 3 questions');
+    expect(container.querySelectorAll('.calibration-questions fieldset')).toHaveLength(3);
 
-    for (const label of [
-      'Counting every visible paragraph in full',
-      'A stable viewport with body paragraphs',
-      'Several comprehension answers are wrong',
-      'Sustained prose attention and forward progress',
-      'One unusual session should not rewrite it',
-    ]) {
+    for (const label of ['Duplicating visible paragraphs', 'When answers are solid', 'High confidence real-page samples']) {
       const optionLabel = Array.from(container.querySelectorAll('label')).find((candidate) => candidate.textContent === label);
       const optionInput = optionLabel?.querySelector<HTMLInputElement>('input[type="radio"]');
       expect(optionInput).toBeInstanceOf(HTMLInputElement);
@@ -1146,13 +1142,13 @@ describe('extension UI entrypoint smoke rendering', () => {
         contentType: 'general',
         startedAt: 1_000,
         completedAt: 61_000,
-        correctAnswers: 5,
-        questionCount: 5,
+        correctAnswers: 3,
+        questionCount: 3,
       }),
     );
     const calibrationInput = saveOnboardingReadingPaceCalibration.mock.calls[0]?.[0];
-    expect(calibrationInput?.wordCount).toBeGreaterThanOrEqual(320);
-    expect(calibrationInput?.wordCount).toBeLessThanOrEqual(360);
+    expect(calibrationInput?.wordCount).toBeGreaterThanOrEqual(200);
+    expect(calibrationInput?.wordCount).toBeLessThanOrEqual(260);
     expect(container.textContent).toContain('233 WPM');
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
 
@@ -1161,6 +1157,57 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
 
     nowSpy.mockRestore();
+  });
+
+  it('keeps one randomly selected calibration material through reading and questions', async () => {
+    const selectedMaterial = PACE_CALIBRATION_MATERIALS[1];
+    const selectPaceCalibrationMaterial = vi.fn(() => selectedMaterial);
+    const saveOnboardingReadingPaceCalibration = vi.fn(async () => createReadingPaceSummary({
+      baseWordsPerMinute: 231,
+      source: 'onboarding',
+      hasProfile: true,
+      calibrationAccepted: true,
+    }));
+    const container = await renderDashboard({
+      saveOnboardingReadingPaceCalibration,
+      selectPaceCalibrationMaterial,
+    });
+
+    await clickButton(findButton(container, '开始校准'));
+
+    expect(selectPaceCalibrationMaterial).toHaveBeenCalledOnce();
+    expect(container.querySelector('article.calibration-passage')?.textContent).toContain(
+      'two streets in the same city can feel surprisingly different',
+    );
+    expect(container.textContent).toContain(`速度校准 · ${selectedMaterial.wordCount} 词`);
+
+    await clickButton(findButton(container, '我已读完'));
+
+    expect(selectPaceCalibrationMaterial).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('How do trees help cool a street?');
+    expect(container.textContent).toContain('How should a planting program measure success?');
+    expect(container.textContent).not.toContain('What improves the baseline after onboarding?');
+
+    for (const question of selectedMaterial.questions) {
+      const correctOption = question.options.find((option) => option.id === question.correctOptionId);
+      const optionLabel = Array.from(container.querySelectorAll('label')).find(
+        (candidate) => candidate.textContent === correctOption?.label,
+      );
+      await act(async () => {
+        optionLabel?.querySelector<HTMLInputElement>('input[type="radio"]')?.click();
+      });
+    }
+    await clickButton(findButton(container, '保存校准'));
+    await flushReactMicrotasks(2);
+
+    expect(saveOnboardingReadingPaceCalibration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wordCount: selectedMaterial.wordCount,
+        correctAnswers: selectedMaterial.questions.length,
+        questionCount: selectedMaterial.questions.length,
+      }),
+    );
+    expect(selectPaceCalibrationMaterial).toHaveBeenCalledOnce();
   });
 
   it('restores the default reading pace and removes the reset action', async () => {
