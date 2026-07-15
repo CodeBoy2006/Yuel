@@ -83,7 +83,11 @@ export interface RecentSavedItemSummary {
   text: string;
   type: SavedItemRecord['type'];
   sourceDomain: string;
+  sourceUrl?: string;
+  sourceTitle?: string;
   tags: string[];
+  userTags?: string[];
+  note?: string;
   pdfAnchor?: {
     annotationId: string;
     resourceId: string;
@@ -554,7 +558,15 @@ function createRecentSavedItemSummaries(
         text: normalizeSavedItemText(item.text),
         type: item.type,
         sourceDomain: normalizeDisplayDomain(item.sourceDomain),
+        ...(normalizeHttpUrl(item.sourceUrl) ? { sourceUrl: normalizeHttpUrl(item.sourceUrl) } : {}),
+        ...(normalizeSavedItemText(item.sourceTitle ?? '')
+          ? { sourceTitle: normalizeSavedItemText(item.sourceTitle ?? '') }
+          : {}),
         tags: normalizeTags(item.tags),
+        ...(normalizeTags(item.userTags ?? []).length > 0
+          ? { userTags: normalizeTags(item.userTags ?? []) }
+          : {}),
+        ...(normalizeSavedItemNote(item.note) ? { note: normalizeSavedItemNote(item.note) } : {}),
         ...(annotation ? {
           pdfAnchor: {
             annotationId: annotation.id,
@@ -596,6 +608,24 @@ function normalizeTopDomains(topDomains: string[]): string[] {
 
 function normalizeSavedItemText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeSavedItemNote(note: string | undefined): string {
+  return note?.replace(/\r\n?/g, '\n').trim() ?? '';
+}
+
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  const input = value?.trim();
+  if (!input) return undefined;
+
+  try {
+    const url = new URL(input);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeVocabularyLemma(lemma: string): string {

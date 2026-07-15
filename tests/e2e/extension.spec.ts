@@ -4,6 +4,7 @@ import {
   readActiveTabCollectorStatus,
   readExtensionPageText,
   readReadingToolbarActionState,
+  seedSavedItems,
   sendExtensionRuntimeMessage,
   test,
 } from './helpers/extension';
@@ -330,7 +331,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   }).toContain('Local PDFium');
   const backlinkPagePromise = context.waitForEvent('page');
   await excerptDashboard.getByRole('button', {
-    name: '第 1 页 · 跳回原文',
+    name: '第 1 页 · 回到原文',
   }).click();
   const backlinkReader = await backlinkPagePromise;
   await backlinkReader.waitForLoadState('load');
@@ -612,6 +613,103 @@ test('records reading data through the extension runtime', async ({ context, ext
     (mobileTrendBox?.y ?? 0) + (mobileTrendBox?.height ?? 0) - 1,
   );
   expect(await dashboard.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(520);
+});
+
+test('manages saved excerpts through the packaged dashboard', async ({
+  context,
+  extensionId,
+}) => {
+  const dashboard = await openExtensionPage(context, extensionId, 'dashboard.html');
+  const createdAt = Date.UTC(2026, 6, 15, 8, 30, 0);
+  await seedSavedItems(dashboard, [
+    {
+      id: 'saved-web-e2e',
+      text: 'Retries should preserve the last stable state while recovery remains visible to the reader.',
+      type: 'sentence',
+      sourceDomain: 'example.com',
+      sourceUrl: 'https://example.com/reliability#retries',
+      sourceTitle: 'Reliable interface recovery',
+      tags: ['selection'],
+      userTags: ['reliability'],
+      note: 'Use this in the recovery chapter.',
+      vocabularyTracked: false,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    {
+      id: 'saved-pdf-e2e',
+      text: 'Optical alignment matters in compact controls.',
+      type: 'sentence',
+      sourceDomain: 'pdf.local',
+      sourceTitle: 'Interface notes.pdf',
+      tags: ['selection', 'pdf'],
+      userTags: ['design'],
+      vocabularyTracked: false,
+      createdAt: createdAt - 1_000,
+      updatedAt: createdAt - 1_000,
+    },
+  ]);
+  await dashboard.reload({ waitUntil: 'load' });
+
+  const library = dashboard.locator('#saved-excerpts');
+  await expect(library.locator('.excerpt-row')).toHaveCount(2);
+  await expect(library).toContainText('Reliable interface recovery');
+  await expect(library).toContainText('Interface notes.pdf');
+
+  const search = library.getByRole('searchbox');
+  await search.fill('recovery chapter');
+  await expect(library.locator('.excerpt-row')).toHaveCount(1);
+  await expect(library).toContainText('找到 1 条');
+  await library.getByRole('button', { name: '清除搜索' }).click();
+
+  await library.getByRole('button', { name: 'PDF' }).click();
+  await expect(library.locator('.excerpt-row')).toHaveCount(1);
+  await expect(library).toContainText('Interface notes.pdf');
+  await library.getByRole('button', { name: '全部' }).click();
+
+  let webRow = library.locator('.excerpt-row', {
+    hasText: 'Reliable interface recovery',
+  });
+  await webRow.getByRole('button', { name: '编辑笔记和标签' }).click();
+  await webRow.locator('textarea').fill('Keep this beside the implementation notes.');
+  await webRow.locator('input[type="text"]').fill('reliability, architecture');
+  await webRow.getByRole('button', { name: '保存笔记' }).click();
+  await expect(webRow).toContainText('Keep this beside the implementation notes.');
+  await expect(webRow).toContainText('architecture');
+
+  await dashboard.reload({ waitUntil: 'load' });
+  webRow = dashboard.locator('#saved-excerpts .excerpt-row', {
+    hasText: 'Reliable interface recovery',
+  });
+  await expect(webRow).toContainText('Keep this beside the implementation notes.');
+  await expect(webRow).toContainText('architecture');
+
+  await context.route('https://example.com/**', async (route) => {
+    await route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>Source</title><main>Original excerpt source</main>',
+    });
+  });
+  const sourcePagePromise = context.waitForEvent('page');
+  await webRow.getByRole('button', { name: '打开网页原文' }).click();
+  const sourcePage = await sourcePagePromise;
+  await sourcePage.waitForLoadState('domcontentloaded');
+  expect(sourcePage.url()).toBe('https://example.com/reliability#retries');
+  await sourcePage.close();
+
+  await dashboard.setViewportSize({ width: 390, height: 844 });
+  await expect(webRow).toBeVisible();
+  expect(await dashboard.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  await webRow.getByRole('button', { name: '删除摘录' }).click();
+  await expect(webRow).toContainText('无法恢复');
+  await webRow.locator('.excerpt-delete-confirmation')
+    .getByRole('button', { name: '删除摘录', exact: true })
+    .click();
+  await expect(dashboard.locator('#saved-excerpts .excerpt-row', {
+    hasText: 'Reliable interface recovery',
+  })).toHaveCount(0);
+  await expect(library.locator('.excerpt-row')).toHaveCount(1);
 });
 
 test('updates the toolbar logo through completion and supports static mode', async ({

@@ -18,6 +18,7 @@ import {
   type ReadingCollectorStatusResponse,
   type ReadingEventBatchMessage,
 } from '../../../src/messaging/contracts';
+import type { SavedItemRecord } from '../../../src/storage/schema';
 import { READING_SITE_HOST } from './readingSite';
 
 const EXTENSION_PATH = path.resolve(process.cwd(), '.output/chrome-mv3');
@@ -129,6 +130,36 @@ export async function sendExtensionRuntimeMessage(
       });
     });
   }, message);
+}
+
+export async function seedSavedItems(
+  page: Page,
+  records: SavedItemRecord[],
+): Promise<void> {
+  await page.evaluate(async (items) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('yuel-local');
+      request.onerror = () => reject(request.error ?? new Error('Failed to open Yuel IndexedDB'));
+      request.onsuccess = () => resolve(request.result);
+    });
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction('savedItems', 'readwrite');
+        const store = transaction.objectStore('savedItems');
+        items.forEach((item) => store.put(item));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(
+          transaction.error ?? new Error('Failed to seed saved excerpts'),
+        );
+        transaction.onabort = () => reject(
+          transaction.error ?? new Error('Saved excerpt seed transaction was aborted'),
+        );
+      });
+    } finally {
+      database.close();
+    }
+  }, records);
 }
 
 export async function readActiveTabCollectorStatus(worker: Worker): Promise<ReadingCollectorStatusResponse> {

@@ -1515,3 +1515,9 @@
 - **Status:** Completed
 - **Next Steps:** Keep manual blank-reader launching in the Popup only; Chrome PDF interception remains the primary network-document entry.
 - **Context:** The Popup PDF action, automatic Chrome PDF handling, active PDF status, and anchored excerpt restoration are unchanged. TypeScript checks, 64 entrypoint UI tests, the production build, whitespace validation, and the packaged Side Panel browser check pass.
+
+## [2026-07-15 17:16] Saved Excerpt Library
+- **Changes:** Replaced the recent-highlight panel with a full searchable excerpt library; added web/PDF source filtering, tag filtering, time sorting, progressive disclosure, copy and source actions, inline notes and user tags, confirmed deletion, localized web-save feedback, source title/URL retention, and PDF/vocabulary cleanup invariants.
+- **Status:** Completed
+- **Next Steps:** Observe library size and search latency with long-lived real data before deciding whether IndexedDB pagination or virtualization is necessary.
+- **Context:** Exact source metadata is stored only for intentional saves. New sentences and long excerpts no longer turn every contained word into vocabulary memory, while legacy deletion remains backward compatible with historical saved counts. All 529 unit/UI tests, TypeScript checks, the production build, whitespace validation, the design-rule scan, desktop/mobile visual checks, the packaged excerpt-management E2E, and the existing PDF save/backlink E2E pass.

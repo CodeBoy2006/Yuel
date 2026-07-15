@@ -12,8 +12,13 @@ import {
 
 let savedItemSequence = 0;
 
+export const MAX_SAVED_ITEM_NOTE_LENGTH = 1_200;
+export const MAX_SAVED_ITEM_USER_TAGS = 8;
+export const MAX_SAVED_ITEM_USER_TAG_LENGTH = 24;
+
 export interface SaveSelectedTextOptions {
   sourceUrl?: string;
+  sourceTitle?: string;
   createdAt?: number;
 }
 
@@ -21,6 +26,11 @@ export interface SavePdfSelectedTextOptions {
   metadata: PdfSourceMetadata;
   sourceRects: PdfSourceRectRecord[];
   createdAt?: number;
+}
+
+export interface UpdateSavedItemMetadataInput {
+  note: string;
+  userTags: string[];
 }
 
 export async function saveSelectedTextItem(
@@ -33,18 +43,26 @@ export async function saveSelectedTextItem(
   }
 
   const createdAt = options.createdAt ?? Date.now();
+  const type = classifySavedText(text);
+  const vocabularyTracked = shouldTrackSavedVocabulary(type);
   const record: SavedItemRecord = {
     id: createSavedItemId(text, createdAt),
     text,
-    type: classifySavedText(text),
+    type,
     sourceDomain: getDomain(options.sourceUrl ?? ''),
+    ...(normalizeHttpUrl(options.sourceUrl) ? { sourceUrl: normalizeHttpUrl(options.sourceUrl) } : {}),
+    ...(normalizeSingleLine(options.sourceTitle) ? { sourceTitle: normalizeSingleLine(options.sourceTitle) } : {}),
     tags: ['selection'],
+    vocabularyTracked,
     createdAt,
+    updatedAt: createdAt,
   };
 
   await db.transaction('rw', [db.savedItems, db.vocabExposures], async () => {
     await db.savedItems.put(record);
-    await recordSavedVocabulary(text, createdAt);
+    if (vocabularyTracked) {
+      await recordSavedVocabulary(text, createdAt);
+    }
   });
 
   return record;
@@ -67,6 +85,8 @@ export async function savePdfSelectedTextItem(
   const createdAt = options.createdAt ?? Date.now();
   const savedItemId = createSavedItemId(text, createdAt);
   const annotationId = `pdf_annotation_${savedItemId}`;
+  const type = classifySavedText(text);
+  const vocabularyTracked = shouldTrackSavedVocabulary(type);
   const annotation: PdfAnnotationRecord = {
     id: annotationId,
     resourceId: options.metadata.resourceId,
@@ -81,20 +101,78 @@ export async function savePdfSelectedTextItem(
   const record: SavedItemRecord = {
     id: savedItemId,
     text,
-    type: classifySavedText(text),
+    type,
     sourceDomain: getPdfReadingDomain(options.metadata),
+    ...(normalizeHttpUrl(options.metadata.sourceUrl)
+      ? { sourceUrl: normalizeHttpUrl(options.metadata.sourceUrl) }
+      : {}),
+    ...(normalizeSingleLine(options.metadata.displayName)
+      ? { sourceTitle: normalizeSingleLine(options.metadata.displayName) }
+      : {}),
     tags: ['selection', 'pdf'],
     pdfAnnotationId: annotationId,
+    vocabularyTracked,
     createdAt,
+    updatedAt: createdAt,
   };
 
   await db.transaction('rw', [db.savedItems, db.pdfAnnotations, db.vocabExposures], async () => {
     await db.pdfAnnotations.put(annotation);
     await db.savedItems.put(record);
-    await recordSavedVocabulary(text, createdAt);
+    if (vocabularyTracked) {
+      await recordSavedVocabulary(text, createdAt);
+    }
   });
 
   return record;
+}
+
+export async function updateSavedItemMetadata(
+  id: string,
+  input: UpdateSavedItemMetadataInput,
+  updatedAt = Date.now(),
+): Promise<SavedItemRecord | undefined> {
+  const savedItemId = id.trim();
+  if (!savedItemId) return undefined;
+
+  const existing = await db.savedItems.get(savedItemId);
+  if (!existing) return undefined;
+
+  const note = normalizeNote(input.note);
+  const userTags = normalizeUserTags(input.userTags);
+  const record: SavedItemRecord = {
+    ...existing,
+    ...(note ? { note } : { note: undefined }),
+    ...(userTags.length > 0 ? { userTags } : { userTags: undefined }),
+    updatedAt: Math.max(existing.updatedAt ?? existing.createdAt, updatedAt),
+  };
+
+  await db.savedItems.put(record);
+  return record;
+}
+
+export async function deleteSavedItem(id: string): Promise<boolean> {
+  const savedItemId = id.trim();
+  if (!savedItemId) return false;
+
+  const record = await db.savedItems.get(savedItemId);
+  if (!record) return false;
+
+  await db.transaction(
+    'rw',
+    [db.savedItems, db.pdfAnnotations, db.vocabExposures],
+    async () => {
+      await db.savedItems.delete(record.id);
+      if (record.pdfAnnotationId) {
+        await db.pdfAnnotations.delete(record.pdfAnnotationId);
+      }
+      if (record.vocabularyTracked !== false) {
+        await removeSavedVocabulary(record.text);
+      }
+    },
+  );
+
+  return true;
 }
 
 function createSavedItemId(text: string, createdAt: number): string {
@@ -132,12 +210,40 @@ function isFiniteNonNegative(value: number): boolean {
 }
 
 async function recordSavedVocabulary(text: string, savedAt: number): Promise<void> {
-  const lemmas = Array.from(new Set(analyzeEnglishText(text).tokens.filter(isTrackableEnglishToken)));
+  const lemmas = getSavedVocabularyLemmas(text);
 
   for (const lemma of lemmas) {
     const existing = await db.vocabExposures.get(lemma);
     await db.vocabExposures.put(createSavedVocabularyRecord(lemma, savedAt, existing));
   }
+}
+
+async function removeSavedVocabulary(text: string): Promise<void> {
+  for (const lemma of getSavedVocabularyLemmas(text)) {
+    const existing = await db.vocabExposures.get(lemma);
+    if (!existing || existing.savedCount <= 0) continue;
+
+    const savedCount = Math.max(0, existing.savedCount - 1);
+    if (
+      savedCount === 0
+      && existing.seenCount === 0
+      && existing.effectiveSeenCount === 0
+      && existing.packTags.length === 0
+      && existing.userStatus === 'learning'
+    ) {
+      await db.vocabExposures.delete(lemma);
+      continue;
+    }
+
+    await db.vocabExposures.put({
+      ...existing,
+      savedCount,
+    });
+  }
+}
+
+function getSavedVocabularyLemmas(text: string): string[] {
+  return Array.from(new Set(analyzeEnglishText(text).tokens.filter(isTrackableEnglishToken)));
 }
 
 function createSavedVocabularyRecord(
@@ -167,6 +273,10 @@ function createSavedVocabularyRecord(
       };
 }
 
+function shouldTrackSavedVocabulary(type: SavedItemRecord['type']): boolean {
+  return type === 'word' || type === 'phrase';
+}
+
 function classifySavedText(text: string): SavedItemRecord['type'] {
   const wordCount = text.split(/\s+/).filter(Boolean).length;
 
@@ -183,4 +293,58 @@ function classifySavedText(text: string): SavedItemRecord['type'] {
   }
 
   return 'quote';
+}
+
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  const input = value?.trim();
+  if (!input) return undefined;
+
+  try {
+    const url = new URL(input);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeSingleLine(value: string | undefined): string | undefined {
+  const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
+  return normalized || undefined;
+}
+
+function normalizeNote(value: string): string {
+  const note = value.replace(/\r\n?/g, '\n').trim();
+  if (note.length > MAX_SAVED_ITEM_NOTE_LENGTH) {
+    throw new RangeError(`Saved item notes must be at most ${MAX_SAVED_ITEM_NOTE_LENGTH} characters.`);
+  }
+  return note;
+}
+
+function normalizeUserTags(tags: string[]): string[] {
+  if (tags.length > MAX_SAVED_ITEM_USER_TAGS) {
+    throw new RangeError(`Saved items support at most ${MAX_SAVED_ITEM_USER_TAGS} user tags.`);
+  }
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const input of tags) {
+    const tag = input.replace(/\s+/g, ' ').trim();
+    if (!tag) continue;
+    if (tag.length > MAX_SAVED_ITEM_USER_TAG_LENGTH) {
+      throw new RangeError(
+        `Saved item tags must be at most ${MAX_SAVED_ITEM_USER_TAG_LENGTH} characters.`,
+      );
+    }
+    const key = tag.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(tag);
+  }
+
+  if (normalized.length > MAX_SAVED_ITEM_USER_TAGS) {
+    throw new RangeError(`Saved items support at most ${MAX_SAVED_ITEM_USER_TAGS} user tags.`);
+  }
+  return normalized;
 }

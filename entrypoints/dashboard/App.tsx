@@ -5,7 +5,6 @@ import {
   Clipboard,
   Database,
   Download,
-  ExternalLink,
   Gauge,
   Languages,
   LockKeyhole,
@@ -56,9 +55,17 @@ import {
   getReadingDashboardDetails,
   type ReadingDashboardDetails,
   type RecentPageSummary,
-  type RecentSavedItemSummary,
   type RecentVocabularySummary,
 } from '../../src/storage/readingStats';
+import {
+  deleteSavedItem,
+  updateSavedItemMetadata,
+  type UpdateSavedItemMetadataInput,
+} from '../../src/storage/saveItems';
+import {
+  getSavedItemLibrary,
+  type SavedItemLibraryItem,
+} from '../../src/storage/savedItemLibrary';
 import {
   DEFAULT_SHARE_CARD_SETTINGS,
   SHARE_CARD_SITE_LIMITS,
@@ -94,6 +101,7 @@ import {
 } from './ShareCardCarousel';
 import { ReadingDurationInsights } from './ReadingDurationInsights';
 import { ReadingInsights } from './ReadingInsights';
+import { SavedExcerptLibrary } from './SavedExcerptLibrary';
 import {
   PACE_CALIBRATION_MATERIALS,
   selectRandomPaceCalibrationMaterial,
@@ -109,15 +117,19 @@ export interface DashboardAppDependencies {
   getWebsiteFaviconUrl: (domain: string) => string | undefined;
   getReadingPaceSummary: typeof getReadingPaceSummary;
   getReadingRecordingSettings: typeof getReadingRecordingSettings;
+  getSavedItemLibrary: typeof getSavedItemLibrary;
   getReadingToolbarSettings: typeof getReadingToolbarSettings;
   getShareCardSettings: typeof getShareCardSettings;
+  deleteSavedItem: typeof deleteSavedItem;
   openPdfReaderTarget: (target: PdfReaderTarget) => Promise<void>;
+  openWebSource: (url: string) => Promise<void>;
   saveOnboardingReadingPaceCalibration: typeof saveOnboardingReadingPaceCalibration;
   resetReadingPaceCalibration: typeof resetReadingPaceCalibration;
   saveDailyCheckInThresholdWords: typeof saveDailyCheckInThresholdWords;
   setGlobalReadingRecordingEnabled: typeof setGlobalReadingRecordingEnabled;
   saveReadingToolbarSettings: typeof saveReadingToolbarSettings;
   saveShareCardSettings: typeof saveShareCardSettings;
+  updateSavedItemMetadata: typeof updateSavedItemMetadata;
   refreshReadingToolbarIcon: typeof requestReadingToolbarIconRefresh;
   selectPaceCalibrationMaterial: () => PaceCalibrationMaterial;
 }
@@ -132,6 +144,7 @@ const defaultDependencies: DashboardAppDependencies = {
   getReadingDashboardDetails,
   getReadingPaceSummary,
   getReadingRecordingSettings,
+  getSavedItemLibrary,
   getReadingToolbarSettings,
   getShareCardSettings,
   openPdfReaderTarget: async (target) => {
@@ -139,6 +152,10 @@ const defaultDependencies: DashboardAppDependencies = {
       url: createPdfReaderUrl(window.location.href, target),
     });
   },
+  openWebSource: async (url) => {
+    await browser.tabs.create({ url });
+  },
+  deleteSavedItem,
   refreshReadingToolbarIcon: requestReadingToolbarIconRefresh,
   saveDailyCheckInThresholdWords,
   saveOnboardingReadingPaceCalibration,
@@ -147,6 +164,7 @@ const defaultDependencies: DashboardAppDependencies = {
   saveShareCardSettings,
   selectPaceCalibrationMaterial: selectRandomPaceCalibrationMaterial,
   setGlobalReadingRecordingEnabled,
+  updateSavedItemMetadata,
 };
 
 type DashboardViewState = 'loading' | 'error' | 'empty' | 'ready';
@@ -160,6 +178,10 @@ interface CalibrationTimer {
 export function DashboardApp({ dependencies = defaultDependencies }: { dependencies?: DashboardAppDependencies }) {
   const [details, setDetails] = useState<ReadingDashboardDetails>();
   const [paceSummary, setPaceSummary] = useState<ReadingPaceSummary>();
+  const [savedItemLibrary, setSavedItemLibrary] = useState<SavedItemLibraryItem[]>([]);
+  const [savedItemLibraryStatus, setSavedItemLibraryStatus] = useState<
+    'loading' | 'ready' | 'failed'
+  >('loading');
   const [loadFailed, setLoadFailed] = useState(false);
   const [paceLoadFailed, setPaceLoadFailed] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
@@ -204,6 +226,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const mountedRef = useRef(false);
   const detailsRefreshSequenceRef = useRef(0);
   const paceRefreshSequenceRef = useRef(0);
+  const savedItemLibraryRefreshSequenceRef = useRef(0);
   const shareActionSequenceRef = useRef(0);
   const shareActionBusyRef = useRef(false);
   const shareCardSettingsSequenceRef = useRef(0);
@@ -253,9 +276,29 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     return { detailsLoaded, paceLoaded };
   }, [dependencies]);
 
+  const refreshSavedItemLibrary = useCallback(async (): Promise<boolean> => {
+    const requestId = ++savedItemLibraryRefreshSequenceRef.current;
+    try {
+      const items = await dependencies.getSavedItemLibrary();
+      if (!mountedRef.current || requestId !== savedItemLibraryRefreshSequenceRef.current) {
+        return false;
+      }
+      setSavedItemLibrary(items);
+      setSavedItemLibraryStatus('ready');
+      return true;
+    } catch (error) {
+      console.error('Failed to load Yuel saved item library', error);
+      if (mountedRef.current && requestId === savedItemLibraryRefreshSequenceRef.current) {
+        setSavedItemLibraryStatus('failed');
+      }
+      return false;
+    }
+  }, [dependencies]);
+
   useEffect(() => {
     mountedRef.current = true;
     void refreshDashboard();
+    void refreshSavedItemLibrary();
 
     const refreshWhenVisible = () => {
       if (document.visibilityState !== 'visible' || clearBusyRef.current || resumeRefreshScheduledRef.current) return;
@@ -264,6 +307,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         resumeRefreshScheduledRef.current = false;
         if (mountedRef.current && document.visibilityState === 'visible' && !clearBusyRef.current) {
           void refreshDashboard();
+          void refreshSavedItemLibrary();
         }
       });
     };
@@ -275,6 +319,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       mountedRef.current = false;
       detailsRefreshSequenceRef.current += 1;
       paceRefreshSequenceRef.current += 1;
+      savedItemLibraryRefreshSequenceRef.current += 1;
       shareActionSequenceRef.current += 1;
       shareActionBusyRef.current = false;
       shareCardSettingsSequenceRef.current += 1;
@@ -285,7 +330,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [refreshDashboard]);
+  }, [refreshDashboard, refreshSavedItemLibrary]);
 
   useEffect(() => {
     if (calibrationStep !== 'reading') return;
@@ -498,6 +543,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     setDetails(undefined);
     setLoadFailed(false);
     void refreshDashboard();
+    setSavedItemLibraryStatus('loading');
+    void refreshSavedItemLibrary();
   };
 
   const openCheckInGoalEditor = () => {
@@ -581,7 +628,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
       setDetails(undefined);
       setPaceSummary(undefined);
-      const refreshResult = await refreshDashboard();
+      setSavedItemLibrary([]);
+      setSavedItemLibraryStatus('loading');
+      const [refreshResult] = await Promise.all([
+        refreshDashboard(),
+        refreshSavedItemLibrary(),
+      ]);
       if (!mountedRef.current) return;
 
       setClearRefreshFailed(!refreshResult.detailsLoaded);
@@ -611,6 +663,28 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       // refreshed immediately; the background startup/rollover sync recovers it.
       console.error('Failed to refresh Yuel reading toolbar icon', error);
     }
+  };
+
+  const persistSavedItemMetadata = async (
+    id: string,
+    input: UpdateSavedItemMetadataInput,
+  ): Promise<void> => {
+    const updated = await dependencies.updateSavedItemMetadata(id, input);
+    if (!updated) {
+      throw new Error('Saved item no longer exists.');
+    }
+    await refreshSavedItemLibrary();
+  };
+
+  const removeSavedItem = async (id: string): Promise<void> => {
+    const deleted = await dependencies.deleteSavedItem(id);
+    if (!deleted) {
+      throw new Error('Saved item no longer exists.');
+    }
+    await Promise.all([
+      refreshSavedItemLibrary(),
+      refreshDashboard(),
+    ]);
   };
 
   const updateReadingToolbarProgressIcon = (progressIconEnabled: boolean) => {
@@ -876,6 +950,12 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-insights')}>
                 <Activity aria-hidden="true" />
                 阅读节律
+              </button>
+            ) : null}
+            {viewState === 'ready' ? (
+              <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'saved-excerpts')}>
+                <Quote aria-hidden="true" />
+                摘录库
               </button>
             ) : null}
             <button type="button" onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>
@@ -1403,18 +1483,26 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               </Panel>
             </div>
 
-            <Panel title="保存摘录" meta={`${details.recentSavedItems.length} 条`} icon={Quote}>
-              <div className="saved-grid">
-                {details.recentSavedItems.length
-                  ? details.recentSavedItems.map((item) => (
-                      <SavedHighlightCard
-                        key={item.id}
-                        item={item}
-                        onOpenPdfReaderTarget={dependencies.openPdfReaderTarget}
-                      />
-                    ))
-                  : <EmptyState>还没有保存摘录。</EmptyState>}
-              </div>
+            <Panel
+              id="saved-excerpts"
+              title="摘录库"
+              meta={`${savedItemLibrary.length} 条`}
+              icon={Quote}
+            >
+              <SavedExcerptLibrary
+                items={savedItemLibrary}
+                status={savedItemLibraryStatus}
+                copyTextToClipboard={dependencies.copyTextToClipboard}
+                deleteItem={removeSavedItem}
+                openPdfReaderTarget={dependencies.openPdfReaderTarget}
+                openWebSource={dependencies.openWebSource}
+                resolveFaviconUrl={dependencies.getWebsiteFaviconUrl}
+                retry={() => {
+                  setSavedItemLibraryStatus('loading');
+                  void refreshSavedItemLibrary();
+                }}
+                updateItem={persistSavedItemMetadata}
+              />
             </Panel>
           </>
         ) : null}
@@ -1456,18 +1544,20 @@ function DashboardLoading() {
 }
 
 function Panel({
+  id,
   title,
   meta,
   icon,
   children,
 }: {
+  id?: string;
   title: string;
   meta: string;
   icon: LucideIcon;
   children: ReactNode;
 }) {
   return (
-    <section className="dashboard-panel">
+    <section id={id} className="dashboard-panel">
       <SectionHeader icon={icon} meta={meta}>{title}</SectionHeader>
       {children}
     </section>
@@ -1522,65 +1612,6 @@ function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
   );
 }
 
-function SavedHighlightCard({
-  item,
-  onOpenPdfReaderTarget,
-}: {
-  item: RecentSavedItemSummary;
-  onOpenPdfReaderTarget: (target: PdfReaderTarget) => Promise<void>;
-}) {
-  const [openStatus, setOpenStatus] = useState<'idle' | 'opening' | 'failed'>('idle');
-  const openPdfSource = async () => {
-    if (!item.pdfAnchor || openStatus === 'opening') return;
-    setOpenStatus('opening');
-    try {
-      await onOpenPdfReaderTarget({
-        resourceId: item.pdfAnchor.resourceId,
-        pageIndex: item.pdfAnchor.pageIndex,
-        annotationId: item.pdfAnchor.annotationId,
-        ...(item.pdfAnchor.pageCoordinates
-          ? { pageCoordinates: item.pdfAnchor.pageCoordinates }
-          : {}),
-      });
-      setOpenStatus('idle');
-    } catch (error) {
-      console.error('Failed to open the saved PDF excerpt', error);
-      setOpenStatus('failed');
-    }
-  };
-
-  return (
-    <article className="saved-item">
-      <div className="saved-item__meta">
-        <span>{formatSavedItemType(item.type)}</span>
-        <time dateTime={new Date(item.createdAt).toISOString()}>{formatDateTime(item.createdAt)}</time>
-      </div>
-      <blockquote>“{item.text}”</blockquote>
-      <footer>
-        <span title={item.sourceDomain}>{item.sourceDomain}</span>
-        {item.tags.map((tag) => <span key={tag} title={tag}>{tag}</span>)}
-        {item.pdfAnchor ? (
-          <button
-            className="saved-item__backlink"
-            type="button"
-            disabled={openStatus === 'opening'}
-            aria-busy={openStatus === 'opening'}
-            title={openStatus === 'failed' ? '打开失败，请重试' : '跳回 PDF 原文'}
-            onClick={() => void openPdfSource()}
-          >
-            <ExternalLink aria-hidden="true" />
-            {openStatus === 'opening'
-              ? '打开中'
-              : openStatus === 'failed'
-                ? '重试回链'
-                : `第 ${item.pdfAnchor.pageIndex + 1} 页 · 跳回原文`}
-          </button>
-        ) : null}
-      </footer>
-    </article>
-  );
-}
-
 function scrollToSection(root: HTMLElement | null, id: string) {
   const target = root?.querySelector<HTMLElement>(`#${id}`);
   if (!target) return;
@@ -1619,12 +1650,6 @@ function formatShareCardSettingsStatus(
   if (status === 'failed') return '设置仅对本次有效';
   if (status === 'saved') return '已自动保存到本地';
   return '调整会自动保存';
-}
-
-function formatSavedItemType(type: RecentSavedItemSummary['type']): string {
-  if (type === 'word') return '单词';
-  if (type === 'phrase') return '短语';
-  return '摘录';
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

@@ -320,6 +320,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const vocabulary = details?.recentVocabulary ?? [];
   const savedItem = details?.recentSavedItems[0];
   const savedPdfAnchor = savedItem?.pdfAnchor;
+  const savedItemSource = savedItem?.sourceTitle || savedItem?.sourceDomain;
   const refreshLabel = loadFailed || siteAccessFailed || currentPageFailed
     ? '同步未完成'
     : lastUpdatedAt
@@ -476,7 +477,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             <figure className="sidepanel-excerpt">
               <blockquote>{savedItem.text}</blockquote>
               <figcaption>
-                <span title={savedItem.sourceDomain}>{savedItem.sourceDomain}</span>
+                <span title={savedItemSource}>{savedItemSource}</span>
                 <time dateTime={new Date(savedItem.createdAt).toISOString()}>{formatDateTime(savedItem.createdAt)}</time>
               </figcaption>
               {savedPdfAnchor ? (

@@ -101,9 +101,15 @@ export interface SavedItemRecord {
   text: string;
   type: 'word' | 'phrase' | 'sentence' | 'quote';
   sourceDomain: string;
+  sourceUrl?: string;
+  sourceTitle?: string;
   tags: string[];
+  userTags?: string[];
+  note?: string;
   pdfAnnotationId?: string;
+  vocabularyTracked?: boolean;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface PdfSourceRectRecord {

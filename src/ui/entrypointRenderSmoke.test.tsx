@@ -42,6 +42,19 @@ function findButton(container: HTMLElement, label: string): HTMLButtonElement | 
   return Array.from(container.querySelectorAll('button')).find((button) => button.textContent === label);
 }
 
+function setNativeControlValue(
+  control: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+): void {
+  const prototype = control instanceof HTMLTextAreaElement
+    ? HTMLTextAreaElement.prototype
+    : HTMLInputElement.prototype;
+  const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+
+  valueSetter?.call(control, value);
+  control.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function setDocumentVisibility(visibilityState: DocumentVisibilityState): void {
   Object.defineProperty(document, 'visibilityState', {
     configurable: true,
@@ -104,6 +117,29 @@ function createDashboardDetails(effectiveWords = 0, domain = 'docs.example.com')
     recentVocabulary: [],
     recentSavedItems: [],
     hasData,
+  };
+}
+
+type SavedItemLibraryFixture = Awaited<
+  ReturnType<DashboardAppDependencies['getSavedItemLibrary']>
+>[number];
+
+function createSavedItemLibraryItem(
+  overrides: Partial<SavedItemLibraryFixture> = {},
+): SavedItemLibraryFixture {
+  const createdAt = Date.UTC(2026, 5, 27, 10, 5, 0);
+  return {
+    id: 'saved-1',
+    text: 'fail gracefully under pressure',
+    type: 'phrase',
+    sourceKind: 'web',
+    sourceDomain: 'developer.mozilla.org',
+    sourceUrl: 'https://developer.mozilla.org/en-US/docs/Web/API',
+    sourceTitle: 'Web API reference',
+    userTags: [],
+    createdAt,
+    updatedAt: createdAt,
+    ...overrides,
   };
 }
 
@@ -191,6 +227,7 @@ function createDashboardDependencies(
       recordingEnabled: true,
       excludedSiteDomains: [],
     }),
+    getSavedItemLibrary: async () => [],
     getReadingToolbarSettings: async () => ({
       progressIconEnabled: true,
     }),
@@ -200,7 +237,9 @@ function createDashboardDependencies(
       showSiteIcons: true,
       showStreak: true,
     }),
+    deleteSavedItem: async () => true,
     openPdfReaderTarget: async () => undefined,
+    openWebSource: async () => undefined,
     saveOnboardingReadingPaceCalibration: async (input) => createReadingPaceSummary({
       language: input.language ?? 'en',
       contentType: input.contentType ?? 'general',
@@ -218,6 +257,7 @@ function createDashboardDependencies(
       recordingEnabled,
       excludedSiteDomains: [],
     }),
+    updateSavedItemMetadata: async () => undefined,
     ...overrides,
   };
 }
@@ -519,6 +559,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         recentSavedItems: [],
         hasData: true,
       }),
+      getSavedItemLibrary: async () => [createSavedItemLibraryItem()],
     });
 
     const text = container.textContent ?? '';
@@ -857,6 +898,7 @@ describe('extension UI entrypoint smoke rendering', () => {
         ],
         hasData: true,
       }),
+      getSavedItemLibrary: async () => [createSavedItemLibraryItem()],
     });
 
     expect(container.querySelector('#dashboard-title')?.textContent).toBe('阅读记录');
@@ -866,7 +908,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('已收藏 2');
     expect(container.textContent).toContain('architecture');
     expect(container.textContent).toContain('fail gracefully under pressure');
-    expect(container.textContent).toContain('保存摘录');
+    expect(container.textContent).toContain('摘录库');
     expect(container.textContent).toContain('查看今日卡片');
     expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).toContain('今日有效阅读');
@@ -919,10 +961,24 @@ describe('extension UI entrypoint smoke rendering', () => {
         }],
         hasData: true,
       }),
+      getSavedItemLibrary: async () => [createSavedItemLibraryItem({
+        id: 'saved-pdf',
+        text: 'Evidence remains connected to its source.',
+        type: 'quote',
+        sourceKind: 'pdf',
+        sourceDomain: 'pdf.local',
+        sourceTitle: 'Reference.pdf',
+        pdfAnchor: {
+          annotationId: 'annotation-pdf',
+          resourceId,
+          pageIndex: 2,
+          pageCoordinates: { x: 72, y: 180 },
+        },
+      })],
       openPdfReaderTarget,
     });
 
-    await clickButton(findButton(container, '第 3 页 · 跳回原文'));
+    await clickButton(findButton(container, '第 3 页 · 回到原文'));
 
     expect(openPdfReaderTarget).toHaveBeenCalledWith({
       resourceId,
@@ -930,6 +986,94 @@ describe('extension UI entrypoint smoke rendering', () => {
       annotationId: 'annotation-pdf',
       pageCoordinates: { x: 72, y: 180 },
     });
+  });
+
+  it('searches saved excerpts across text, source, note, and user tags', async () => {
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => createDashboardDetails(960),
+      getSavedItemLibrary: async () => [
+        createSavedItemLibraryItem({
+          id: 'saved-retry',
+          text: 'Retries should preserve the last stable state.',
+          note: 'Use this in the recovery chapter.',
+          userTags: ['reliability'],
+        }),
+        createSavedItemLibraryItem({
+          id: 'saved-layout',
+          text: 'Optical alignment matters in compact controls.',
+          sourceDomain: 'design.example.com',
+          sourceUrl: 'https://design.example.com/alignment',
+          sourceTitle: 'Interface alignment',
+          userTags: ['design'],
+          createdAt: Date.UTC(2026, 5, 26, 9, 0, 0),
+          updatedAt: Date.UTC(2026, 5, 26, 9, 0, 0),
+        }),
+      ],
+    });
+    const search = container.querySelector<HTMLInputElement>('.excerpt-library input[type="search"]');
+    expect(search).toBeInstanceOf(HTMLInputElement);
+
+    await act(async () => {
+      if (search) setNativeControlValue(search, 'recovery');
+    });
+
+    expect(container.textContent).toContain('Retries should preserve the last stable state.');
+    expect(container.textContent).not.toContain('Optical alignment matters in compact controls.');
+    expect(container.textContent).toContain('找到 1 条');
+  });
+
+  it('copies, opens, annotates, and deletes a web excerpt from the library', async () => {
+    const item = createSavedItemLibraryItem();
+    const copyTextToClipboard = vi.fn(async () => undefined);
+    const openWebSource = vi.fn(async () => undefined);
+    const updateSavedItemMetadata = vi.fn(async () => ({
+      id: item.id,
+      text: item.text,
+      type: item.type,
+      sourceDomain: item.sourceDomain,
+      sourceUrl: item.sourceUrl,
+      sourceTitle: item.sourceTitle,
+      tags: ['selection'],
+      userTags: ['reliability'],
+      note: 'Keep this close to the implementation notes.',
+      vocabularyTracked: true,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt + 1,
+    }));
+    const deleteSavedItem = vi.fn(async () => true);
+    const container = await renderDashboard({
+      getReadingDashboardDetails: async () => createDashboardDetails(960),
+      getSavedItemLibrary: async () => [item],
+      copyTextToClipboard,
+      openWebSource,
+      updateSavedItemMetadata,
+      deleteSavedItem,
+    });
+
+    await clickButton(container.querySelector<HTMLButtonElement>('[aria-label="复制摘录"]') ?? undefined);
+    expect(copyTextToClipboard).toHaveBeenCalledWith(item.text);
+    expect(container.textContent).toContain('摘录已复制。');
+
+    await clickButton(findButton(container, '打开网页原文'));
+    expect(openWebSource).toHaveBeenCalledWith(item.sourceUrl);
+
+    await clickButton(container.querySelector<HTMLButtonElement>('[aria-label="编辑笔记和标签"]') ?? undefined);
+    const note = container.querySelector<HTMLTextAreaElement>('.excerpt-editor textarea');
+    const tags = container.querySelector<HTMLInputElement>('.excerpt-editor input[type="text"]');
+    await act(async () => {
+      if (note) setNativeControlValue(note, 'Keep this close to the implementation notes.');
+      if (tags) setNativeControlValue(tags, 'reliability');
+    });
+    await clickButton(findButton(container, '保存笔记'));
+    expect(updateSavedItemMetadata).toHaveBeenCalledWith(item.id, {
+      note: 'Keep this close to the implementation notes.',
+      userTags: ['reliability'],
+    });
+
+    await clickButton(container.querySelector<HTMLButtonElement>('[aria-label="删除摘录"]') ?? undefined);
+    expect(container.textContent).toContain('笔记、标签和 PDF 回链也会一起删除，无法恢复。');
+    await clickButton(findButton(container, '删除摘录'));
+    expect(deleteSavedItem).toHaveBeenCalledWith(item.id);
   });
 
   it('keeps sharing locked until the daily goal is reached and saves a user-defined goal', async () => {
