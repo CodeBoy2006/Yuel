@@ -34,8 +34,11 @@ const TOOLBAR_ICON_INACTIVE = '#7D8A82';
 const TOOLBAR_ICON_GREEN = '#077045';
 const TOOLBAR_ICON_GOLD = '#E0AF3B';
 const TOOLBAR_ICON_GOLD_SOFT = '#F7E3B0';
-const TOOLBAR_BADGE_TEXT = '#0F1F16';
-const TOOLBAR_ICON_COMPLETED_SCALE = 0.9;
+const TOOLBAR_ICON_CHECK = '#0F1F16';
+const TOOLBAR_ICON_COMPLETED_SCALE = 0.88;
+const TOOLBAR_ICON_COMPLETED_OFFSET = -22;
+const TOOLBAR_ICON_BADGE_CENTER_RATIO = 0.79;
+const TOOLBAR_ICON_BADGE_RADIUS_RATIO = 0.19;
 const TOOLBAR_ICON_GLOW_LAYERS = [
   { alpha: 0.2, lineWidth: 120, shadowBlurRatio: 0.28 },
   { alpha: 0.44, lineWidth: 84, shadowBlurRatio: 0.16 },
@@ -67,7 +70,6 @@ export interface ReadingToolbarIconState {
   progressStep: number;
   progressRatio: number;
   title: string;
-  badgeText: '' | '✓';
 }
 
 export interface ReadingToolbarAction {
@@ -77,8 +79,6 @@ export interface ReadingToolbarAction {
   ) => Promise<void>;
   setTitle: (details: { title: string }) => Promise<void>;
   setBadgeText: (details: { text: string }) => Promise<void>;
-  setBadgeBackgroundColor: (details: { color: string }) => Promise<void>;
-  setBadgeTextColor?: (details: { color: string }) => Promise<void>;
 }
 
 export interface ReadingToolbarSyncDependencies {
@@ -128,7 +128,6 @@ export function createReadingToolbarIconState(
     title: completed
       ? `Yuel Reading · 今日已达标 · ${progressText}`
       : `Yuel Reading · 今日 ${progressText}`,
-    badgeText: completed ? '✓' : '',
   };
 }
 
@@ -181,7 +180,10 @@ export function renderReadingToolbarIcon(
   const paths = getLogoPaths();
   if (state.completed) {
     const logoCenter = LOGO_VIEWBOX_X + LOGO_VIEWBOX_SIZE / 2;
-    context.translate(logoCenter, logoCenter);
+    context.translate(
+      logoCenter + TOOLBAR_ICON_COMPLETED_OFFSET,
+      logoCenter + TOOLBAR_ICON_COMPLETED_OFFSET,
+    );
     context.scale(TOOLBAR_ICON_COMPLETED_SCALE, TOOLBAR_ICON_COMPLETED_SCALE);
     context.translate(-logoCenter, -logoCenter);
   }
@@ -257,6 +259,10 @@ export function renderReadingToolbarIcon(
   }
 
   context.restore();
+  if (state.completed) {
+    drawToolbarCompletionBadge(context, size);
+  }
+
   const imageData = context.getImageData(0, 0, size, size);
   renderedIconCache.set(cacheKey, imageData);
   return imageData;
@@ -277,18 +283,8 @@ export async function applyReadingToolbarIconState(
   await Promise.all([
     action.setIcon({ imageData }),
     action.setTitle({ title: state.title }),
+    action.setBadgeText({ text: '' }),
   ]);
-
-  if (!state.completed) {
-    await action.setBadgeText({ text: '' });
-    return;
-  }
-
-  await Promise.all([
-    action.setBadgeBackgroundColor({ color: TOOLBAR_ICON_GOLD }),
-    action.setBadgeTextColor?.({ color: TOOLBAR_BADGE_TEXT }) ?? Promise.resolve(),
-  ]);
-  await action.setBadgeText({ text: state.badgeText });
 }
 
 export async function applyStaticReadingToolbarIcon(
@@ -366,4 +362,34 @@ function strokeLogoPaths(
   for (const path of paths) {
     context.stroke(path);
   }
+}
+
+function drawToolbarCompletionBadge(
+  context: OffscreenCanvasRenderingContext2D,
+  size: number,
+): void {
+  // Chrome fixes native badge geometry at a dominant size, so completion is
+  // drawn inside the bitmap to keep the Logo as the primary visual signal.
+  const center = size * TOOLBAR_ICON_BADGE_CENTER_RATIO;
+  const radius = size * TOOLBAR_ICON_BADGE_RADIUS_RATIO;
+
+  context.save();
+  context.beginPath();
+  context.arc(center, center, radius, 0, Math.PI * 2);
+  context.fillStyle = TOOLBAR_ICON_GOLD;
+  context.fill();
+  context.lineWidth = Math.max(0.75, size * 0.035);
+  context.strokeStyle = TOOLBAR_ICON_GOLD_SOFT;
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(center - radius * 0.48, center - radius * 0.02);
+  context.lineTo(center - radius * 0.12, center + radius * 0.34);
+  context.lineTo(center + radius * 0.52, center - radius * 0.42);
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = Math.max(1.25, size * 0.07);
+  context.strokeStyle = TOOLBAR_ICON_CHECK;
+  context.stroke();
+  context.restore();
 }

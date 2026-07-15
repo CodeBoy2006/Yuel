@@ -7,6 +7,7 @@ import {
   getNextReadingToolbarDayRolloverAt,
   getReadingToolbarIconState,
   READING_TOOLBAR_PROGRESS_STEPS,
+  renderReadingToolbarIcon,
   syncReadingToolbarIcon,
   type ReadingToolbarAction,
   type ReadingToolbarStore,
@@ -22,7 +23,6 @@ describe('reading toolbar icon state', () => {
       completed: false,
       progressStep: 0,
       progressRatio: 0,
-      badgeText: '',
       title: 'Yuel Reading · 今日 0 / 500 词',
     });
   });
@@ -39,14 +39,13 @@ describe('reading toolbar icon state', () => {
     expect(almostComplete.completed).toBe(false);
   });
 
-  it('uses a full green mark, gold completion state, and check badge at the goal', () => {
+  it('uses a full green mark and gold completion state at the goal', () => {
     const state = createReadingToolbarIconState('2026-07-11', 620, 500);
 
     expect(state).toMatchObject({
       completed: true,
       progressStep: READING_TOOLBAR_PROGRESS_STEPS,
       progressRatio: 1,
-      badgeText: '✓',
       title: 'Yuel Reading · 今日已达标 · 620 / 500 词',
     });
   });
@@ -70,6 +69,31 @@ describe('reading toolbar icon state', () => {
 });
 
 describe('reading toolbar icon application', () => {
+  it('keeps the integrated completion medallion secondary and balances the Logo against it', () => {
+    const context = createCanvasContextFixture(20);
+
+    vi.stubGlobal('OffscreenCanvas', class {
+      getContext() {
+        return context;
+      }
+    });
+    vi.stubGlobal('Path2D', class {
+      constructor(_pathData: string) {}
+    });
+
+    try {
+      renderReadingToolbarIcon(20, {
+        completed: true,
+        progressStep: READING_TOOLBAR_PROGRESS_STEPS,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(context.translate).toHaveBeenCalledWith(605, 605);
+    expect(context.arc).toHaveBeenCalledWith(15.8, 15.8, 3.8, 0, Math.PI * 2);
+  });
+
   it('restores the static manifest icon, title, and an empty badge', async () => {
     const action = createAction();
 
@@ -103,22 +127,26 @@ describe('reading toolbar icon application', () => {
     });
     expect(action.setTitle).toHaveBeenCalledWith({ title: state.title });
     expect(action.setBadgeText).toHaveBeenCalledWith({ text: '' });
-    expect(action.setBadgeBackgroundColor).not.toHaveBeenCalled();
   });
 
-  it('applies the champagne-gold completion badge after the completed icon', async () => {
+  it('renders the compact completion mark inside the icon and clears the native badge', async () => {
     const state = createReadingToolbarIconState('2026-07-11', 500, 500);
     const action = createAction();
+    const renderIcon = vi.fn((size: number) => createImageDataFixture(size));
 
     await applyReadingToolbarIconState(
       state,
       action,
-      (size) => createImageDataFixture(size),
+      renderIcon,
     );
 
-    expect(action.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#E0AF3B' });
-    expect(action.setBadgeTextColor).toHaveBeenCalledWith({ color: '#0F1F16' });
-    expect(action.setBadgeText).toHaveBeenCalledWith({ text: '✓' });
+    expect(renderIcon).toHaveBeenCalledTimes(3);
+    expect(renderIcon.mock.calls).toEqual([
+      [16, expect.objectContaining({ completed: true })],
+      [24, expect.objectContaining({ completed: true })],
+      [32, expect.objectContaining({ completed: true })],
+    ]);
+    expect(action.setBadgeText).toHaveBeenCalledWith({ text: '' });
   });
 
   it('serializes background refreshes so later storage state wins', async () => {
@@ -241,8 +269,6 @@ function createAction(
     setIcon: vi.fn(async () => undefined),
     setTitle: vi.fn(async () => undefined),
     setBadgeText: vi.fn(async () => undefined),
-    setBadgeBackgroundColor: vi.fn(async () => undefined),
-    setBadgeTextColor: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -254,6 +280,28 @@ function createImageDataFixture(size: number): ImageData {
     height: size,
     width: size,
   } as ImageData;
+}
+
+function createCanvasContextFixture(size: number) {
+  return {
+    arc: vi.fn(),
+    beginPath: vi.fn(),
+    clearRect: vi.fn(),
+    clip: vi.fn(),
+    fill: vi.fn(),
+    getImageData: vi.fn(() => createImageDataFixture(size)),
+    lineTo: vi.fn(),
+    moveTo: vi.fn(),
+    rect: vi.fn(),
+    restore: vi.fn(),
+    save: vi.fn(),
+    scale: vi.fn(),
+    stroke: vi.fn(),
+    translate: vi.fn(),
+  } as unknown as OffscreenCanvasRenderingContext2D & {
+    arc: ReturnType<typeof vi.fn>;
+    translate: ReturnType<typeof vi.fn>;
+  };
 }
 
 function createDeferred<T>() {

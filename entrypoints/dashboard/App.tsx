@@ -1302,7 +1302,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <div className="check-in-setting__copy">
               <h3>浏览器进度图标</h3>
               <p id="reading-toolbar-progress-description">
-                工具栏 Logo 随当天阅读进度变化，达标后显示勾选徽标。
+                工具栏 Logo 随当天阅读进度变化，达标后在右下角显示紧凑勾选。
               </p>
             </div>
             <SwitchControl

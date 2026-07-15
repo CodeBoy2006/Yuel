@@ -1527,3 +1527,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe real 13-week distributions and tune the percentile only if measured histories still appear flattened or overly saturated.
 - **Context:** Changing the current daily goal no longer recolors historical activity. Values above the adaptive reference saturate at level four, while zero remains a distinct inactive state. All 535 unit/UI tests, TypeScript checks, the production build, extension smoke validation, whitespace validation, two packaged-extension Chromium regressions, and desktop/mobile visual checks pass.
+
+## [2026-07-15 21:16] Balanced Toolbar Completion Badge
+- **Changes:** Replaced Chrome's oversized native completion badge with a compact circular check medallion drawn inside the toolbar icon; reduced and shifted the completed Logo to counterbalance the lower-right status weight; removed obsolete native-badge color state; updated focused tests, dashboard copy, README, and design documentation.
+- **Status:** Completed
+- **Next Steps:** Observe the pinned action at common Chrome display scales and adjust the fixed 38% medallion ratio only if browser compositing differs from the verified raster previews.
+- **Context:** The Logo remains the primary signal while completion stays distinguishable without color alone. Eleven focused toolbar tests, 66 entrypoint smoke tests, TypeScript checks, the production build, whitespace validation, and 16/24/32px light/dark visual previews pass.
