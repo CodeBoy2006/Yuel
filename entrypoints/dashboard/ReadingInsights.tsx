@@ -4,6 +4,11 @@ import { useMemo, useState } from 'react';
 import { formatLocalDate } from '../../src/domain/localDate';
 import type { ReadingHistoryDay } from '../../src/storage/readingStats';
 import { formatCount } from '../../src/ui/formatters';
+import {
+  createHeatmapIntensityScale,
+  getHeatmapIntensityLevel,
+  HEATMAP_LEVEL_COUNT,
+} from '../../src/ui/heatmapIntensity';
 import { SectionHeader } from '../../src/ui/primitives';
 
 interface ReadingInsightsProps {
@@ -66,8 +71,6 @@ export function ReadingInsights({ dailyGoal, history }: ReadingInsightsProps) {
       </dl>
 
       <ReadingHeatmap
-        activeDays={activeDays.length}
-        dailyGoal={dailyGoal}
         history={normalizedHistory}
       />
 
@@ -93,23 +96,24 @@ function InsightMetric({ detail, label, value }: { detail?: string; label: strin
 }
 
 function ReadingHeatmap({
-  activeDays,
-  dailyGoal,
   history,
 }: {
-  activeDays: number;
-  dailyGoal: number;
   history: ReadingHistoryDay[];
 }) {
   const weeks = createHeatmapWeeks(history);
-  const totalWords = history.reduce((sum, day) => sum + day.effectiveWords, 0);
+  const visibleDays = weeks.flat().filter((day) => !day.future);
+  const totalWords = visibleDays.reduce((sum, day) => sum + day.effectiveWords, 0);
+  const activeDays = visibleDays.filter((day) => day.effectiveWords > 0).length;
+  const intensityScale = createHeatmapIntensityScale(
+    visibleDays.map((day) => day.effectiveWords),
+  );
 
   return (
     <section className="reading-heatmap" aria-labelledby="reading-heatmap-title">
       <div className="reading-chart-heading">
         <div>
           <h3 id="reading-heatmap-title">阅读活动热力图</h3>
-          <p>颜色按每日目标完成度分级，空白代表当天没有有效阅读。</p>
+          <p>颜色按近十三周每日有效词量自适应分级，空白代表当天没有有效阅读。</p>
         </div>
         <span>{formatCount(totalWords)} 词</span>
       </div>
@@ -117,7 +121,7 @@ function ReadingHeatmap({
       <div
         className="reading-heatmap__scroller"
         role="img"
-        aria-label={`近十三周阅读活动热力图，共 ${activeDays} 个活跃日，累计 ${formatCount(totalWords)} 个有效词。`}
+        aria-label={`近十三周阅读活动热力图，共 ${activeDays} 个活跃日，累计 ${formatCount(totalWords)} 个有效词。颜色越深表示相对阅读量越多。`}
       >
         <div className="reading-heatmap__plot">
           <div className="reading-heatmap__weekdays" aria-hidden="true">
@@ -132,7 +136,10 @@ function ReadingHeatmap({
                   <span
                     key={day.date}
                     className={`reading-heatmap__cell${day.future ? ' is-future' : ''}`}
-                    data-level={day.future ? undefined : getHeatLevel(day.effectiveWords, dailyGoal)}
+                    data-date={day.date}
+                    data-level={day.future
+                      ? undefined
+                      : getHeatmapIntensityLevel(day.effectiveWords, intensityScale)}
                     title={day.future ? undefined : formatHeatmapDayTitle(day)}
                   />
                 ))}
@@ -144,10 +151,10 @@ function ReadingHeatmap({
 
       <div className="reading-heatmap__legend" aria-hidden="true">
         <span>少</span>
-        {[0, 1, 2, 3, 4].map((level) => (
+        {Array.from({ length: HEATMAP_LEVEL_COUNT + 1 }, (_, level) => (
           <i key={level} className="reading-heatmap__cell" data-level={level} />
         ))}
-        <span>达标及以上</span>
+        <span>多</span>
       </div>
     </section>
   );
@@ -373,15 +380,6 @@ function getWeekMonthLabel(week: HeatmapDay[], weekIndex: number): string {
   const monthStart = week.find((day) => parseLocalDate(day.date).getDate() === 1);
   if (monthStart) return monthFormatter.format(parseLocalDate(monthStart.date));
   return weekIndex === 0 && week[0] ? monthFormatter.format(parseLocalDate(week[0].date)) : '';
-}
-
-function getHeatLevel(effectiveWords: number, dailyGoal: number): number {
-  if (effectiveWords <= 0) return 0;
-  const ratio = effectiveWords / Math.max(1, dailyGoal);
-  if (ratio < 0.25) return 1;
-  if (ratio < 0.6) return 2;
-  if (ratio < 1) return 3;
-  return 4;
 }
 
 function formatHeatmapDayTitle(day: ReadingHistoryDay): string {

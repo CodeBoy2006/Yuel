@@ -1521,3 +1521,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe library size and search latency with long-lived real data before deciding whether IndexedDB pagination or virtualization is necessary.
 - **Context:** Exact source metadata is stored only for intentional saves. New sentences and long excerpts no longer turn every contained word into vocabulary memory, while legacy deletion remains backward compatible with historical saved counts. All 529 unit/UI tests, TypeScript checks, the production build, whitespace validation, the design-rule scan, desktop/mobile visual checks, the packaged excerpt-management E2E, and the existing PDF save/backlink E2E pass.
+
+## [2026-07-15 21:09] Adaptive Reading Heatmap Intensity
+- **Changes:** Replaced current-goal-relative heat levels with a history-relative four-level scale, using the active-day 95th percentile as an outlier-resistant reference; updated the legend, accessible summary, test selectors, focused utility/UI coverage, and dashboard design documentation.
+- **Status:** Completed
+- **Next Steps:** Observe real 13-week distributions and tune the percentile only if measured histories still appear flattened or overly saturated.
+- **Context:** Changing the current daily goal no longer recolors historical activity. Values above the adaptive reference saturate at level four, while zero remains a distinct inactive state. All 535 unit/UI tests, TypeScript checks, the production build, extension smoke validation, whitespace validation, two packaged-extension Chromium regressions, and desktop/mobile visual checks pass.
