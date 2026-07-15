@@ -382,6 +382,15 @@ describe('startReadingCollector', () => {
       const initialSessionId = mocks.sendMessage.mock.calls[0][0].payload.events[0].sessionId;
       mocks.sendMessage.mockClear();
 
+      window.dispatchEvent(new Event('resize'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushPromises();
+      expect(mocks.sendMessage.mock.calls.some((call) => call[0].payload.events.some(
+        (event: { kind: string; sessionId: string }) =>
+          event.kind === 'ScrollCoordinatesReset' && event.sessionId === initialSessionId,
+      ))).toBe(true);
+      mocks.sendMessage.mockClear();
+
       const article = document.querySelector('#article');
       expect(article).toBeInstanceOf(HTMLElement);
       const appended = document.createElement('p');
@@ -402,7 +411,12 @@ describe('startReadingCollector', () => {
       await flushPromises();
 
       expect(mocks.sendMessage).toHaveBeenCalled();
-      const refreshedBatch = mocks.sendMessage.mock.calls.at(-1)?.[0];
+      const sentBatches = mocks.sendMessage.mock.calls.map((call) => call[0]);
+      expect(sentBatches.some((batch) => batch.payload.events.some(
+        (event: { kind: string; sessionId: string }) =>
+          event.kind === 'ScrollCoordinatesReset' && event.sessionId === initialSessionId,
+      ))).toBe(true);
+      const refreshedBatch = sentBatches.at(-1);
       expect(refreshedBatch.payload.chunks.map((chunk: { selector: string }) => chunk.selector)).toContain('p#injected');
       expect(refreshedBatch.payload.events).toEqual([
         expect.objectContaining({

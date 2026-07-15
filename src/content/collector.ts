@@ -30,6 +30,7 @@ interface CollectorOptions extends ReadingSessionOptions {
 
 interface CollectorRunController {
   readonly collecting: boolean;
+  resetScrollCoordinates: () => void;
   stop: (options?: { emitPageHidden?: boolean }) => void;
 }
 
@@ -82,6 +83,7 @@ export function startReadingCollector(options: CollectorOptions = {}): Collector
       return;
     }
 
+    currentRun.resetScrollCoordinates();
     if (dynamicRefreshTimer !== undefined) {
       window.clearTimeout(dynamicRefreshTimer);
     }
@@ -170,6 +172,9 @@ function startReadingCollectorRun(
   const onScroll = () => {
     session?.recordScroll();
   };
+  const onResize = () => {
+    session?.resetScrollCoordinates();
+  };
 
   const onSelectionChange = () => {
     session?.recordSelection(document.getSelection()?.toString() ?? '');
@@ -214,11 +219,15 @@ function startReadingCollectorRun(
     observer.observe(element);
   }
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onResize, { passive: true });
   document.addEventListener('selectionchange', onSelectionChange);
 
   return {
     get collecting() {
       return session?.collecting ?? false;
+    },
+    resetScrollCoordinates: () => {
+      session?.resetScrollCoordinates();
     },
     stop: ({ emitPageHidden = true }: { emitPageHidden?: boolean } = {}) => {
       if (!session?.collecting) {
@@ -226,6 +235,7 @@ function startReadingCollectorRun(
       }
 
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
       session.stop({ emitPageHidden });
@@ -297,6 +307,7 @@ function createNoopCollectorController(): CollectorController {
 function createNoopCollectorRunController(): CollectorRunController {
   return {
     collecting: false,
+    resetScrollCoordinates: () => undefined,
     stop: () => undefined,
   };
 }

@@ -49,6 +49,7 @@ const SUPPORTED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'TextBlockHidden',
   'TextViewportExposureTick',
   'ScrollVelocityChanged',
+  'ScrollCoordinatesReset',
   'UserIdle',
   'UserActive',
   'TextSelected',
@@ -65,6 +66,7 @@ const PAGE_SCOPED_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageHidden',
   'TextViewportExposureTick',
   'ScrollVelocityChanged',
+  'ScrollCoordinatesReset',
   'UserIdle',
   'UserActive',
   'TextSelected',
@@ -76,6 +78,7 @@ const VISIBILITY_RATIO_READING_EVENT_KINDS = new Set<ReadingEventKind>([
 const PAYLOAD_FREE_READING_EVENT_KINDS = new Set<ReadingEventKind>([
   'PageVisible',
   'PageHidden',
+  'ScrollCoordinatesReset',
 ]);
 const MIN_VISIBLE_BLOCK_RATIO = 0.15;
 

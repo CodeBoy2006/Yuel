@@ -8,6 +8,7 @@ export type ReadingEventKind =
   | 'TextBlockHidden'
   | 'TextViewportExposureTick'
   | 'ScrollVelocityChanged'
+  | 'ScrollCoordinatesReset'
   | 'UserIdle'
   | 'UserActive'
   | 'TextSelected';

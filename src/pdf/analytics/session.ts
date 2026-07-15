@@ -18,7 +18,7 @@ import {
 
 export interface PdfReadingSessionBridge {
   recordSelection: (text: string) => void;
-  refreshLayout: () => void;
+  resetScrollCoordinates: () => void;
   stop: () => void;
 }
 
@@ -102,6 +102,14 @@ export function startPdfReadingSessionBridge({
   };
   viewportElement.addEventListener('scroll', onScroll, { passive: true });
 
+  const resetScrollCoordinates = () => {
+    if (stopped) {
+      return;
+    }
+
+    session.resetScrollCoordinates();
+    refreshLayout();
+  };
   const mutationObserver = new MutationObserver(refreshLayout);
   mutationObserver.observe(viewportElement, {
     childList: true,
@@ -114,7 +122,7 @@ export function startPdfReadingSessionBridge({
 
   return {
     recordSelection: (text) => session.recordSelection(text),
-    refreshLayout,
+    resetScrollCoordinates,
     stop: () => {
       if (stopped) {
         return;

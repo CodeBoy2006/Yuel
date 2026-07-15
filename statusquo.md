@@ -1491,3 +1491,9 @@
 - **Status:** Completed
 - **Next Steps:** Validate the 80–240 px reverse band and `5 x` fast-jump threshold against real mouse-wheel, trackpad, keyboard, and PDF reading sessions before further tuning.
 - **Context:** Every accepted adaptive episode now updates the profile once, so the displayed count matches qualified episode usage. All 477 unit/UI tests, TypeScript checks, production builds, generated-extension smoke validation, and whitespace validation pass.
+
+## [2026-07-15 12:28] Adaptive Episode Boundary Fixes
+- **Changes:** Reworked adaptive episode parsing to continue after boundaries and apply multiple qualified samples from one batch in order; added a page-scoped scroll-coordinate reset for readable DOM changes, web viewport resizing, and PDF zoom or rotation while preserving accumulated reading evidence; removed the unused public PDF layout-refresh method and synchronized tests and architecture documentation.
+- **Status:** Completed
+- **Next Steps:** Observe coordinate resets in real dynamic-page and PDF sessions before changing their trigger set.
+- **Context:** PDF resize notifications intentionally remain visibility-only because resetting on every resize interfered with rotated-position restoration. All 481 unit/UI tests, TypeScript checks, production build, generated-extension smoke validation, whitespace validation, and five packaged-extension Chromium tests pass; the focused PDF rotation-resume scenario also passed twice consecutively.

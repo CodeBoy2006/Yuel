@@ -399,31 +399,34 @@ async function recordAdaptiveReadingPaceSample(
     && storedEpisode.lastObservedAt >= now - READING_PACE_EPISODE_RETENTION_MS
     ? storedEpisode
     : undefined;
-  const { episode, sample, ended } = advanceAdaptiveReadingPaceEpisode(
+  const { episode, samples } = advanceAdaptiveReadingPaceEpisode(
     payload,
     existingEpisode,
     baseWordsPerMinute,
     language,
   );
 
-  if (ended) {
-    await db.readingPaceEpisodes.delete(episodeId);
-  } else {
+  if (episode) {
     await db.readingPaceEpisodes.put(episode);
+  } else if (storedEpisode) {
+    await db.readingPaceEpisodes.delete(episodeId);
   }
 
-  if (!sample) {
-    return;
+  let nextProfile = existingProfile;
+  let profileChanged = false;
+  for (const sample of samples) {
+    const updatedProfile = updateAdaptiveReadingPaceProfile(nextProfile, sample, {
+      language,
+      contentType: DEFAULT_READING_CONTENT_TYPE,
+      now,
+      defaultWordsPerMinute: baseWordsPerMinute,
+    });
+    if (!updatedProfile) continue;
+    nextProfile = updatedProfile;
+    profileChanged = true;
   }
 
-  const nextProfile = updateAdaptiveReadingPaceProfile(existingProfile, sample, {
-    language,
-    contentType: DEFAULT_READING_CONTENT_TYPE,
-    now,
-    defaultWordsPerMinute: baseWordsPerMinute,
-  });
-
-  if (nextProfile) {
+  if (profileChanged && nextProfile) {
     await db.readingPaceProfiles.put(nextProfile);
   }
 }
@@ -673,9 +676,8 @@ function getEventDates(payload: ReadingEventBatchPayload): string[] {
 }
 
 interface AdaptiveEpisodeAdvanceResult {
-  episode: ReadingPaceEpisodeRecord;
-  sample?: AdaptiveReadingPaceSample;
-  ended: boolean;
+  episode?: ReadingPaceEpisodeRecord;
+  samples: AdaptiveReadingPaceSample[];
 }
 
 function advanceAdaptiveReadingPaceEpisode(
@@ -685,8 +687,7 @@ function advanceAdaptiveReadingPaceEpisode(
   language: string,
 ): AdaptiveEpisodeAdvanceResult {
   const sessionId = payload.events[0]?.sessionId ?? existingEpisode?.sessionId ?? 'unknown';
-  const startedAt = existingEpisode?.startedAt ?? payload.events[0]?.occurredAt ?? payload.page.capturedAt;
-  const episode: ReadingPaceEpisodeRecord = existingEpisode
+  let episode: ReadingPaceEpisodeRecord | undefined = existingEpisode
     ? {
         ...existingEpisode,
         completedSegmentIds: [...existingEpisode.completedSegmentIds],
@@ -694,45 +695,81 @@ function advanceAdaptiveReadingPaceEpisode(
           Object.entries(existingEpisode.segmentStates).map(([chunkId, state]) => [chunkId, { ...state }]),
         ),
       }
-    : {
-        id: createReadingPaceEpisodeId(sessionId, payload.page.pageId),
-        sessionId,
-        pageId: payload.page.pageId,
-        language,
-        startedAt,
-        lastObservedAt: startedAt,
-        activeMs: 0,
-        completedWords: 0,
-        completedSegmentIds: [],
-        segmentStates: {},
-        lastScrollDirection: 0,
-      };
+    : undefined;
+  let completedSegmentIds = new Set(episode?.completedSegmentIds ?? []);
+  const samples: AdaptiveReadingPaceSample[] = [];
   const chunksById = new Map(payload.chunks.map((chunk) => [chunk.chunkId, chunk]));
-  const completedSegmentIds = new Set(episode.completedSegmentIds);
-  let ended = false;
+
+  const startEpisode = (startedAt: number): ReadingPaceEpisodeRecord => {
+    if (episode) {
+      return episode;
+    }
+
+    episode = {
+      id: createReadingPaceEpisodeId(sessionId, payload.page.pageId),
+      sessionId,
+      pageId: payload.page.pageId,
+      language,
+      startedAt,
+      lastObservedAt: startedAt,
+      activeMs: 0,
+      completedWords: 0,
+      completedSegmentIds: [],
+      segmentStates: {},
+      lastScrollDirection: 0,
+    };
+    completedSegmentIds = new Set<string>();
+    return episode;
+  };
+
+  const finishEpisode = () => {
+    if (!episode) {
+      return;
+    }
+
+    episode.completedSegmentIds = Array.from(completedSegmentIds);
+    const sample = createAdaptiveReadingPaceEpisodeSample(episode);
+    if (sample) {
+      samples.push(sample);
+    }
+    episode = undefined;
+    completedSegmentIds = new Set<string>();
+  };
 
   for (const event of payload.events) {
+    if (event.kind === 'ScrollCoordinatesReset') {
+      if (episode) {
+        episode.maxScrollOffsetPx = undefined;
+        episode.lastScrollDirection = 0;
+      }
+      continue;
+    }
+
     if (event.kind === 'ScrollVelocityChanged') {
       const value = readObject(event.value);
       const direction = readScrollDirection(value);
       const scrollSpeedWordsPerMinute = readNumber(value, 'scrollSpeedWordsPerMinute', 0);
-      if (
-        updateAdaptiveEpisodeScrollProgress(episode, value)
-        || (
-          direction > 0
-          && scrollSpeedWordsPerMinute > baseWordsPerMinute * MAX_ADAPTIVE_SCROLL_MULTIPLIER
-        )
-      ) {
-        ended = true;
-        break;
+      const exceedsFastJumpThreshold = direction > 0
+        && scrollSpeedWordsPerMinute > baseWordsPerMinute * MAX_ADAPTIVE_SCROLL_MULTIPLIER;
+      if (!episode && exceedsFastJumpThreshold) {
+        continue;
       }
-      episode.lastScrollDirection = direction;
+
+      const activeEpisode = startEpisode(event.occurredAt);
+      if (
+        updateAdaptiveEpisodeScrollProgress(activeEpisode, value)
+        || exceedsFastJumpThreshold
+      ) {
+        finishEpisode();
+        continue;
+      }
+      activeEpisode.lastScrollDirection = direction;
       continue;
     }
 
     if (event.kind === 'PageHidden' || event.kind === 'UserIdle') {
-      ended = true;
-      break;
+      finishEpisode();
+      continue;
     }
 
     if (event.kind !== 'TextViewportExposureTick') {
@@ -750,10 +787,11 @@ function advanceAdaptiveReadingPaceEpisode(
         && tick.scrollSpeedWordsPerMinute > baseWordsPerMinute * MAX_ADAPTIVE_SCROLL_MULTIPLIER
       )
     ) {
-      ended = true;
-      break;
+      finishEpisode();
+      continue;
     }
-    if (tick.scrollDirection !== 0) episode.lastScrollDirection = tick.scrollDirection;
+    const activeEpisode = startEpisode(event.occurredAt);
+    if (tick.scrollDirection !== 0) activeEpisode.lastScrollDirection = tick.scrollDirection;
 
     const reliableVisibleChunks = tick.visibleChunks.filter((visibleChunk) => (
       chunksById.has(visibleChunk.chunkId) &&
@@ -765,19 +803,19 @@ function advanceAdaptiveReadingPaceEpisode(
       continue;
     }
 
-    episode.activeMs += tick.tickMs;
-    episode.lastObservedAt = Math.max(episode.lastObservedAt, event.occurredAt);
+    activeEpisode.activeMs += tick.tickMs;
+    activeEpisode.lastObservedAt = Math.max(activeEpisode.lastObservedAt, event.occurredAt);
     const visibleChunkIds = new Set(reliableVisibleChunks.map((visibleChunk) => visibleChunk.chunkId));
 
-    if (episode.lastScrollDirection > 0) {
-      for (const [chunkId, state] of Object.entries(episode.segmentStates)) {
+    if (activeEpisode.lastScrollDirection > 0) {
+      for (const [chunkId, state] of Object.entries(activeEpisode.segmentStates)) {
         if (
           !visibleChunkIds.has(chunkId) &&
           !completedSegmentIds.has(chunkId) &&
           state.centerDwellMs >= MIN_ADAPTIVE_CENTER_DWELL_MS &&
           state.lastViewportY <= ADAPTIVE_CENTER_BAND_TOP
         ) {
-          completeAdaptiveSegment(episode, completedSegmentIds, chunkId, state.wordCount);
+          completeAdaptiveSegment(activeEpisode, completedSegmentIds, chunkId, state.wordCount);
         }
       }
     }
@@ -786,7 +824,7 @@ function advanceAdaptiveReadingPaceEpisode(
       const chunk = chunksById.get(visibleChunk.chunkId);
       if (!chunk || completedSegmentIds.has(visibleChunk.chunkId)) continue;
 
-      const state = episode.segmentStates[visibleChunk.chunkId] ?? {
+      const state = activeEpisode.segmentStates[visibleChunk.chunkId] ?? {
         wordCount: chunk.wordCount,
         centerDwellMs: 0,
         lastViewportY: visibleChunk.viewportY,
@@ -800,26 +838,26 @@ function advanceAdaptiveReadingPaceEpisode(
       }
       state.lastViewportY = visibleChunk.viewportY;
       state.lastSeenAt = event.occurredAt;
-      episode.segmentStates[visibleChunk.chunkId] = state;
+      activeEpisode.segmentStates[visibleChunk.chunkId] = state;
 
       if (
-        episode.lastScrollDirection > 0 &&
+        activeEpisode.lastScrollDirection > 0 &&
         visibleChunk.viewportY <= ADAPTIVE_COMPLETION_Y &&
         state.centerDwellMs >= MIN_ADAPTIVE_CENTER_DWELL_MS
       ) {
-        completeAdaptiveSegment(episode, completedSegmentIds, visibleChunk.chunkId, state.wordCount);
+        completeAdaptiveSegment(activeEpisode, completedSegmentIds, visibleChunk.chunkId, state.wordCount);
       }
     }
 
-    if (episode.activeMs >= MAX_ADAPTIVE_EPISODE_MS) {
-      ended = true;
-      break;
+    if (activeEpisode.activeMs >= MAX_ADAPTIVE_EPISODE_MS) {
+      finishEpisode();
     }
   }
 
-  episode.completedSegmentIds = Array.from(completedSegmentIds);
-  const sample = ended ? createAdaptiveReadingPaceEpisodeSample(episode) : undefined;
-  return { episode, sample, ended };
+  if (episode) {
+    episode.completedSegmentIds = Array.from(completedSegmentIds);
+  }
+  return { episode, samples };
 }
 
 function completeAdaptiveSegment(

@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => {
     markActivity: vi.fn(),
     recordScroll: vi.fn(),
     recordSelection: vi.fn(),
+    resetScrollCoordinates: vi.fn(),
     setChunkVisibilities: vi.fn(),
     stop: vi.fn(),
   };
@@ -265,6 +266,10 @@ describe('PDF reading session bridge', () => {
     expect(measurementAtScaleOne?.viewportY).not.toBe(
       measurementAtScaleTwo?.viewportY,
     );
+
+    bridge.resetScrollCoordinates();
+    expect(mocks.controller.resetScrollCoordinates).toHaveBeenCalledOnce();
+    flushAnimationFrames(animationFrames);
 
     const previousLayoutReads = viewportRect.mock.calls.length;
     viewport.dispatchEvent(new Event('scroll'));

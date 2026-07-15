@@ -49,6 +49,7 @@ export interface ReadingSessionController {
   markActivity: (now?: number) => void;
   recordScroll: (now?: number) => void;
   recordSelection: (text: string, now?: number) => void;
+  resetScrollCoordinates: (now?: number) => void;
   setChunkVisibilities: (updates: ReadingChunkVisibility[], now?: number) => void;
   stop: (options?: { emitPageHidden?: boolean }) => void;
 }
@@ -325,6 +326,16 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     latestScrollDirection = 0;
   };
 
+  const resetScrollCoordinates = (now = Date.now()) => {
+    if (pageHidden || stopped) {
+      return;
+    }
+
+    resetScrollSampling(now);
+    emitEvent('ScrollCoordinatesReset', now, { confidence: 'medium' });
+    closeCurrentViewportInterval(now);
+  };
+
   const recordScroll = (now = Date.now()) => {
     if (pageHidden || stopped) {
       return;
@@ -482,6 +493,7 @@ export function startReadingSession(config: ReadingSessionConfig): ReadingSessio
     markActivity,
     recordScroll,
     recordSelection,
+    resetScrollCoordinates,
     setChunkVisibilities,
     stop: ({ emitPageHidden = true }: { emitPageHidden?: boolean } = {}) => {
       if (stopped) {

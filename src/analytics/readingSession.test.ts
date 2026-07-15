@@ -383,6 +383,79 @@ describe('startReadingSession', () => {
     }
   });
 
+  it('starts a new gesture baseline after scroll coordinates reset', async () => {
+    const source = createPdfSource();
+    const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);
+    let offsetPx = 0;
+    const controller = startReadingSession({
+      ...source,
+      batchChunkStrategy: 'referenced',
+      deliverBatch,
+      getChunkMeasurement: () => ({
+        visibleRatio: 1,
+        visibleWordCount: source.chunks[0].wordCount,
+        centerDistance: 0,
+        viewportY: 0.5,
+        attentionMass: source.chunks[0].wordCount,
+        contentMultiplier: 1,
+      }),
+      getScrollMetrics: () => ({
+        offsetPx,
+        scrollableExtentPx: 1_000,
+      }),
+    });
+
+    try {
+      await flushPromises();
+      deliverBatch.mockClear();
+      controller.setChunkVisibilities([{
+        chunkId: source.chunks[0].chunkId,
+        visible: true,
+        visibleRatio: 1,
+      }]);
+
+      await vi.advanceTimersByTimeAsync(500);
+      offsetPx = 100;
+      controller.recordScroll();
+      controller.resetScrollCoordinates();
+      await vi.advanceTimersByTimeAsync(300);
+      offsetPx = 120;
+      controller.recordScroll();
+      await controller.flush();
+
+      const payload = deliverBatch.mock.calls[0][0];
+      expect(payload.events
+        .map((event) => event.kind)
+        .filter((kind) => kind === 'ScrollVelocityChanged' || kind === 'ScrollCoordinatesReset'))
+        .toEqual([
+          'ScrollVelocityChanged',
+          'ScrollCoordinatesReset',
+          'ScrollVelocityChanged',
+        ]);
+      const resetIndex = payload.events.findIndex((event) => event.kind === 'ScrollCoordinatesReset');
+      const postResetTick = payload.events.find(
+        (event, index) => index > resetIndex && event.kind === 'TextViewportExposureTick',
+      );
+      expect(postResetTick?.value).toEqual(expect.objectContaining({
+        scrollDirection: 0,
+        scrollSpeedWordsPerMinute: 0,
+      }));
+      const scrollEvents = payload.events.filter((event) => event.kind === 'ScrollVelocityChanged');
+      expect(scrollEvents[1].value).toEqual(expect.objectContaining({
+        scrollDeltaPx: 20,
+        elapsedMs: 300,
+        scrollOffsetPx: 120,
+      }));
+      expect(isReadingEventBatchMessage({
+        type: MESSAGE_TYPES.readingEventsBatch,
+        payload,
+      })).toBe(true);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('hashes selected text without retaining its raw contents', async () => {
     const source = createPdfSource();
     const deliverBatch = vi.fn<ReadingEventBatchDelivery>(async () => true);

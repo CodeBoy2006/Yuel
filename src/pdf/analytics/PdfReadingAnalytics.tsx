@@ -6,6 +6,7 @@ import { useSelectionCapability } from '@embedpdf/plugin-selection/react';
 import { useViewportElement } from '@embedpdf/plugin-viewport/react';
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -99,8 +100,8 @@ export function PdfReadingAnalytics({
     };
   }, [model, viewportElementRef]);
 
-  useEffect(() => {
-    bridgeRef.current?.refreshLayout();
+  useLayoutEffect(() => {
+    bridgeRef.current?.resetScrollCoordinates();
   }, [documentRotation, scale]);
 
   useEffect(() => {

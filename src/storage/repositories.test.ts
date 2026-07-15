@@ -7,7 +7,7 @@ import {
   pruneExpiredReadingPaceEpisodes,
   recordReadingEventBatch,
 } from './repositories';
-import type { DailyStatRecord } from './schema';
+import type { DailyStatRecord, ReadingPaceEpisodeRecord } from './schema';
 
 const mocks = vi.hoisted(() => {
   const textChunksGet = vi.fn();
@@ -1288,6 +1288,226 @@ describe('recordReadingEventBatch', () => {
     }
   });
 
+  it('continues with a new episode after a boundary in the same batch', async () => {
+    const payload = createAdaptiveEpisodeSeedPayload();
+    const resumedTick = payload.events[0];
+    const existingEpisode: ReadingPaceEpisodeRecord = {
+      id: 'session-1:page-1',
+      sessionId: 'session-1',
+      pageId: 'page-1',
+      language: 'en',
+      startedAt: capturedAt - 30_000,
+      lastObservedAt: capturedAt + 1_000,
+      activeMs: 30_000,
+      completedWords: 120,
+      completedSegmentIds: Array.from({ length: 6 }, (_, index) => `completed-${index + 1}`),
+      segmentStates: {},
+      lastScrollDirection: 1,
+      maxScrollOffsetPx: 500,
+    };
+    mocks.readingPaceProfiles.get.mockResolvedValue({
+      id: 'en:general',
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 120,
+      adaptiveSampleCount: 0,
+      source: 'onboarding',
+      updatedAt: capturedAt - 60_000,
+    });
+    mocks.readingPaceEpisodes.get.mockResolvedValue(existingEpisode);
+    payload.events = [
+      {
+        id: 'UserIdle_same-batch',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'UserIdle',
+        occurredAt: capturedAt + 2_000,
+        confidence: 'medium',
+        value: { idleMs: 45_000 },
+      },
+      {
+        id: 'UserActive_same-batch',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'UserActive',
+        occurredAt: capturedAt + 2_100,
+        confidence: 'medium',
+        value: { idleMs: 100 },
+      },
+      {
+        ...resumedTick,
+        id: 'TextViewportExposureTick_same-batch',
+        occurredAt: capturedAt + 3_100,
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceProfiles.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseWordsPerMinute: expect.closeTo(129.6, 6),
+        adaptiveSampleCount: 1,
+        source: 'adaptive',
+      }),
+    );
+    expect(mocks.readingPaceEpisodes.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'session-1:page-1',
+        startedAt: capturedAt + 3_100,
+        activeMs: 1_000,
+        completedWords: 0,
+        completedSegmentIds: [],
+        lastScrollDirection: 0,
+      }),
+    );
+  });
+
+  it('applies multiple qualified episodes from one batch in order', async () => {
+    const sessionId = 'session_multi-episode';
+    const pageId = 'page_multi-episode';
+    const chunks = Array.from({ length: 15 }, (_, index) => ({
+      chunkId: `multi-episode-chunk-${index + 1}`,
+      pageId,
+      textHash: `multi-episode-text-${index + 1}`,
+      text: `Adaptive reading segment ${index + 1} provides stable ordinary prose for a sequential sample.`,
+      wordCount: 20,
+      sentenceCount: 1,
+      selector: `p::chunk(${index + 1})`,
+    }));
+    const visibleChunks = (viewportY: number) => chunks.slice(0, 6).map((chunk) => ({
+      chunkId: chunk.chunkId,
+      wordCount: chunk.wordCount,
+      visibleRatio: 1,
+      centerDistance: Math.abs(viewportY - 0.5),
+      viewportY,
+      attentionMass: chunk.wordCount,
+      contentMultiplier: 1,
+      contentWeight: 1,
+    }));
+    const existingEpisode: ReadingPaceEpisodeRecord = {
+      id: `${sessionId}:${pageId}`,
+      sessionId,
+      pageId,
+      language: 'en',
+      startedAt: capturedAt - 30_000,
+      lastObservedAt: capturedAt,
+      activeMs: 30_000,
+      completedWords: 120,
+      completedSegmentIds: Array.from({ length: 6 }, (_, index) => `prior-completed-${index + 1}`),
+      segmentStates: {},
+      lastScrollDirection: 1,
+    };
+    mocks.readingPaceProfiles.get.mockResolvedValue({
+      id: 'en:general',
+      language: 'en',
+      contentType: 'general',
+      baseWordsPerMinute: 120,
+      adaptiveSampleCount: 0,
+      source: 'onboarding',
+      updatedAt: capturedAt - 60_000,
+    });
+    mocks.readingPaceEpisodes.get.mockResolvedValue(existingEpisode);
+
+    await recordReadingEventBatch({
+      page: {
+        pageId,
+        domain: 'docs.example.com',
+        titleHash: 'title',
+        urlHash: 'url',
+        language: 'en',
+        totalWords: 300,
+        metricModelVersion: 2,
+        capturedAt,
+      },
+      chunks,
+      events: [
+        {
+          id: 'UserIdle_multi-episode',
+          sessionId,
+          pageId,
+          kind: 'UserIdle',
+          occurredAt: capturedAt + 1_000,
+          confidence: 'medium',
+          value: { idleMs: 45_000 },
+        },
+        {
+          id: 'TextViewportExposureTick_multi-center',
+          sessionId,
+          pageId,
+          kind: 'TextViewportExposureTick',
+          occurredAt: capturedAt + 31_000,
+          confidence: 'high',
+          value: {
+            tickMs: 30_000,
+            baseWordsPerMinute: 120,
+            activeTab: true,
+            documentVisible: true,
+            scrollSpeedWordsPerMinute: 0,
+            scrollDirection: 0,
+            idleAgeMs: 0,
+            visibleChunks: visibleChunks(0.5),
+          },
+        },
+        {
+          id: 'ScrollVelocityChanged_multi-forward',
+          sessionId,
+          pageId,
+          kind: 'ScrollVelocityChanged',
+          occurredAt: capturedAt + 31_500,
+          confidence: 'high',
+          value: {
+            scrollDeltaPx: 100,
+            scrollDirection: 1,
+            scrollOffsetPx: 100,
+            scrollableExtentPx: 10_000,
+            elapsedMs: 500,
+            scrollSpeedWordsPerMinute: 120,
+          },
+        },
+        {
+          id: 'TextViewportExposureTick_multi-complete',
+          sessionId,
+          pageId,
+          kind: 'TextViewportExposureTick',
+          occurredAt: capturedAt + 32_000,
+          confidence: 'high',
+          value: {
+            tickMs: 1,
+            baseWordsPerMinute: 120,
+            activeTab: true,
+            documentVisible: true,
+            scrollSpeedWordsPerMinute: 120,
+            scrollDirection: 1,
+            idleAgeMs: 0,
+            visibleChunks: visibleChunks(0.1),
+          },
+        },
+        {
+          id: 'PageHidden_multi-episode',
+          sessionId,
+          pageId,
+          kind: 'PageHidden',
+          occurredAt: capturedAt + 33_000,
+          confidence: 'medium',
+        },
+      ],
+    });
+
+    const firstUpdatedWordsPerMinute = 120 + (240 - 120) * 0.08;
+    const secondObservedWordsPerMinute = 120 * 60_000 / 30_001;
+    const secondConfidence = (0.5 + 1 + 30_001 / 60_000) / 3;
+    const expectedWordsPerMinute = firstUpdatedWordsPerMinute
+      + (secondObservedWordsPerMinute - firstUpdatedWordsPerMinute) * 0.12 * secondConfidence;
+    expect(mocks.readingPaceProfiles.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseWordsPerMinute: expect.closeTo(expectedWordsPerMinute, 6),
+        adaptiveSampleCount: 2,
+        source: 'adaptive',
+      }),
+    );
+    expect(mocks.readingPaceEpisodes.delete).toHaveBeenCalledWith(`${sessionId}:${pageId}`);
+  });
+
   it('keeps a forward burst below the fast-jump threshold', async () => {
     const payload = createAdaptiveEpisodeSeedPayload();
 
@@ -1322,6 +1542,58 @@ describe('recordReadingEventBatch', () => {
     expect(mocks.readingPaceEpisodes.put).toHaveBeenCalledWith(
       expect.objectContaining({
         maxScrollOffsetPx: 300,
+      }),
+    );
+  });
+
+  it('resets furthest scroll progress when the coordinate space changes', async () => {
+    const payload = createAdaptiveEpisodeSeedPayload();
+
+    await recordReadingEventBatch(payload);
+    const episode = {
+      ...mocks.readingPaceEpisodes.put.mock.calls.at(-1)?.[0],
+      maxScrollOffsetPx: 500,
+      lastScrollDirection: 1,
+    };
+
+    mocks.readingPaceEpisodes.get.mockResolvedValue(episode);
+    mocks.readingPaceEpisodes.delete.mockClear();
+    mocks.readingPaceEpisodes.put.mockClear();
+    payload.events = [
+      {
+        id: 'ScrollCoordinatesReset_layout-change',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollCoordinatesReset',
+        occurredAt: capturedAt + 2_000,
+        confidence: 'medium',
+      },
+      {
+        id: 'ScrollVelocityChanged_after-layout-change',
+        sessionId: 'session-1',
+        pageId: 'page-1',
+        kind: 'ScrollVelocityChanged',
+        occurredAt: capturedAt + 3_000,
+        confidence: 'medium',
+        value: {
+          scrollDeltaPx: 100,
+          scrollDirection: 1,
+          scrollOffsetPx: 300,
+          scrollableExtentPx: 10_000,
+          elapsedMs: 1_000,
+          scrollSpeedWordsPerMinute: 600,
+        },
+      },
+    ];
+
+    await recordReadingEventBatch(payload);
+
+    expect(mocks.readingPaceEpisodes.delete).not.toHaveBeenCalled();
+    expect(mocks.readingPaceEpisodes.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeMs: 1_000,
+        maxScrollOffsetPx: 300,
+        lastScrollDirection: 1,
       }),
     );
   });
