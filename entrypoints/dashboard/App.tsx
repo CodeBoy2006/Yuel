@@ -377,13 +377,22 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
   const hasStaleDetails = loadFailed && Boolean(details);
   const viewState: DashboardViewState = loadFailed && !details ? 'error' : !details ? 'loading' : details.hasData ? 'ready' : 'empty';
   const statusText = hasStaleDetails
-    ? '显示上次读取结果'
+    ? '上次结果'
+    : viewState === 'error'
+    ? '不可用'
+    : viewState === 'loading'
+      ? '读取中'
+      : viewState === 'empty'
+        ? '待记录'
+        : '已读取';
+  const statusDescription = hasStaleDetails
+    ? '本地数据：显示上次读取结果'
     : viewState === 'error'
     ? '本地数据不可用'
     : viewState === 'loading'
       ? '正在读取本地数据'
       : viewState === 'empty'
-        ? '等待第一条记录'
+        ? '本地数据：等待第一条记录'
         : '本地数据已读取';
   const statusTone = hasStaleDetails ? 'warning' : viewState === 'error' ? 'danger' : viewState === 'ready' ? 'positive' : 'neutral';
   const effectiveWordsValue = summary ? formatCount(summary.effectiveWords) : '—';
@@ -807,12 +816,20 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
       <div className="dashboard-shell">
         <section className="dashboard-intro" aria-labelledby="dashboard-title">
-          <div>
-            <p className="dashboard-kicker">阅读记录</p>
-            <h1 id="dashboard-title">阅读输入仪表盘</h1>
-            <p>今天读了什么，留下了什么。</p>
+          <div className="dashboard-intro__title">
+            <BookOpen aria-hidden="true" />
+            <h1 id="dashboard-title">阅读记录</h1>
           </div>
-          <StatusPill tone={statusTone}>{statusText}</StatusPill>
+          <div
+            className={`dashboard-intro__status dashboard-intro__status--${statusTone}`}
+            role="status"
+            aria-live="polite"
+            aria-label={statusDescription}
+          >
+            <Database aria-hidden="true" />
+            <span>本地数据</span>
+            <strong>{statusText}</strong>
+          </div>
         </section>
 
         {clearFailed ? <InlineNotice tone="danger">清空失败，本地数据未改变。</InlineNotice> : null}

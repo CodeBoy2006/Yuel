@@ -1467,3 +1467,9 @@
 - **Status:** Completed
 - **Next Steps:** Begin the P1 native highlight, note, annotation-sidebar, export, vocabulary, and review loop as a separate batch.
 - **Context:** All 469 unit/UI tests, TypeScript checks, production build, generated-output smoke test, and five packaged-extension Chromium tests pass. The 160-page / 20,160-word pressure test completed extraction in 1,009 ms, kept only pages 1–2 or 159–160 mounted, added 4.81 MiB of renderer heap, and created no additional document objects.
+
+## [2026-07-15 10:18] Dashboard Header Redesign
+- **Changes:** Replaced the oversized three-layer dashboard introduction with a compact “阅读记录” heading, converted the large local-data pill into a quiet inline status with full accessible descriptions, tightened spacing, and added responsive behavior that hides redundant status copy on narrow screens.
+- **Status:** Completed
+- **Next Steps:** Observe the header alongside real reading data and keep future dashboard copy equally concise.
+- **Context:** TypeScript checks, all 59 entrypoint smoke tests, the production build, whitespace validation, the packaged-extension page-load test, and desktop/mobile browser geometry checks pass. The 1280px header is 52px high; the 390px layout has no overlap or horizontal overflow.

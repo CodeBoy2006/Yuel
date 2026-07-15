@@ -15,7 +15,7 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
   expect(extensionId).toMatch(/^[a-p]{32}$/);
 
   const dashboard = await openExtensionPage(context, extensionId, 'dashboard.html');
-  await expect(dashboard.locator('body')).toContainText('阅读输入仪表盘');
+  await expect(dashboard.locator('#dashboard-title')).toHaveText('阅读记录');
   await dashboard.close();
 
   const popup = await openExtensionPage(context, extensionId, 'popup.html');

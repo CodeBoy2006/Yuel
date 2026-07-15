@@ -510,7 +510,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     const text = container.textContent ?? '';
-    expect(text).toContain('阅读输入仪表盘');
+    expect(container.querySelector('#dashboard-title')?.textContent).toBe('阅读记录');
     expect(text).toContain('今日有效阅读');
     expect(text).toContain('查看今日卡片');
     expect(text).toContain('近期阅读量');
@@ -784,7 +784,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       }),
     });
 
-    expect(container.textContent).toContain('阅读输入仪表盘');
+    expect(container.querySelector('#dashboard-title')?.textContent).toBe('阅读记录');
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
@@ -1235,7 +1235,9 @@ describe('extension UI entrypoint smoke rendering', () => {
       getReadingDashboardDetails: () => new Promise(() => undefined),
     });
 
-    expect(container.textContent).toContain('正在读取本地数据');
+    const dashboardStatus = container.querySelector('.dashboard-intro__status');
+    expect(dashboardStatus?.textContent).toContain('本地数据读取中');
+    expect(dashboardStatus?.getAttribute('aria-label')).toBe('正在读取本地数据');
     expect(container.textContent).not.toContain('本地数据不可用');
     expect(container.textContent).not.toContain('从下一篇外语文章开始');
     expect(container.textContent).not.toContain('今日有效阅读');
