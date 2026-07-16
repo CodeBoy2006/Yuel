@@ -76,6 +76,24 @@ describe('PDF reading map visualization', () => {
     ]);
   });
 
+  it('uses the full overview resolution without leaving page gaps', () => {
+    const segments = createPdfReadingMapOverviewSegments(
+      Array.from(
+        { length: 73 },
+        (_, pageIndex) => page(pageIndex, 100, 0),
+      ),
+      72,
+    );
+
+    expect(segments).toHaveLength(72);
+    expect(segments[0]!.startPageNumber).toBe(1);
+    expect(segments.at(-1)!.endPageNumber).toBe(73);
+    expect(segments.every((segment, index) => (
+      index === 0
+      || segment.startPageNumber === segments[index - 1]!.endPageNumber + 1
+    ))).toBe(true);
+  });
+
   it('keeps empty evidence distinct while normalizing visual density', () => {
     const visuals = createPdfReadingMapVisuals([
       metrics({ totalWords: 0 }),

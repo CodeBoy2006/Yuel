@@ -252,11 +252,17 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await readingMapButton.click();
   await expect(readingMapButton).toHaveAttribute('aria-pressed', 'true');
   const readingMap = pdfReader.locator('.pdf-reader__reading-map');
+  const contextPanel = pdfReader.locator('.pdf-reader__sidebar');
   await expect(readingMap).toBeVisible();
+  await expect(contextPanel).toHaveAttribute('data-mode', 'progress');
+  await expect(contextPanel).toHaveCSS('width', '300px');
   await expect(pdfReader.getByRole('tab', { name: '阅读' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
+  await expect(readingMap.getByRole('progressbar', {
+    name: '全文阅读覆盖',
+  })).toBeVisible();
   await expect(readingMap).toContainText('已覆盖');
   await expect(readingMap.locator('.pdf-reader__reading-map-focus')).toBeVisible();
   await expect(readingMap.locator('.pdf-reader__reading-map-river')).toBeVisible();
@@ -537,7 +543,9 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await pdfReader.getByRole('button', { name: '关闭导航面板' }).first().click();
   await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeHidden();
   await pdfReader.locator('body').press('Control+f');
-  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
+  await expect(contextPanel).toBeVisible();
+  await expect(contextPanel).toHaveAttribute('data-mode', 'search');
+  await expect(contextPanel).toHaveCSS('width', '256px');
   await expect(searchInput).toBeFocused();
 
   const zoomInput = pdfReader.locator('.pdf-reader__zoom-input input');
@@ -581,7 +589,9 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     resumedRotatedPosition.y - rotatedPosition.y,
   )).toBeLessThan(2);
   await pdfReader.locator('body').press('Control+f');
-  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeVisible();
+  await expect(contextPanel).toBeVisible();
+  await expect(contextPanel).toHaveAttribute('data-mode', 'search');
+  await expect(contextPanel).toHaveCSS('width', '256px');
 
   const zoomInButton = pdfReader.getByRole('button', { name: '放大' });
   await expect(zoomInButton).toHaveCount(1);

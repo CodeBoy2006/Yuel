@@ -1575,3 +1575,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe dense outlines and very long real PDFs before tuning the 90th-percentile visual normalization or the 72-segment overview cap.
 - **Context:** The design defaults to chapters when a usable outline exists, distinguishes unrecorded text from pages without measurable text, and widens the desktop instrument panel to 300 px without compatibility branches. TypeScript checks, all 73 test files and 578 tests, the production build, and whitespace validation pass. A packaged Chromium run exercised the new map interactions and produced a clean visual trace; the final rerun timed out while creating the browser context before reaching product assertions.
+
+## [2026-07-16 23:59] PDF Reading Map Final Audit
+- **Changes:** Scoped the 300 px desktop width to the reading-map mode while restoring the established 256 px geometry for outline, thumbnail, and search panels; balanced long-document overview buckets so the full 72-segment resolution is used without page gaps; added semantic whole-document coverage progress; aligned the scale control with sibling panel controls; and removed redundant visual-state attributes and hidden marker elements.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The width isolation prevents search-panel geometry from perturbing rotated PDF position restoration while preserving the room required by the continuous map. TypeScript checks, the design-rule scan, all 73 test files and 579 tests, the production build, whitespace validation, and the full packaged Chromium PDF reader regression pass, including reading-map interaction, 300/256 px mode widths, rotation resume, zoom, and narrow-screen behavior.

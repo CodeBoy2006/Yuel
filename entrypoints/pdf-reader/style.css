@@ -805,13 +805,18 @@ body,
   position: relative;
   z-index: 26;
   display: flex;
-  width: 300px;
+  width: 256px;
   min-width: 0;
-  flex: 0 0 300px;
+  flex: 0 0 256px;
   flex-direction: column;
   border-right: 1px solid var(--y-line);
   background: var(--y-surface);
   box-shadow: 1px 0 0 rgb(255 255 255 / 55%);
+}
+
+.pdf-reader__sidebar[data-mode="progress"] {
+  width: 300px;
+  flex-basis: 300px;
 }
 
 .pdf-reader__sidebar-header {
@@ -973,7 +978,7 @@ body,
 }
 
 .pdf-reader__reading-map-scale button {
-  height: 28px;
+  height: 30px;
   border: 0;
   border-radius: 5px;
   padding: 0 7px;
@@ -1152,7 +1157,7 @@ body,
   color: var(--y-ink);
 }
 
-.pdf-reader__reading-map-segment[data-active="true"] {
+.pdf-reader__reading-map-segment[aria-current="location"] {
   background: color-mix(in oklch, var(--y-accent-soft) 66%, transparent);
   color: var(--y-accent-hover);
 }
@@ -1167,7 +1172,7 @@ body,
   text-align: right;
 }
 
-.pdf-reader__reading-map-segment[data-active="true"] .pdf-reader__reading-map-index {
+.pdf-reader__reading-map-segment[aria-current="location"] .pdf-reader__reading-map-index {
   color: var(--y-accent-hover);
 }
 
@@ -1181,11 +1186,11 @@ body,
   overflow: hidden;
 }
 
-.pdf-reader__reading-map-segment[data-first="true"] .pdf-reader__reading-map-stream {
+.pdf-reader__reading-map-segment:first-child .pdf-reader__reading-map-stream {
   border-radius: 5px 5px 0 0;
 }
 
-.pdf-reader__reading-map-segment[data-last="true"] .pdf-reader__reading-map-stream {
+.pdf-reader__reading-map-segment:last-child .pdf-reader__reading-map-stream {
   border-radius: 0 0 5px 5px;
 }
 
@@ -1203,7 +1208,7 @@ body,
   box-shadow: inset 0 0 0 1px var(--y-line-strong);
 }
 
-.pdf-reader__reading-map-segment[data-active="true"] .pdf-reader__reading-map-stream {
+.pdf-reader__reading-map-segment[aria-current="location"] .pdf-reader__reading-map-stream {
   box-shadow:
     0 0 0 2px var(--y-surface),
     0 0 0 3px var(--y-accent-hover);
@@ -1306,10 +1311,6 @@ body,
   transform: translateX(-50%);
 }
 
-.pdf-reader__reading-map-pace[data-available="false"] i {
-  display: none;
-}
-
 .pdf-reader__reading-map-coverage {
   align-self: center;
   color: var(--y-ink-muted);
@@ -1319,7 +1320,7 @@ body,
   text-align: right;
 }
 
-.pdf-reader__reading-map-segment[data-active="true"] .pdf-reader__reading-map-coverage {
+.pdf-reader__reading-map-segment[aria-current="location"] .pdf-reader__reading-map-coverage {
   color: var(--y-accent-hover);
 }
 
@@ -1351,7 +1352,7 @@ body,
   box-shadow: inset 0 0 0 1px var(--y-line);
 }
 
-.pdf-reader__reading-map-overview > div > span {
+.pdf-reader__reading-map-overview-segment {
   --pdf-reading-overview-coverage: 0;
   position: relative;
   display: block;
@@ -1361,15 +1362,15 @@ body,
   overflow: hidden;
 }
 
-.pdf-reader__reading-map-overview > div > span:first-child {
+.pdf-reader__reading-map-overview-segment:first-child {
   border-radius: 4px 4px 0 0;
 }
 
-.pdf-reader__reading-map-overview > div > span:last-of-type {
+.pdf-reader__reading-map-overview-segment:last-of-type {
   border-radius: 0 0 4px 4px;
 }
 
-.pdf-reader__reading-map-overview > div > span i {
+.pdf-reader__reading-map-overview-segment i {
   position: absolute;
   inset: 0;
   display: block;
@@ -1378,11 +1379,11 @@ body,
   transform-origin: left;
 }
 
-.pdf-reader__reading-map-overview > div > span[data-evidence="no-text"] {
+.pdf-reader__reading-map-overview-segment[data-evidence="no-text"] {
   background: var(--y-surface);
 }
 
-.pdf-reader__reading-map-overview > div > b {
+.pdf-reader__reading-map-overview-window {
   position: absolute;
   z-index: 2;
   top: var(--pdf-reading-overview-top);
@@ -1397,7 +1398,7 @@ body,
   pointer-events: none;
 }
 
-.pdf-reader__reading-map-overview > div > b::after {
+.pdf-reader__reading-map-overview-window::after {
   position: absolute;
   top: 50%;
   right: -2px;
@@ -2830,7 +2831,8 @@ p.pdf-reader__selection-companion-fallback {
     padding-top: 68px;
   }
 
-  .pdf-reader__sidebar {
+  .pdf-reader__sidebar,
+  .pdf-reader__sidebar[data-mode="progress"] {
     position: absolute;
     z-index: 42;
     top: 0;
@@ -2872,7 +2874,8 @@ p.pdf-reader__selection-companion-fallback {
 }
 
 @media (max-width: 480px) {
-  .pdf-reader__sidebar {
+  .pdf-reader__sidebar,
+  .pdf-reader__sidebar[data-mode="progress"] {
     width: calc(100vw - 20px);
   }
 

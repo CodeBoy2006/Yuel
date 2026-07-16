@@ -86,23 +86,22 @@ export function createPdfReadingMapOverviewSegments(
   if (pages.length === 0) return [];
 
   const segmentLimit = Math.max(1, Math.floor(maximumSegments));
-  const pagesPerSegment = Math.ceil(pages.length / segmentLimit);
-  const segments: PdfReadingMapOverviewSegment[] = [];
+  const segmentCount = Math.min(pages.length, segmentLimit);
 
-  for (let start = 0; start < pages.length; start += pagesPerSegment) {
-    const segmentPages = pages.slice(start, start + pagesPerSegment);
+  return Array.from({ length: segmentCount }, (_, segmentIndex) => {
+    const start = Math.round((segmentIndex * pages.length) / segmentCount);
+    const end = Math.round(((segmentIndex + 1) * pages.length) / segmentCount);
+    const segmentPages = pages.slice(start, end);
     const firstPage = segmentPages[0]!;
     const lastPage = segmentPages.at(-1)!;
 
-    segments.push({
+    return {
       id: `overview-${firstPage.sectionId}-${lastPage.sectionId}`,
       startPageNumber: firstPage.pageNumber,
       endPageNumber: lastPage.pageNumber,
       ...aggregatePdfReadingProgress(segmentPages),
-    });
-  }
-
-  return segments;
+    };
+  });
 }
 
 export function createPdfReadingMapVisuals(

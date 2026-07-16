@@ -58,6 +58,8 @@ type PdfReadingMapOverviewSegmentStyle = CSSProperties & {
   '--pdf-reading-overview-coverage': number;
 };
 
+const READING_TIME_LEVELS = [0, 1, 2, 3] as const;
+
 export function PdfReadingMapPanel({
   document,
   documentId,
@@ -215,7 +217,16 @@ export function PdfReadingMapPanel({
     >
       <header className="pdf-reader__reading-map-summary">
         <div className="pdf-reader__reading-map-summary-line">
-          <p>
+          <p
+            role="progressbar"
+            aria-label="全文阅读覆盖"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={coveragePercent}
+            aria-valuetext={`已覆盖 ${coveragePercent}%，${formatCount(
+              progress.coveredWords,
+            )} / ${formatCount(progress.totalWords)} 词`}
+          >
             <strong>已覆盖 {coveragePercent}%</strong>
             <span>{formatCount(progress.coveredWords)} / {formatCount(progress.totalWords)} 词</span>
           </p>
@@ -312,10 +323,7 @@ export function PdfReadingMapPanel({
                   className="pdf-reader__reading-map-segment"
                   type="button"
                   style={rowStyle}
-                  data-active={active ? 'true' : 'false'}
                   data-evidence={visual.evidence}
-                  data-first={index === 0 ? 'true' : 'false'}
-                  data-last={index === items.length - 1 ? 'true' : 'false'}
                   aria-current={active ? 'location' : undefined}
                   aria-label={formatReadingMapItemLabel(item, visual)}
                   onPointerEnter={() => setInspectedItemId(item.id)}
@@ -357,18 +365,15 @@ export function PdfReadingMapPanel({
                     </span>
                     <span className="pdf-reader__reading-map-evidence" aria-hidden="true">
                       <span className="pdf-reader__reading-map-time">
-                        {[0, 1, 2, 3].map((level) => (
+                        {READING_TIME_LEVELS.map((level) => (
                           <i
                             key={level}
                             data-filled={level < visual.timeLevel ? 'true' : 'false'}
                           />
                         ))}
                       </span>
-                      <span
-                        className="pdf-reader__reading-map-pace"
-                        data-available={visual.paceRatio === undefined ? 'false' : 'true'}
-                      >
-                        <i />
+                      <span className="pdf-reader__reading-map-pace">
+                        {visual.paceRatio === undefined ? null : <i />}
                       </span>
                     </span>
                   </span>
@@ -393,6 +398,7 @@ export function PdfReadingMapPanel({
             {overviewSegments.map((segment) => (
               <span
                 key={segment.id}
+                className="pdf-reader__reading-map-overview-segment"
                 data-evidence={getPdfReadingMapEvidence(segment)}
                 style={{
                   '--pdf-reading-overview-coverage': segment.coverageRatio ?? 0,
@@ -402,7 +408,7 @@ export function PdfReadingMapPanel({
                 <i />
               </span>
             ))}
-            <b />
+            <div className="pdf-reader__reading-map-overview-window" />
           </div>
           <small>{currentPage}</small>
         </aside>

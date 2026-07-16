@@ -75,6 +75,7 @@ export function PdfReaderSidebar({
       <aside
         id="pdf-reader-context-panel"
         className="pdf-reader__sidebar"
+        data-mode={mode}
         aria-label="PDF 导航面板"
       >
         <header className="pdf-reader__sidebar-header">
