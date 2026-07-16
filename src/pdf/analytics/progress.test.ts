@@ -94,6 +94,10 @@ describe('PDF reading progress', () => {
       coverageRatio: 0.7,
       wordsPerMinute: 180,
     });
+    expect(progress.pages[0].chunks).toMatchObject([
+      { chunkId: 'chunk-1', coveredWords: 20 },
+      { chunkId: 'chunk-2', coveredWords: 8 },
+    ]);
     expect(progress.pages[1]).toMatchObject({
       totalWords: 20,
       coveredWords: 0,

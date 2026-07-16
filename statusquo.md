@@ -1545,3 +1545,9 @@
 - **Status:** Completed
 - **Next Steps:** Build the next-unread navigator on the shared progress model without introducing a second extraction or coverage pipeline.
 - **Context:** The map keeps chapters runtime-derived from top-level PDF bookmarks, requires at least 100 processed words and 30 seconds before showing pace, and retains the existing 256 px sidebar geometry so fit-width position restoration remains within the established tolerance.
+
+## [2026-07-16 18:21] PDF Next Unread Navigation
+- **Changes:** Added next-unread PDF navigation on the shared chunk progress model; scans from the current visible reading line, advances beyond the previous target, supports the `N` shortcut, exposes explicit end/complete states with an optional restart from the beginning, and renders a temporary source-rectangle or page-top focus marker.
+- **Status:** Completed
+- **Next Steps:** Add persistent local highlights with note and tag editing while keeping native PDF annotations read-only and the source PDF bytes unchanged.
+- **Context:** Chunks below 90% local coverage are treated as unread, navigation never silently wraps, and no additional extraction or IndexedDB progress table was introduced. All 69 unit/UI test files and 547 tests, TypeScript checks, the production build, whitespace validation, the packaged Chromium reader regression, and desktop/390 px visual checks pass.

@@ -1,3 +1,9 @@
+import type {
+  Rect,
+  Rotation,
+  Size,
+} from '@embedpdf/models';
+
 import type { TextChunkRecord } from '../../storage/schema';
 import type { PdfReadingSnapshot } from './types';
 
@@ -15,10 +21,23 @@ export interface PdfReadingProgressMetrics {
   confidence?: number;
 }
 
+export interface PdfChunkReadingProgress {
+  chunkId: string;
+  sectionId: string;
+  pageIndex: number;
+  pageNumber: number;
+  wordCount: number;
+  coveredWords: number;
+  rects: Rect[];
+}
+
 export interface PdfPageReadingProgress extends PdfReadingProgressMetrics {
   sectionId: string;
   pageIndex: number;
   pageNumber: number;
+  rotation: Rotation;
+  size: Size;
+  chunks: PdfChunkReadingProgress[];
 }
 
 export interface PdfDocumentReadingProgress extends PdfReadingProgressMetrics {
@@ -48,14 +67,25 @@ export function createPdfDocumentReadingProgress(
     let rawExposureMs = 0;
     const confidence: WeightedConfidence = { total: 0, weight: 0 };
 
-    for (const chunk of section.chunks) {
+    const chunks = section.chunks.map((chunk): PdfChunkReadingProgress => {
       const record = recordsByChunkId.get(chunk.chunkId);
-      if (!record) continue;
-
       const chunkCoveredWords = Math.min(
         chunk.wordCount,
-        finiteNonNegative(record.effectiveWords),
+        finiteNonNegative(record?.effectiveWords),
       );
+
+      if (!record) {
+        return {
+          chunkId: chunk.chunkId,
+          sectionId: chunk.sectionId,
+          pageIndex: chunk.pageIndex,
+          pageNumber: chunk.pageNumber,
+          wordCount: chunk.wordCount,
+          coveredWords: chunkCoveredWords,
+          rects: chunk.rects,
+        };
+      }
+
       const chunkProcessedWords = Math.max(
         chunkCoveredWords,
         finiteNonNegative(record.newWords ?? chunkCoveredWords)
@@ -74,7 +104,17 @@ export function createPdfDocumentReadingProgress(
         record.confidence,
         chunkProcessedWords || chunkEffectiveReadingMs,
       );
-    }
+
+      return {
+        chunkId: chunk.chunkId,
+        sectionId: chunk.sectionId,
+        pageIndex: chunk.pageIndex,
+        pageNumber: chunk.pageNumber,
+        wordCount: chunk.wordCount,
+        coveredWords: chunkCoveredWords,
+        rects: chunk.rects,
+      };
+    });
 
     return createProgressMetrics({
       totalWords: section.wordCount,
@@ -86,6 +126,9 @@ export function createPdfDocumentReadingProgress(
       pageIndex: section.pageIndex,
       pageNumber: section.pageNumber,
       sectionId: section.sectionId,
+      rotation: section.rotation,
+      size: section.size,
+      chunks,
     });
   });
   const aggregate = aggregatePdfReadingProgress(pages);

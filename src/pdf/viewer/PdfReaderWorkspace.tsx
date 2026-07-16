@@ -69,6 +69,7 @@ import {
   PdfReaderSidebar,
   type PdfReaderPanelMode,
 } from './PdfReaderSidebar';
+import type { PdfUnreadTarget } from './unreadNavigation';
 import { usePdfReadingProgress } from './usePdfReadingProgress';
 
 export const LOCAL_PDF_MAX_BYTES = 256 * 1024 * 1024;
@@ -119,6 +120,7 @@ export function PdfReaderWorkspace({
   const [readingSnapshotState, setReadingSnapshotState] = useState<
     PdfReadingSnapshotLoadState
   >();
+  const [unreadTarget, setUnreadTarget] = useState<PdfUnreadTarget>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
   const loadSequenceRef = useRef(0);
@@ -166,6 +168,7 @@ export function PdfReaderWorkspace({
   useEffect(() => {
     setPanelMode(null);
     setReadingSnapshotState(undefined);
+    setUnreadTarget(undefined);
   }, [activeDocumentId]);
 
   useEffect(() => {
@@ -549,6 +552,8 @@ export function PdfReaderWorkspace({
           <DocumentToolbarControls
             documentId={activeDocumentId}
             panelMode={panelMode}
+            readingProgressState={readingProgressState}
+            onUnreadTargetChange={setUnreadTarget}
             onTogglePanel={togglePanel}
           />
         ) : (
@@ -675,6 +680,7 @@ export function PdfReaderWorkspace({
               sourceMetadata={sourceMetadata?.resourceId === activeDocumentId
                 ? sourceMetadata
                 : undefined}
+              unreadTarget={unreadTarget}
             />
           ) : (
             <ReaderEmptyState
