@@ -16,6 +16,22 @@ export interface PdfChapterReadingProgress extends PdfReadingProgressMetrics {
   endPageNumber: number;
 }
 
+export type PdfReadingMapEvidence = 'measured' | 'unrecorded' | 'no-text';
+
+export interface PdfReadingMapVisual {
+  coverageRatio: number;
+  evidence: PdfReadingMapEvidence;
+  paceRatio?: number;
+  textRatio: number;
+  timeLevel: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface PdfReadingMapOverviewSegment extends PdfReadingProgressMetrics {
+  id: string;
+  startPageNumber: number;
+  endPageNumber: number;
+}
+
 interface ChapterBoundary {
   id: string;
   title: string;
@@ -63,6 +79,78 @@ export function createPdfChapterReadingProgress(
   });
 }
 
+export function createPdfReadingMapOverviewSegments(
+  pages: PdfPageReadingProgress[],
+  maximumSegments = 72,
+): PdfReadingMapOverviewSegment[] {
+  if (pages.length === 0) return [];
+
+  const segmentLimit = Math.max(1, Math.floor(maximumSegments));
+  const pagesPerSegment = Math.ceil(pages.length / segmentLimit);
+  const segments: PdfReadingMapOverviewSegment[] = [];
+
+  for (let start = 0; start < pages.length; start += pagesPerSegment) {
+    const segmentPages = pages.slice(start, start + pagesPerSegment);
+    const firstPage = segmentPages[0]!;
+    const lastPage = segmentPages.at(-1)!;
+
+    segments.push({
+      id: `overview-${firstPage.sectionId}-${lastPage.sectionId}`,
+      startPageNumber: firstPage.pageNumber,
+      endPageNumber: lastPage.pageNumber,
+      ...aggregatePdfReadingProgress(segmentPages),
+    });
+  }
+
+  return segments;
+}
+
+export function createPdfReadingMapVisuals(
+  items: PdfReadingProgressMetrics[],
+): PdfReadingMapVisual[] {
+  const wordReference = percentile(
+    items.map((item) => item.totalWords).filter((value) => value > 0),
+    0.9,
+  );
+  const timeReference = percentile(
+    items.map((item) => item.effectiveReadingMs).filter((value) => value > 0),
+    0.9,
+  );
+  const paceValues = items
+    .map((item) => item.wordsPerMinute)
+    .filter((value): value is number => Number.isFinite(value));
+  const paceFloor = percentile(paceValues, 0.1);
+  const paceCeiling = percentile(paceValues, 0.9);
+
+  return items.map((item) => {
+    const evidence = getPdfReadingMapEvidence(item);
+    const coverageRatio = clamp(item.coverageRatio ?? 0);
+    const textRatio = item.totalWords <= 0
+      ? 0.16
+      : 0.36 + (Math.sqrt(clamp(item.totalWords / wordReference)) * 0.64);
+    const normalizedTime = item.effectiveReadingMs <= 0
+      ? 0
+      : Math.sqrt(clamp(item.effectiveReadingMs / timeReference));
+    const timeLevel = normalizedTime <= 0
+      ? 0
+      : Math.min(4, Math.max(1, Math.ceil(normalizedTime * 4))) as 1 | 2 | 3 | 4;
+
+    return {
+      coverageRatio,
+      evidence,
+      textRatio,
+      timeLevel,
+      ...(item.wordsPerMinute === undefined
+        ? {}
+        : {
+            paceRatio: paceCeiling > paceFloor
+              ? clamp((item.wordsPerMinute - paceFloor) / (paceCeiling - paceFloor))
+              : 0.5,
+          }),
+    };
+  });
+}
+
 function createChapterBoundaries(
   bookmarks: PdfBookmarkObject[],
   pageCount: number,
@@ -105,4 +193,36 @@ function getBookmarkDestination(
   }
 
   return undefined;
+}
+
+export function getPdfReadingMapEvidence(
+  item: PdfReadingProgressMetrics,
+): PdfReadingMapEvidence {
+  if (item.totalWords <= 0) return 'no-text';
+  if (
+    item.coveredWords <= 0
+    && item.processedWords <= 0
+    && item.effectiveReadingMs <= 0
+  ) {
+    return 'unrecorded';
+  }
+  return 'measured';
+}
+
+function percentile(values: number[], percentileValue: number): number {
+  if (values.length === 0) return 1;
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = clamp(percentileValue) * (sorted.length - 1);
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const lower = sorted[lowerIndex]!;
+  const upper = sorted[upperIndex]!;
+
+  return lower + ((upper - lower) * (position - lowerIndex));
+}
+
+function clamp(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
 }

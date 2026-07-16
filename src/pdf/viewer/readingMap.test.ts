@@ -2,8 +2,15 @@ import type { PdfBookmarkObject } from '@embedpdf/models';
 import { PdfActionType, PdfZoomMode } from '@embedpdf/models';
 import { describe, expect, it } from 'vitest';
 
-import type { PdfPageReadingProgress } from '../analytics/progress';
-import { createPdfChapterReadingProgress } from './readingMap';
+import type {
+  PdfPageReadingProgress,
+  PdfReadingProgressMetrics,
+} from '../analytics/progress';
+import {
+  createPdfChapterReadingProgress,
+  createPdfReadingMapOverviewSegments,
+  createPdfReadingMapVisuals,
+} from './readingMap';
 
 describe('PDF chapter reading progress', () => {
   it('creates disjoint top-level chapter ranges and a preface', () => {
@@ -49,6 +56,63 @@ describe('PDF chapter reading progress', () => {
   });
 });
 
+describe('PDF reading map visualization', () => {
+  it('compresses long documents into contiguous overview segments', () => {
+    const segments = createPdfReadingMapOverviewSegments(
+      Array.from(
+        { length: 5 },
+        (_, pageIndex) => page(pageIndex, 100, pageIndex * 20),
+      ),
+      2,
+    );
+
+    expect(segments.map((segment) => ({
+      range: [segment.startPageNumber, segment.endPageNumber],
+      totalWords: segment.totalWords,
+      coveredWords: segment.coveredWords,
+    }))).toEqual([
+      { range: [1, 3], totalWords: 300, coveredWords: 60 },
+      { range: [4, 5], totalWords: 200, coveredWords: 140 },
+    ]);
+  });
+
+  it('keeps empty evidence distinct while normalizing visual density', () => {
+    const visuals = createPdfReadingMapVisuals([
+      metrics({ totalWords: 0 }),
+      metrics({ totalWords: 120 }),
+      metrics({
+        totalWords: 400,
+        coveredWords: 200,
+        processedWords: 180,
+        effectiveReadingMs: 60_000,
+        coverageRatio: 0.5,
+        wordsPerMinute: 180,
+      }),
+      metrics({
+        totalWords: 1_600,
+        coveredWords: 1_200,
+        processedWords: 1_000,
+        effectiveReadingMs: 240_000,
+        coverageRatio: 0.75,
+        wordsPerMinute: 300,
+      }),
+    ]);
+
+    expect(visuals.map((visual) => visual.evidence)).toEqual([
+      'no-text',
+      'unrecorded',
+      'measured',
+      'measured',
+    ]);
+    expect(visuals[0]!.textRatio).toBeLessThan(visuals[1]!.textRatio);
+    expect(visuals[1]!.textRatio).toBeLessThan(visuals[3]!.textRatio);
+    expect(visuals[2]!.timeLevel).toBeLessThan(visuals[3]!.timeLevel);
+    expect(visuals[2]!.paceRatio).toBe(0);
+    expect(visuals[3]!.paceRatio).toBe(1);
+    expect(visuals[3]!.coverageRatio).toBe(0.75);
+  });
+});
+
 function page(
   pageIndex: number,
   totalWords: number,
@@ -87,5 +151,18 @@ function bookmark(title: string, pageIndex: number): PdfBookmarkObject {
       },
     },
     children: [],
+  };
+}
+
+function metrics(
+  overrides: Partial<PdfReadingProgressMetrics>,
+): PdfReadingProgressMetrics {
+  return {
+    totalWords: 0,
+    coveredWords: 0,
+    processedWords: 0,
+    effectiveReadingMs: 0,
+    rawExposureMs: 0,
+    ...overrides,
   };
 }

@@ -257,17 +257,30 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     'aria-selected',
     'true',
   );
-  await expect(readingMap).toContainText('累计覆盖估算');
-  await expect(readingMap.getByRole('button', { name: /第 1 页/ })).toBeVisible();
-  await expect(readingMap.getByRole('button', { name: /第 2 页/ })).toBeVisible();
-  await readingMap.getByRole('button', { name: '时间' }).click();
-  await expect(readingMap.getByRole('button', { name: '时间' })).toHaveAttribute(
+  await expect(readingMap).toContainText('已覆盖');
+  await expect(readingMap.locator('.pdf-reader__reading-map-focus')).toBeVisible();
+  await expect(readingMap.locator('.pdf-reader__reading-map-river')).toBeVisible();
+  await expect(readingMap.locator('.pdf-reader__reading-map-overview')).toBeVisible();
+  await expect(readingMap.getByRole('button', { name: '章节' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
-  await readingMap.getByRole('button', { name: '章节' }).click();
   await expect(readingMap.getByRole('button', { name: /Introduction/ })).toBeVisible();
   await expect(readingMap.getByRole('button', { name: /Page two/ })).toBeVisible();
+  await expect(readingMap.getByRole('button', { name: '时间' })).toHaveCount(0);
+  await readingMap.getByRole('button', { name: '页面' }).click();
+  await expect(readingMap.getByRole('button', { name: '页面' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(readingMap.getByRole('button', { name: /第 1 页/ })).toBeVisible();
+  const secondPageMapSegment = readingMap.getByRole('button', { name: /第 2 页/ });
+  await expect(secondPageMapSegment).toBeVisible();
+  await secondPageMapSegment.hover();
+  await expect(readingMap.locator('.pdf-reader__reading-map-focus')).toContainText(
+    '第 2 页',
+  );
+  await readingMap.getByRole('button', { name: '章节' }).click();
   await readingMap.getByRole('button', { name: /Page two/ }).click();
   await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
   await readingMapButton.click();
@@ -612,7 +625,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(sidebarBackdrop).toBeVisible();
   const sidebarBox = await sidebar.boundingBox();
   const documentStageBox = await pdfReader.locator('.pdf-reader__document-stage').boundingBox();
-  expect(sidebarBox?.width).toBeLessThanOrEqual(280);
+  expect(sidebarBox?.width).toBeLessThanOrEqual(320);
   expect(sidebarBox?.x).toBe(0);
   expect(documentStageBox?.width).toBe(620);
   await sidebarBackdrop.click({ position: { x: 600, y: 400 } });

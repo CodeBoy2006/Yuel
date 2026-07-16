@@ -12,6 +12,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { CSSProperties } from 'react';
@@ -22,13 +23,19 @@ import type {
 import { formatCount, formatMinutes } from '../../ui/formatters';
 import {
   createPdfChapterReadingProgress,
+  createPdfReadingMapOverviewSegments,
+  createPdfReadingMapVisuals,
+  getPdfReadingMapEvidence,
+} from './readingMap';
+import type {
+  PdfReadingMapVisual,
 } from './readingMap';
 import type { PdfReadingProgressState } from './usePdfReadingProgress';
 
-type PdfReadingMapMetric = 'coverage' | 'words' | 'time' | 'pace';
-type PdfReadingMapGrouping = 'pages' | 'chapters';
+type PdfReadingMapScale = 'pages' | 'chapters';
 
 type PdfReadingMapItem = PdfReadingProgressMetrics & {
+  chapterTitle?: string;
   endPageNumber: number;
   id: string;
   label: string;
@@ -36,8 +43,19 @@ type PdfReadingMapItem = PdfReadingProgressMetrics & {
   pageRangeLabel?: string;
 };
 
-type PdfReadingMapBarStyle = CSSProperties & {
-  '--pdf-reading-value': number;
+type PdfReadingMapSegmentStyle = CSSProperties & {
+  '--pdf-reading-coverage': number;
+  '--pdf-reading-pace': number;
+  '--pdf-reading-span': string;
+};
+
+type PdfReadingMapOverviewStyle = CSSProperties & {
+  '--pdf-reading-overview-top': string;
+  '--pdf-reading-overview-window': string;
+};
+
+type PdfReadingMapOverviewSegmentStyle = CSSProperties & {
+  '--pdf-reading-overview-coverage': number;
 };
 
 export function PdfReadingMapPanel({
@@ -55,8 +73,9 @@ export function PdfReadingMapPanel({
 }) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
   const [bookmarks, setBookmarks] = useState<PdfBookmarkObject[]>([]);
-  const [grouping, setGrouping] = useState<PdfReadingMapGrouping>('pages');
-  const [metric, setMetric] = useState<PdfReadingMapMetric>('coverage');
+  const [scale, setScale] = useState<PdfReadingMapScale>('chapters');
+  const [inspectedItemId, setInspectedItemId] = useState<string>();
+  const activeItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -80,11 +99,59 @@ export function PdfReadingMapPanel({
       : []
   ), [bookmarks, state]);
 
+  const pages = state.status === 'ready' ? state.progress.pages : [];
+  const chapterTitlesByPage = useMemo(() => new Map(
+    chapters.map((chapter) => [chapter.startPageNumber, chapter.title]),
+  ), [chapters]);
+  const pageItems = useMemo<PdfReadingMapItem[]>(() => pages.map((page) => ({
+    ...page,
+    chapterTitle: chapterTitlesByPage.get(page.pageNumber),
+    endPageNumber: page.pageNumber,
+    id: page.sectionId,
+    label: `第 ${page.pageNumber} 页`,
+    pageNumber: page.pageNumber,
+  })), [chapterTitlesByPage, pages]);
+  const chapterItems = useMemo<PdfReadingMapItem[]>(() => chapters.map((chapter) => ({
+    ...chapter,
+    endPageNumber: chapter.endPageNumber,
+    id: chapter.id,
+    label: chapter.title,
+    pageNumber: chapter.startPageNumber,
+    pageRangeLabel: chapter.startPageNumber === chapter.endPageNumber
+      ? `第 ${chapter.startPageNumber} 页`
+      : `${chapter.startPageNumber}–${chapter.endPageNumber} 页`,
+  })), [chapters]);
+  const effectiveScale = scale === 'chapters' && chapterItems.length > 0
+    ? 'chapters'
+    : 'pages';
+  const items = effectiveScale === 'chapters' ? chapterItems : pageItems;
+  const visuals = useMemo(
+    () => createPdfReadingMapVisuals(
+      effectiveScale === 'chapters' ? chapterItems : pageItems,
+    ),
+    [chapterItems, effectiveScale, pageItems],
+  );
+  const overviewSegments = useMemo(
+    () => createPdfReadingMapOverviewSegments(pages),
+    [pages],
+  );
+  const activeItemIndex = items.findIndex(
+    (item) => isPageWithinMapItem(scrollState.currentPage, item),
+  );
+  const activeItem = items[activeItemIndex] ?? items[0];
+  const inspectedItemIndex = items.findIndex((item) => item.id === inspectedItemId);
+  const focusItemIndex = inspectedItemIndex >= 0
+    ? inspectedItemIndex
+    : Math.max(0, activeItemIndex);
+  const focusItem = items[focusItemIndex] ?? activeItem;
+  const focusVisual = visuals[focusItemIndex] ?? visuals[activeItemIndex] ?? visuals[0];
+
   useEffect(() => {
-    if (grouping === 'chapters' && chapters.length === 0) {
-      setGrouping('pages');
-    }
-  }, [chapters.length, grouping]);
+    activeItemRef.current?.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+    });
+  }, [activeItem?.id, effectiveScale]);
 
   if (state.status === 'idle' || state.status === 'loading') {
     return (
@@ -114,247 +181,256 @@ export function PdfReadingMapPanel({
     );
   }
 
-  const pageItems: PdfReadingMapItem[] = progress.pages.map((page) => ({
-    ...page,
-    endPageNumber: page.pageNumber,
-    id: page.sectionId,
-    label: `第 ${page.pageNumber} 页`,
-    pageNumber: page.pageNumber,
-  }));
-  const chapterItems: PdfReadingMapItem[] = chapters.map((chapter) => ({
-    ...chapter,
-    endPageNumber: chapter.endPageNumber,
-    id: chapter.id,
-    label: chapter.title,
-    pageNumber: chapter.startPageNumber,
-    pageRangeLabel: chapter.startPageNumber === chapter.endPageNumber
-      ? `第 ${chapter.startPageNumber} 页`
-      : `${chapter.startPageNumber}–${chapter.endPageNumber} 页`,
-  }));
-  const items = grouping === 'chapters' ? chapterItems : pageItems;
-  const maximum = getReadingMapMetricMaximum(items, metric);
+  if (!focusItem || !focusVisual) {
+    return (
+      <div className="pdf-reader__sidebar-state">
+        <ChartNoAxesGantt aria-hidden="true" />
+        <span>暂无可展示的阅读结构</span>
+      </div>
+    );
+  }
+
   const coveragePercent = Math.round((progress.coverageRatio ?? 0) * 100);
+  const currentPage = Math.min(
+    Math.max(1, scrollState.currentPage),
+    Math.max(1, pages.length),
+  );
+  const overviewPosition = pages.length > 0
+    ? ((currentPage - 0.5) / pages.length) * 100
+    : 0;
+  const overviewWindow = pages.length > 0
+    ? Math.min(100, Math.max(4.5, 100 / pages.length))
+    : 100;
+  const overviewTop = Math.min(
+    100 - overviewWindow,
+    Math.max(0, overviewPosition - (overviewWindow / 2)),
+  );
+  const focusCoverage = formatReadingMapCoverage(focusVisual);
+  const focusIsActive = focusItem.id === activeItem?.id;
 
   return (
-    <section className="pdf-reader__reading-map" aria-label="PDF 阅读覆盖地图">
+    <section
+      className="pdf-reader__reading-map"
+      aria-label="PDF 阅读覆盖地图"
+    >
       <header className="pdf-reader__reading-map-summary">
-        <div>
-          <strong>{coveragePercent}%</strong>
-          <span>累计覆盖估算</span>
+        <div className="pdf-reader__reading-map-summary-line">
+          <p>
+            <strong>已覆盖 {coveragePercent}%</strong>
+            <span>{formatCount(progress.coveredWords)} / {formatCount(progress.totalWords)} 词</span>
+          </p>
+          {chapters.length > 0 ? (
+            <div
+              className="pdf-reader__reading-map-scale"
+              role="group"
+              aria-label="阅读地图尺度"
+            >
+              <button
+                type="button"
+                aria-pressed={effectiveScale === 'chapters'}
+                onClick={() => {
+                  setInspectedItemId(undefined);
+                  setScale('chapters');
+                }}
+              >
+                章节
+              </button>
+              <button
+                type="button"
+                aria-pressed={effectiveScale === 'pages'}
+                onClick={() => {
+                  setInspectedItemId(undefined);
+                  setScale('pages');
+                }}
+              >
+                页面
+              </button>
+            </div>
+          ) : null}
         </div>
+        <p className="pdf-reader__reading-map-summary-meta">
+          <span>有效 {formatReadingTime(progress.effectiveReadingMs)}</span>
+          <span>{formatReadingPace(progress.wordsPerMinute)}</span>
+        </p>
+      </header>
+
+      <section className="pdf-reader__reading-map-focus" aria-label="阅读位置详情">
+        <header>
+          <div>
+            <span>{focusIsActive ? '当前位置' : '查看'}</span>
+            <strong title={focusItem.label}>{focusItem.label}</strong>
+            <small>
+              {effectiveScale === 'chapters'
+                ? focusItem.pageRangeLabel
+                : `${formatCount(focusItem.totalWords)} 词`}
+            </small>
+          </div>
+          <strong>{focusCoverage}</strong>
+        </header>
         <dl>
           <div>
             <dt>文本</dt>
-            <dd>{formatCount(progress.coveredWords)} / {formatCount(progress.totalWords)} 词</dd>
+            <dd>{formatCount(focusItem.coveredWords)} / {formatCount(focusItem.totalWords)}</dd>
           </div>
           <div>
-            <dt>有效时间</dt>
-            <dd>{formatMinutes(progress.effectiveReadingMs / 60_000)}</dd>
+            <dt>有效</dt>
+            <dd>{formatReadingTime(focusItem.effectiveReadingMs)}</dd>
           </div>
           <div>
-            <dt>有效节奏</dt>
-            <dd>{progress.wordsPerMinute === undefined
-              ? '数据不足'
-              : `${formatCount(progress.wordsPerMinute)} WPM`}</dd>
+            <dt>节奏</dt>
+            <dd>{formatReadingPace(focusItem.wordsPerMinute, '样本不足')}</dd>
           </div>
         </dl>
-      </header>
+      </section>
 
-      <div className="pdf-reader__reading-map-controls">
-        <div
-          className="pdf-reader__reading-map-segments"
-          role="group"
-          aria-label="图表指标"
-        >
-          {([
-            ['coverage', '覆盖'],
-            ['words', '词量'],
-            ['time', '时间'],
-            ['pace', '节奏'],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={metric === value}
-              onClick={() => setMetric(value)}
-            >
-              {label}
-            </button>
-          ))}
+      <div
+        className="pdf-reader__reading-map-body"
+        onPointerLeave={() => setInspectedItemId(undefined)}
+        onBlur={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+            setInspectedItemId(undefined);
+          }
+        }}
+      >
+        <div className="pdf-reader__reading-map-river-scroll">
+          <div className="pdf-reader__reading-map-river">
+            {items.map((item, index) => {
+              const visual = visuals[index]!;
+              const active = item.id === activeItem?.id;
+              const coverage = formatReadingMapCoverage(visual);
+              const rowStyle = {
+                '--pdf-reading-coverage': visual.coverageRatio,
+                '--pdf-reading-pace': visual.paceRatio ?? 0.5,
+                '--pdf-reading-span': `${getReadingMapSpan(visual, effectiveScale)}px`,
+              } as PdfReadingMapSegmentStyle;
+
+              return (
+                <button
+                  key={item.id}
+                  ref={active ? activeItemRef : undefined}
+                  className="pdf-reader__reading-map-segment"
+                  type="button"
+                  style={rowStyle}
+                  data-active={active ? 'true' : 'false'}
+                  data-evidence={visual.evidence}
+                  data-first={index === 0 ? 'true' : 'false'}
+                  data-last={index === items.length - 1 ? 'true' : 'false'}
+                  aria-current={active ? 'location' : undefined}
+                  aria-label={formatReadingMapItemLabel(item, visual)}
+                  onPointerEnter={() => setInspectedItemId(item.id)}
+                  onFocus={() => setInspectedItemId(item.id)}
+                  onClick={() => {
+                    scroll?.scrollToPage({
+                      pageNumber: item.pageNumber,
+                      behavior: 'smooth',
+                      alignY: 0,
+                    });
+                    onNavigate();
+                  }}
+                >
+                  <span className="pdf-reader__reading-map-index" aria-hidden="true">
+                    {effectiveScale === 'pages'
+                      ? item.pageNumber
+                      : String(index + 1).padStart(2, '0')}
+                  </span>
+                  <span className="pdf-reader__reading-map-stream" aria-hidden="true">
+                    <span />
+                  </span>
+                  <span className="pdf-reader__reading-map-segment-content">
+                    {effectiveScale === 'pages' && item.chapterTitle ? (
+                      <span className="pdf-reader__reading-map-chapter">
+                        {item.chapterTitle}
+                      </span>
+                    ) : null}
+                    <span className="pdf-reader__reading-map-segment-heading">
+                      <strong>
+                        {effectiveScale === 'chapters'
+                          ? item.label
+                          : `${formatCount(item.totalWords)} 词`}
+                      </strong>
+                      <small>
+                        {effectiveScale === 'chapters'
+                          ? `${item.pageRangeLabel} · ${formatCount(item.totalWords)} 词`
+                          : item.label}
+                      </small>
+                    </span>
+                    <span className="pdf-reader__reading-map-evidence" aria-hidden="true">
+                      <span className="pdf-reader__reading-map-time">
+                        {[0, 1, 2, 3].map((level) => (
+                          <i
+                            key={level}
+                            data-filled={level < visual.timeLevel ? 'true' : 'false'}
+                          />
+                        ))}
+                      </span>
+                      <span
+                        className="pdf-reader__reading-map-pace"
+                        data-available={visual.paceRatio === undefined ? 'false' : 'true'}
+                      >
+                        <i />
+                      </span>
+                    </span>
+                  </span>
+                  <span className="pdf-reader__reading-map-coverage">
+                    {coverage}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {chapters.length > 0 ? (
-          <div
-            className="pdf-reader__reading-map-grouping"
-            role="group"
-            aria-label="阅读地图分组"
-          >
-            <button
-              type="button"
-              aria-pressed={grouping === 'pages'}
-              onClick={() => setGrouping('pages')}
-            >
-              页面
-            </button>
-            <button
-              type="button"
-              aria-pressed={grouping === 'chapters'}
-              onClick={() => setGrouping('chapters')}
-            >
-              章节
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="pdf-reader__reading-map-list">
-        {items.map((item) => {
-          const presentation = getReadingMapPresentation(item, metric, maximum);
-          const active = grouping === 'pages'
-            ? item.pageNumber === scrollState.currentPage
-            : isPageWithinMapItem(scrollState.currentPage, item);
-
-          return (
-            <button
-              key={item.id}
-              className="pdf-reader__reading-map-row"
-              type="button"
-              data-active={active ? 'true' : 'false'}
-              data-empty={presentation.empty ? 'true' : 'false'}
-              aria-current={active ? 'location' : undefined}
-              aria-label={`${item.label}，${presentation.accessibleLabel}`}
-              onClick={() => {
-                scroll?.scrollToPage({
-                  pageNumber: item.pageNumber,
-                  behavior: 'smooth',
-                  alignY: 0,
-                });
-                onNavigate();
-              }}
-            >
-              <span className="pdf-reader__reading-map-row-heading">
-                <strong title={item.label}>{item.label}</strong>
-                <small>{item.pageRangeLabel ?? `${formatCount(item.totalWords)} 词`}</small>
-              </span>
+        <aside
+          className="pdf-reader__reading-map-overview"
+          style={{
+            '--pdf-reading-overview-top': `${overviewTop}%`,
+            '--pdf-reading-overview-window': `${overviewWindow}%`,
+          } as PdfReadingMapOverviewStyle}
+          aria-hidden="true"
+        >
+          <div>
+            {overviewSegments.map((segment) => (
               <span
-                className="pdf-reader__reading-map-track"
+                key={segment.id}
+                data-evidence={getPdfReadingMapEvidence(segment)}
                 style={{
-                  '--pdf-reading-value': presentation.ratio,
-                } as PdfReadingMapBarStyle}
-                aria-hidden="true"
+                  '--pdf-reading-overview-coverage': segment.coverageRatio ?? 0,
+                  flexGrow: segment.endPageNumber - segment.startPageNumber + 1,
+                } as PdfReadingMapOverviewSegmentStyle}
               >
-                <span />
+                <i />
               </span>
-              <span className="pdf-reader__reading-map-row-value">
-                <strong>{presentation.label}</strong>
-                <small>
-                  {item.totalWords <= 0
-                    ? '无可测文本'
-                    : `${formatCount(item.coveredWords)} / ${formatCount(item.totalWords)} 词`
-                      + ` · ${formatCompactReadingTime(item.effectiveReadingMs)}`}
-                </small>
-              </span>
-            </button>
-          );
-        })}
+            ))}
+            <b />
+          </div>
+          <small>{currentPage}</small>
+        </aside>
       </div>
     </section>
   );
 }
 
-function getReadingMapMetricMaximum(
-  items: PdfReadingMapItem[],
-  metric: PdfReadingMapMetric,
-): number {
-  if (metric === 'coverage') return 1;
-  return Math.max(1, ...items.map((item) => getReadingMapMetricValue(item, metric) ?? 0));
+function formatReadingMapCoverage(
+  visual: PdfReadingMapVisual,
+): string {
+  if (visual.evidence === 'no-text') return '不可测';
+  if (visual.evidence === 'unrecorded') return '未记录';
+  return `${Math.round(visual.coverageRatio * 100)}%`;
 }
 
-function getReadingMapPresentation(
+function formatReadingMapItemLabel(
   item: PdfReadingMapItem,
-  metric: PdfReadingMapMetric,
-  maximum: number,
-): {
-  accessibleLabel: string;
-  empty: boolean;
-  label: string;
-  ratio: number;
-} {
-  if (item.totalWords <= 0) {
-    return {
-      accessibleLabel: '无可测文本',
-      empty: true,
-      label: '不可测',
-      ratio: 0,
-    };
-  }
-
-  const hasRecordedReading = item.coveredWords > 0 || item.effectiveReadingMs > 0;
-  if (!hasRecordedReading) {
-    return {
-      accessibleLabel: '尚未记录有效阅读',
-      empty: true,
-      label: '未记录',
-      ratio: 0,
-    };
-  }
-
-  const value = getReadingMapMetricValue(item, metric);
-  if (value === undefined) {
-    return {
-      accessibleLabel: '阅读节奏数据不足',
-      empty: true,
-      label: '数据不足',
-      ratio: 0,
-    };
-  }
-
-  const ratio = Math.min(1, Math.max(0, value / Math.max(1, maximum)));
-  if (metric === 'coverage') {
-    const percent = Math.round(value * 100);
-    return {
-      accessibleLabel: `覆盖估算 ${percent}%`,
-      empty: false,
-      label: `${percent}%`,
-      ratio,
-    };
-  }
-  if (metric === 'words') {
-    const label = `${formatCount(value)} 词`;
-    return {
-      accessibleLabel: `累计覆盖 ${label}`,
-      empty: false,
-      label,
-      ratio,
-    };
-  }
-  if (metric === 'time') {
-    const label = formatCompactReadingTime(value);
-    return {
-      accessibleLabel: `有效阅读 ${label}`,
-      empty: false,
-      label,
-      ratio,
-    };
-  }
-
-  const label = `${formatCount(value)} WPM`;
-  return {
-    accessibleLabel: `有效阅读节奏 ${label}`,
-    empty: false,
-    label,
-    ratio,
-  };
-}
-
-function getReadingMapMetricValue(
-  item: PdfReadingMapItem,
-  metric: PdfReadingMapMetric,
-): number | undefined {
-  if (metric === 'coverage') return item.coverageRatio;
-  if (metric === 'words') return item.coveredWords;
-  if (metric === 'time') return item.effectiveReadingMs;
-  return item.wordsPerMinute;
+  visual: PdfReadingMapVisual,
+): string {
+  return [
+    item.label,
+    item.pageRangeLabel,
+    `覆盖 ${formatReadingMapCoverage(visual)}`,
+    `文本 ${formatCount(item.coveredWords)} / ${formatCount(item.totalWords)} 词`,
+    `有效阅读 ${formatReadingTime(item.effectiveReadingMs)}`,
+    `节奏 ${formatReadingPace(item.wordsPerMinute, '样本不足')}`,
+  ].filter(Boolean).join('，');
 }
 
 function isPageWithinMapItem(
@@ -364,9 +440,25 @@ function isPageWithinMapItem(
   return pageNumber >= item.pageNumber && pageNumber <= item.endPageNumber;
 }
 
-function formatCompactReadingTime(milliseconds: number): string {
-  const seconds = Math.max(0, milliseconds) / 1_000;
-  if (seconds <= 0) return '0 分钟';
-  if (seconds < 60) return '< 1 分钟';
-  return formatMinutes(seconds / 60);
+function getReadingMapSpan(
+  visual: PdfReadingMapVisual,
+  scale: PdfReadingMapScale,
+): number {
+  const minimum = scale === 'chapters' ? 68 : 52;
+  const range = scale === 'chapters' ? 54 : 28;
+  return Math.round(minimum + (visual.textRatio * range));
+}
+
+function formatReadingTime(milliseconds: number): string {
+  if (milliseconds <= 0) return '0 分钟';
+  return formatMinutes(milliseconds / 60_000);
+}
+
+function formatReadingPace(
+  wordsPerMinute: number | undefined,
+  fallback = '节奏数据不足',
+): string {
+  return wordsPerMinute === undefined
+    ? fallback
+    : `${formatCount(wordsPerMinute)} WPM`;
 }

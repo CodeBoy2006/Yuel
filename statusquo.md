@@ -1569,3 +1569,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe real first-use model download time and translation availability across supported Chrome desktop installations before considering language detection or explanatory AI features.
 - **Context:** The feature is progressively enhanced without new extension permissions or a higher manifest minimum; selected text and translations are never persisted. All 73 unit/UI test files and 576 tests, TypeScript checks, production build, extension smoke validation, whitespace validation, design-rule scan, desktop/390 px visual checks, and seven regular packaged Chromium scenarios pass; the opt-in 160-page pressure scenario remains skipped by default.
+
+## [2026-07-16 23:59] Continuous PDF Reading Map
+- **Changes:** Rebuilt the PDF coverage panel as a continuous chapter/page reading river with text-weighted segments, coverage fill, effective-time ticks, relative pace markers, a precise current/inspected focus lens, and a full-document position minimap; removed the former four-metric chart switcher and redundant styles; added long-document aggregation, evidence normalization, focused tests, packaged-browser assertions, and updated documentation.
+- **Status:** Completed
+- **Next Steps:** Observe dense outlines and very long real PDFs before tuning the 90th-percentile visual normalization or the 72-segment overview cap.
+- **Context:** The design defaults to chapters when a usable outline exists, distinguishes unrecorded text from pages without measurable text, and widens the desktop instrument panel to 300 px without compatibility branches. TypeScript checks, all 73 test files and 578 tests, the production build, and whitespace validation pass. A packaged Chromium run exercised the new map interactions and produced a clean visual trace; the final rerun timed out while creating the browser context before reaching product assertions.
