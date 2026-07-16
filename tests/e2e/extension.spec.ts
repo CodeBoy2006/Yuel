@@ -364,11 +364,36 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(copySelectionButton).toBeVisible();
   await copySelectionButton.click();
   await expect(copySelectionButton).toContainText('已复制');
+  await pdfReader.getByRole('radio', { name: '绿色高亮' }).click();
   const saveSelectionButton = pdfReader.getByRole('button', {
-    name: '保存所选文本到 Yuel',
+    name: '高亮所选文本并保存到 Yuel',
   });
   await saveSelectionButton.click();
-  await expect(saveSelectionButton).toContainText('已保存');
+  await expect(saveSelectionButton).toContainText('已高亮');
+  await expect(saveSelectionButton).toBeHidden({ timeout: 3_000 });
+
+  let storedHighlight = pdfReader.locator(
+    '.pdf-reader__stored-highlight[data-color="green"]',
+  ).first();
+  await expect(storedHighlight).toBeVisible();
+  await storedHighlight.click();
+  let highlightEditor = pdfReader.getByRole('dialog', {
+    name: '高亮与笔记',
+  });
+  await expect(highlightEditor).toBeVisible();
+  await highlightEditor.getByRole('radio', { name: '蓝色' }).click();
+  await highlightEditor.locator('textarea').fill(
+    'Keep this beside the local PDF implementation notes.',
+  );
+  await highlightEditor.locator('input[type="text"]').fill(
+    'pdf, architecture',
+  );
+  await highlightEditor.getByRole('button', { name: '保存更改' }).click();
+  await expect(highlightEditor).toBeHidden();
+  storedHighlight = pdfReader.locator(
+    '.pdf-reader__stored-highlight[data-color="blue"]',
+  ).first();
+  await expect(storedHighlight).toBeVisible();
 
   const excerptDashboard = await openExtensionPage(
     context,
@@ -379,6 +404,12 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     await excerptDashboard.reload({ waitUntil: 'load' });
     return excerptDashboard.locator('body').innerText();
   }).toContain('Local PDFium');
+  await expect(excerptDashboard.locator('#saved-excerpts')).toContainText(
+    'Keep this beside the local PDF implementation notes.',
+  );
+  await expect(excerptDashboard.locator('#saved-excerpts')).toContainText(
+    'architecture',
+  );
   const backlinkPagePromise = context.waitForEvent('page');
   await excerptDashboard.getByRole('button', {
     name: '第 1 页 · 回到原文',
@@ -402,6 +433,39 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(backlinkReader.locator(
     '.pdf-reader__backlink-highlight',
   ).first()).toBeVisible();
+  const reopenedStoredHighlight = backlinkReader.locator(
+    '.pdf-reader__stored-highlight[data-color="blue"]',
+  ).first();
+  await expect(reopenedStoredHighlight).toBeVisible();
+  await reopenedStoredHighlight.click();
+  highlightEditor = backlinkReader.getByRole('dialog', {
+    name: '高亮与笔记',
+  });
+  await expect(highlightEditor.locator('textarea')).toHaveValue(
+    'Keep this beside the local PDF implementation notes.',
+  );
+  await expect(highlightEditor.locator('input[type="text"]')).toHaveValue(
+    'pdf，architecture',
+  );
+  await highlightEditor.getByRole('button', { name: '删除' }).click();
+  await expect(highlightEditor).toContainText('摘录回链都会移除');
+  const cancelHighlightDeleteButton = highlightEditor.getByRole('button', {
+    name: '取消',
+  });
+  const confirmHighlightDeleteButton = highlightEditor.getByRole('button', {
+    name: '删除高亮',
+  });
+  await expect(cancelHighlightDeleteButton).toBeFocused();
+  await backlinkReader.keyboard.press('Tab');
+  await expect(confirmHighlightDeleteButton).toBeFocused();
+  await backlinkReader.keyboard.press('Tab');
+  await expect(highlightEditor.getByRole('button', {
+    name: '关闭高亮编辑',
+  })).toBeFocused();
+  await backlinkReader.keyboard.press('Shift+Tab');
+  await expect(confirmHighlightDeleteButton).toBeFocused();
+  await confirmHighlightDeleteButton.click();
+  await expect(backlinkReader.locator('.pdf-reader__stored-highlight')).toHaveCount(0);
   await backlinkReader.close();
   await excerptDashboard.close();
   await pdfReader.bringToFront();

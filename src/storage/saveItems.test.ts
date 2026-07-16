@@ -4,6 +4,7 @@ import {
   deleteSavedItem,
   savePdfSelectedTextItem,
   saveSelectedTextItem,
+  updatePdfHighlight,
   updateSavedItemMetadata,
 } from './saveItems';
 
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => {
   };
   const pdfAnnotations = {
     delete: vi.fn(),
+    get: vi.fn(),
     put: vi.fn(),
   };
   const vocabExposures = {
@@ -47,6 +49,7 @@ describe('saveSelectedTextItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.savedItems.get.mockResolvedValue(undefined);
+    mocks.pdfAnnotations.get.mockResolvedValue(undefined);
     mocks.vocabExposures.get.mockResolvedValue(undefined);
   });
 
@@ -267,6 +270,44 @@ describe('saveSelectedTextItem', () => {
     expect(mocks.savedItems.put).not.toHaveBeenCalled();
   });
 
+  it('stores a colored PDF highlight with local note and tags', async () => {
+    const resourceId = `pdf_${'c'.repeat(64)}`;
+    const record = await savePdfSelectedTextItem('  Durable local highlight  ', {
+      metadata: {
+        resourceId,
+        sha256: 'c'.repeat(64),
+        kind: 'local',
+        displayName: 'Notes.pdf',
+        byteLength: 3_072,
+        mediaType: 'application/pdf',
+      },
+      sourceRects: [{
+        pageIndex: 1,
+        x: 48,
+        y: 96,
+        width: 220,
+        height: 16,
+      }],
+      highlightColor: 'green',
+      note: '  Revisit before implementation.  ',
+      userTags: [' Architecture ', 'review'],
+      createdAt: savedAt,
+    });
+
+    expect(record).toMatchObject({
+      text: 'Durable local highlight',
+      tags: ['selection', 'pdf', 'highlight'],
+      note: 'Revisit before implementation.',
+      userTags: ['Architecture', 'review'],
+    });
+    expect(mocks.pdfAnnotations.put).toHaveBeenCalledWith(expect.objectContaining({
+      id: record?.pdfAnnotationId,
+      resourceId,
+      type: 'highlight',
+      color: 'green',
+    }));
+  });
+
   it('updates only user-managed note and tags', async () => {
     mocks.savedItems.get.mockResolvedValueOnce({
       id: 'saved-note',
@@ -294,6 +335,67 @@ describe('saveSelectedTextItem', () => {
       updatedAt: savedAt + 1_000,
     });
     expect(mocks.savedItems.put).toHaveBeenCalledWith(record);
+  });
+
+  it('promotes a legacy PDF excerpt while updating color and metadata in one transaction', async () => {
+    const savedItem = {
+      id: 'saved-highlight',
+      text: 'Durable local highlight',
+      type: 'sentence' as const,
+      sourceDomain: 'pdf.local',
+      tags: ['selection', 'pdf'],
+      pdfAnnotationId: 'pdf_annotation_saved-highlight',
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    };
+    const annotation = {
+      id: 'pdf_annotation_saved-highlight',
+      resourceId: `pdf_${'d'.repeat(64)}`,
+      pageIndex: 1,
+      type: 'excerpt' as const,
+      quote: savedItem.text,
+      textHash: 'hash',
+      sourceRects: [{
+        pageIndex: 1,
+        x: 48,
+        y: 96,
+        width: 220,
+        height: 16,
+      }],
+      createdAt: savedAt,
+      updatedAt: savedAt,
+    };
+    mocks.savedItems.get.mockResolvedValueOnce(savedItem);
+    mocks.pdfAnnotations.get.mockResolvedValueOnce(annotation);
+
+    const updated = await updatePdfHighlight(savedItem.id, {
+      color: 'blue',
+      note: '  Keep beside the architecture notes.  ',
+      userTags: ['design', 'Review'],
+    }, savedAt + 2_000);
+
+    expect(updated).toEqual({
+      annotation: {
+        ...annotation,
+        type: 'highlight',
+        color: 'blue',
+        updatedAt: savedAt + 2_000,
+      },
+      savedItem: {
+        ...savedItem,
+        tags: ['selection', 'pdf', 'highlight'],
+        note: 'Keep beside the architecture notes.',
+        userTags: ['design', 'Review'],
+        updatedAt: savedAt + 2_000,
+      },
+    });
+    expect(mocks.db.transaction).toHaveBeenCalledWith(
+      'rw',
+      [mocks.savedItems, mocks.pdfAnnotations],
+      expect.any(Function),
+    );
+    expect(mocks.pdfAnnotations.put).toHaveBeenCalledWith(updated?.annotation);
+    expect(mocks.savedItems.put).toHaveBeenCalledWith(updated?.savedItem);
   });
 
   it('deletes a saved PDF item, its anchor, and its vocabulary count', async () => {

@@ -1551,3 +1551,9 @@
 - **Status:** Completed
 - **Next Steps:** Add persistent local highlights with note and tag editing while keeping native PDF annotations read-only and the source PDF bytes unchanged.
 - **Context:** Chunks below 90% local coverage are treated as unread, navigation never silently wraps, and no additional extraction or IndexedDB progress table was introduced. All 69 unit/UI test files and 547 tests, TypeScript checks, the production build, whitespace validation, the packaged Chromium reader regression, and desktop/390 px visual checks pass.
+
+## [2026-07-16 18:48] Persistent PDF Highlights
+- **Changes:** Added four-color persistent PDF highlights backed by local annotation anchors and saved-item metadata; introduced clickable highlight rectangles across virtualized pages, an adaptive desktop/mobile editor for recoloring, notes, tags, and confirmed deletion, legacy excerpt compatibility, a targeted IndexedDB join index, and packaged-browser coverage for the complete lifecycle.
+- **Status:** Completed
+- **Next Steps:** Observe real long-document highlight volume before considering page-indexed in-memory grouping or an in-reader annotation list.
+- **Context:** Native PDF annotations remain read-only and source PDF bytes are never rewritten. Legacy annotation-backed excerpts render yellow and upgrade atomically when edited. All 70 unit/UI test files and 552 tests, TypeScript checks, the production build, whitespace validation, desktop/390 px visual checks, and the packaged Chromium create/edit/reopen/focus/delete regression pass.

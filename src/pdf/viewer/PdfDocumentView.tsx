@@ -39,9 +39,6 @@ import {
   SelectionLayer,
   useSelectionCapability,
 } from '@embedpdf/plugin-selection/react';
-import type {
-  SelectionSelectionMenuProps,
-} from '@embedpdf/plugin-selection/react';
 import { TilingLayer } from '@embedpdf/plugin-tiling/react';
 import { usePrint } from '@embedpdf/plugin-print/react';
 import { Viewport } from '@embedpdf/plugin-viewport/react';
@@ -54,12 +51,9 @@ import {
 import type { ZoomLevel } from '@embedpdf/plugin-zoom';
 import {
   AlertCircle,
-  BookmarkPlus,
   ChartNoAxesGantt,
-  Check,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Download,
   Eye,
   EyeOff,
@@ -93,6 +87,12 @@ import {
   PdfNextUnreadControl,
   PdfUnreadTargetHighlightLayer,
 } from './PdfUnreadNavigation';
+import {
+  PdfHighlightEditor,
+  PdfPersistentHighlightLayer,
+  PdfSelectionMenu,
+} from './PdfHighlights';
+import { usePdfHighlights } from './usePdfHighlights';
 import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
 import type { PdfSourceRectRecord } from '../../storage/schema';
 import {
@@ -107,7 +107,6 @@ import {
 import { openSafePdfExternalLink } from '../externalLinks';
 import type { PdfReaderTarget } from '../navigation';
 import type { PdfSourceMetadata } from '../source';
-import { savePdfSelectedTextItem } from '../../storage/saveItems';
 import type { PdfReaderZoomLevel } from '../../storage/schema';
 
 interface PdfDocumentViewProps {
@@ -135,6 +134,18 @@ export function PdfDocumentView({
   sourceMetadata,
   unreadTarget,
 }: PdfDocumentViewProps) {
+  const highlightsState = usePdfHighlights(documentId);
+  const [editingHighlightId, setEditingHighlightId] = useState<string>();
+  const highlights = highlightsState.status === 'ready'
+    ? highlightsState.highlights
+    : [];
+  const editingHighlight = highlights.find((highlight) =>
+    highlight.savedItem.id === editingHighlightId);
+
+  useEffect(() => {
+    setEditingHighlightId(undefined);
+  }, [documentId]);
+
   return (
     <DocumentContent documentId={documentId}>
       {({ documentState, isError, isLoaded, isLoading }) => {
@@ -255,6 +266,13 @@ export function PdfDocumentView({
                                   highlightColor="rgb(243 207 91 / 42%)"
                                   activeHighlightColor="rgb(233 165 58 / 58%)"
                                 />
+                                <PdfPersistentHighlightLayer
+                                  editingSavedItemId={editingHighlightId}
+                                  highlights={highlights}
+                                  onEdit={setEditingHighlightId}
+                                  pageIndex={pageIndex}
+                                  scale={documentState.scale}
+                                />
                                 <PdfBacklinkHighlightLayer
                                   documentId={documentId}
                                   pageIndex={pageIndex}
@@ -305,6 +323,13 @@ export function PdfDocumentView({
               />
             ) : null}
             {isLoaded ? <FloatingPageControls documentId={documentId} /> : null}
+            {isLoaded && editingHighlight ? (
+              <PdfHighlightEditor
+                key={editingHighlight.savedItem.id}
+                highlight={editingHighlight}
+                onClose={() => setEditingHighlightId(undefined)}
+              />
+            ) : null}
           </>
         );
       }}
@@ -951,139 +976,6 @@ function PdfBacklinkHighlightLayer({
           }}
         />
       ))}
-    </div>
-  );
-}
-
-function PdfSelectionMenu({
-  documentId,
-  menuWrapperProps,
-  placement,
-  rect,
-  sourceMetadata,
-}: SelectionSelectionMenuProps & {
-  documentId: string;
-  sourceMetadata?: PdfSourceMetadata;
-}) {
-  const { provides: selection } = useSelectionCapability();
-  const [copied, setCopied] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
-  const resetTimerRef = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    setCopied(false);
-    setSaveStatus('idle');
-  }, [placement]);
-
-  useEffect(() => {
-    const scope = selection?.forDocument(documentId);
-    if (!scope) return;
-
-    return scope.onCopyToClipboard(() => {
-      setCopied(true);
-      if (resetTimerRef.current !== undefined) {
-        window.clearTimeout(resetTimerRef.current);
-      }
-      resetTimerRef.current = window.setTimeout(() => {
-        scope.clear();
-        setCopied(false);
-      }, 900);
-    });
-  }, [documentId, selection]);
-
-  useEffect(() => {
-    return () => {
-      if (resetTimerRef.current !== undefined) {
-        window.clearTimeout(resetTimerRef.current);
-      }
-    };
-  }, []);
-
-  const saveSelection = async () => {
-    const scope = selection?.forDocument(documentId);
-    if (!scope || !sourceMetadata || saveStatus === 'saving') return;
-
-    setSaveStatus('saving');
-    try {
-      const selectedText = (await scope.getSelectedText().toPromise()).join(' ');
-      const sourceRects = scope.getFormattedSelection().flatMap((selectionPage) => {
-        const rects = selectionPage.segmentRects.length > 0
-          ? selectionPage.segmentRects
-          : [selectionPage.rect];
-        return rects.map((sourceRect) => ({
-          pageIndex: selectionPage.pageIndex,
-          x: sourceRect.origin.x,
-          y: sourceRect.origin.y,
-          width: sourceRect.size.width,
-          height: sourceRect.size.height,
-        }));
-      });
-      const savedItem = await savePdfSelectedTextItem(selectedText, {
-        metadata: sourceMetadata,
-        sourceRects,
-      });
-      if (!savedItem) {
-        setSaveStatus('failed');
-        return;
-      }
-
-      setSaveStatus('saved');
-      if (resetTimerRef.current !== undefined) {
-        window.clearTimeout(resetTimerRef.current);
-      }
-      resetTimerRef.current = window.setTimeout(() => {
-        scope.clear();
-        setSaveStatus('idle');
-      }, 900);
-    } catch {
-      setSaveStatus('failed');
-    }
-  };
-
-  return (
-    <div {...menuWrapperProps}>
-      <div
-        className="pdf-reader__selection-menu"
-        style={{
-          top: placement.suggestTop ? -48 : rect.size.height + 8,
-        }}
-      >
-        <button
-          type="button"
-          data-no-interaction
-          aria-label="保存所选文本到 Yuel"
-          title={saveStatus === 'failed' ? '保存失败，请重试' : '保存摘录'}
-          disabled={!sourceMetadata || saveStatus === 'saving'}
-          onClick={() => void saveSelection()}
-        >
-          {saveStatus === 'saving'
-            ? <LoaderCircle className="is-spinning" aria-hidden="true" />
-            : saveStatus === 'saved'
-              ? <Check aria-hidden="true" />
-              : <BookmarkPlus aria-hidden="true" />}
-          <span>
-            {saveStatus === 'saving'
-              ? '保存中'
-              : saveStatus === 'saved'
-                ? '已保存'
-                : saveStatus === 'failed'
-                  ? '重试'
-                  : '保存'}
-          </span>
-        </button>
-        <button
-          type="button"
-          data-no-interaction
-          aria-label="复制所选文本"
-          title="复制"
-          onClick={() => selection?.forDocument(documentId).copyToClipboard()}
-        >
-          {copied
-            ? <Check aria-hidden="true" />
-            : <Copy aria-hidden="true" />}
-          <span>{copied ? '已复制' : '复制'}</span>
-        </button>
-      </div>
     </div>
   );
 }

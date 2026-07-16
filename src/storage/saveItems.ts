@@ -2,9 +2,11 @@ import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english
 import { getDomain, hashText } from '../domain/events';
 import { getPdfReadingDomain } from '../pdf/analytics/identity';
 import type { PdfSourceMetadata } from '../pdf/source';
+import { normalizePdfHighlightColor } from './pdfAnnotations';
 import {
   db,
   type PdfAnnotationRecord,
+  type PdfHighlightColor,
   type PdfSourceRectRecord,
   type SavedItemRecord,
   type VocabExposureRecord,
@@ -25,12 +27,25 @@ export interface SaveSelectedTextOptions {
 export interface SavePdfSelectedTextOptions {
   metadata: PdfSourceMetadata;
   sourceRects: PdfSourceRectRecord[];
+  annotationType?: PdfAnnotationRecord['type'];
+  highlightColor?: PdfHighlightColor;
+  note?: string;
+  userTags?: string[];
   createdAt?: number;
 }
 
 export interface UpdateSavedItemMetadataInput {
   note: string;
   userTags: string[];
+}
+
+export interface UpdatePdfHighlightInput extends UpdateSavedItemMetadataInput {
+  color: PdfHighlightColor;
+}
+
+export interface UpdatedPdfHighlight {
+  annotation: PdfAnnotationRecord;
+  savedItem: SavedItemRecord;
 }
 
 export async function saveSelectedTextItem(
@@ -87,11 +102,18 @@ export async function savePdfSelectedTextItem(
   const annotationId = `pdf_annotation_${savedItemId}`;
   const type = classifySavedText(text);
   const vocabularyTracked = shouldTrackSavedVocabulary(type);
+  const annotationType = options.annotationType
+    ?? (options.highlightColor ? 'highlight' : 'excerpt');
+  const note = normalizeNote(options.note ?? '');
+  const userTags = normalizeUserTags(options.userTags ?? []);
   const annotation: PdfAnnotationRecord = {
     id: annotationId,
     resourceId: options.metadata.resourceId,
     pageIndex: sourceRects[0]!.pageIndex,
-    type: 'excerpt',
+    type: annotationType,
+    ...(annotationType === 'highlight' || options.highlightColor
+      ? { color: normalizePdfHighlightColor(options.highlightColor) }
+      : {}),
     quote: text,
     textHash: hashText(text),
     sourceRects,
@@ -109,7 +131,11 @@ export async function savePdfSelectedTextItem(
     ...(normalizeSingleLine(options.metadata.displayName)
       ? { sourceTitle: normalizeSingleLine(options.metadata.displayName) }
       : {}),
-    tags: ['selection', 'pdf'],
+    tags: annotationType === 'highlight'
+      ? ['selection', 'pdf', 'highlight']
+      : ['selection', 'pdf'],
+    ...(note ? { note } : {}),
+    ...(userTags.length > 0 ? { userTags } : {}),
     pdfAnnotationId: annotationId,
     vocabularyTracked,
     createdAt,
@@ -138,17 +164,63 @@ export async function updateSavedItemMetadata(
   const existing = await db.savedItems.get(savedItemId);
   if (!existing) return undefined;
 
-  const note = normalizeNote(input.note);
-  const userTags = normalizeUserTags(input.userTags);
-  const record: SavedItemRecord = {
-    ...existing,
-    ...(note ? { note } : { note: undefined }),
-    ...(userTags.length > 0 ? { userTags } : { userTags: undefined }),
-    updatedAt: Math.max(existing.updatedAt ?? existing.createdAt, updatedAt),
-  };
+  const record = createUpdatedSavedItemMetadata(existing, input, updatedAt);
 
   await db.savedItems.put(record);
   return record;
+}
+
+export async function updatePdfHighlight(
+  savedItemId: string,
+  input: UpdatePdfHighlightInput,
+  updatedAt = Date.now(),
+): Promise<UpdatedPdfHighlight | undefined> {
+  const normalizedSavedItemId = savedItemId.trim();
+  if (!normalizedSavedItemId) return undefined;
+
+  let result: UpdatedPdfHighlight | undefined;
+  await db.transaction(
+    'rw',
+    [db.savedItems, db.pdfAnnotations],
+    async () => {
+      const existingSavedItem = await db.savedItems.get(normalizedSavedItemId);
+      const annotationId = existingSavedItem?.pdfAnnotationId;
+      if (!existingSavedItem || !annotationId) return;
+
+      const existingAnnotation = await db.pdfAnnotations.get(annotationId);
+      if (!existingAnnotation) return;
+
+      const nextSavedItemTags = existingSavedItem.tags.includes('highlight')
+        ? existingSavedItem.tags
+        : [...existingSavedItem.tags, 'highlight'];
+      const nextSavedItem: SavedItemRecord = {
+        ...createUpdatedSavedItemMetadata(
+          existingSavedItem,
+          input,
+          updatedAt,
+        ),
+        tags: nextSavedItemTags,
+      };
+      const nextAnnotation: PdfAnnotationRecord = {
+        ...existingAnnotation,
+        type: 'highlight',
+        color: normalizePdfHighlightColor(input.color),
+        updatedAt: Math.max(
+          existingAnnotation.updatedAt ?? existingAnnotation.createdAt,
+          updatedAt,
+        ),
+      };
+
+      await db.pdfAnnotations.put(nextAnnotation);
+      await db.savedItems.put(nextSavedItem);
+      result = {
+        annotation: nextAnnotation,
+        savedItem: nextSavedItem,
+      };
+    },
+  );
+
+  return result;
 }
 
 export async function deleteSavedItem(id: string): Promise<boolean> {
@@ -173,6 +245,22 @@ export async function deleteSavedItem(id: string): Promise<boolean> {
   );
 
   return true;
+}
+
+function createUpdatedSavedItemMetadata(
+  existing: SavedItemRecord,
+  input: UpdateSavedItemMetadataInput,
+  updatedAt: number,
+): SavedItemRecord {
+  const note = normalizeNote(input.note);
+  const userTags = normalizeUserTags(input.userTags);
+
+  return {
+    ...existing,
+    ...(note ? { note } : { note: undefined }),
+    ...(userTags.length > 0 ? { userTags } : { userTags: undefined }),
+    updatedAt: Math.max(existing.updatedAt ?? existing.createdAt, updatedAt),
+  };
 }
 
 function createSavedItemId(text: string, createdAt: number): string {

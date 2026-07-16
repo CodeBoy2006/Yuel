@@ -120,11 +120,14 @@ export interface PdfSourceRectRecord {
   height: number;
 }
 
+export type PdfHighlightColor = 'yellow' | 'green' | 'blue' | 'rose';
+
 export interface PdfAnnotationRecord {
   id: string;
   resourceId: string;
   pageIndex: number;
-  type: 'excerpt';
+  type: 'excerpt' | 'highlight';
+  color?: PdfHighlightColor;
   quote: string;
   textHash: string;
   sourceRects: PdfSourceRectRecord[];
@@ -261,6 +264,10 @@ export class YuelDatabase extends Dexie {
     this.version(7).stores({
       pdfAnnotations: 'id, resourceId, pageIndex, createdAt',
       pdfDocumentStates: 'resourceId, kind, lastOpenedAt, updatedAt',
+    });
+
+    this.version(8).stores({
+      savedItems: 'id, type, sourceDomain, createdAt, pdfAnnotationId',
     });
   }
 }

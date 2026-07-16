@@ -496,6 +496,27 @@ body,
   background: var(--y-surface-subtle);
 }
 
+.pdf-reader__button--danger {
+  border-color: var(--y-danger);
+  background: var(--y-danger);
+  color: white;
+}
+
+.pdf-reader__button--danger:hover:not(:disabled) {
+  border-color: var(--y-danger-hover);
+  background: var(--y-danger-hover);
+}
+
+.pdf-reader__button--danger-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--y-danger-hover);
+}
+
+.pdf-reader__button--danger-quiet:hover:not(:disabled) {
+  background: var(--y-danger-soft);
+}
+
 .pdf-reader__button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
@@ -661,6 +682,78 @@ body,
   position: absolute;
   z-index: 3;
   inset: 0;
+}
+
+.pdf-reader__stored-highlight-layer {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pdf-reader__stored-highlight {
+  position: absolute;
+  border: 0;
+  border-radius: 2px;
+  padding: 0;
+  background: var(--pdf-highlight-fill);
+  box-shadow: inset 0 0 0 1px var(--pdf-highlight-line);
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  pointer-events: auto;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.pdf-reader__stored-highlight:hover,
+.pdf-reader__stored-highlight[aria-pressed="true"] {
+  background: var(--pdf-highlight-fill-strong);
+  box-shadow:
+    inset 0 0 0 1.5px var(--pdf-highlight-line-strong),
+    0 0 0 2px rgb(255 255 255 / 76%);
+}
+
+.pdf-reader__stored-highlight:focus-visible {
+  outline: 2px solid var(--y-focus);
+  outline-offset: 2px;
+}
+
+.pdf-reader__stored-highlight[data-color="yellow"],
+[data-color="yellow"].pdf-reader__highlight-editor-mark {
+  --pdf-highlight-fill: rgb(250 213 92 / 34%);
+  --pdf-highlight-fill-strong: rgb(250 213 92 / 52%);
+  --pdf-highlight-line: rgb(177 124 22 / 42%);
+  --pdf-highlight-line-strong: rgb(153 98 12 / 78%);
+  --pdf-highlight-solid: rgb(234 183 48);
+}
+
+.pdf-reader__stored-highlight[data-color="green"],
+[data-color="green"].pdf-reader__highlight-editor-mark {
+  --pdf-highlight-fill: rgb(91 193 132 / 28%);
+  --pdf-highlight-fill-strong: rgb(91 193 132 / 46%);
+  --pdf-highlight-line: rgb(31 126 79 / 38%);
+  --pdf-highlight-line-strong: rgb(23 104 63 / 78%);
+  --pdf-highlight-solid: rgb(47 157 94);
+}
+
+.pdf-reader__stored-highlight[data-color="blue"],
+[data-color="blue"].pdf-reader__highlight-editor-mark {
+  --pdf-highlight-fill: rgb(90 164 224 / 27%);
+  --pdf-highlight-fill-strong: rgb(90 164 224 / 44%);
+  --pdf-highlight-line: rgb(38 111 169 / 38%);
+  --pdf-highlight-line-strong: rgb(30 91 142 / 78%);
+  --pdf-highlight-solid: rgb(61 137 198);
+}
+
+.pdf-reader__stored-highlight[data-color="rose"],
+[data-color="rose"].pdf-reader__highlight-editor-mark {
+  --pdf-highlight-fill: rgb(226 116 145 / 25%);
+  --pdf-highlight-fill-strong: rgb(226 116 145 / 42%);
+  --pdf-highlight-line: rgb(165 57 91 / 36%);
+  --pdf-highlight-line-strong: rgb(139 43 73 / 76%);
+  --pdf-highlight-solid: rgb(201 78 113);
 }
 
 .pdf-reader__backlink-layer {
@@ -1404,6 +1497,9 @@ body,
   position: absolute;
   z-index: 12;
   left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   border: 1px solid var(--y-line-strong);
   border-radius: var(--y-radius-sm);
   padding: 3px;
@@ -1436,6 +1532,277 @@ body,
 .pdf-reader__selection-menu svg {
   width: 14px;
   height: 14px;
+}
+
+.pdf-reader__highlight-swatches,
+.pdf-reader__highlight-editor-swatches {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pdf-reader__highlight-swatches {
+  height: 30px;
+  border-right: 1px solid var(--y-line);
+  padding: 0 6px 0 3px;
+}
+
+.pdf-reader__selection-menu .pdf-reader__highlight-swatches button,
+.pdf-reader__highlight-editor-swatches button {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  min-width: 23px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pdf-reader__highlight-swatches button span,
+.pdf-reader__highlight-editor-swatches button span {
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--pdf-highlight-line-strong);
+  border-radius: 3px;
+  background: var(--pdf-highlight-solid);
+}
+
+.pdf-reader__highlight-swatches button[aria-checked="true"],
+.pdf-reader__highlight-editor-swatches button[aria-checked="true"] {
+  background: var(--y-surface-subtle);
+  box-shadow: inset 0 0 0 1px var(--y-line-strong);
+}
+
+.pdf-reader__highlight-swatches button[data-color="yellow"],
+.pdf-reader__highlight-editor-swatches button[data-color="yellow"] {
+  --pdf-highlight-line-strong: rgb(153 98 12 / 78%);
+  --pdf-highlight-solid: rgb(234 183 48);
+}
+
+.pdf-reader__highlight-swatches button[data-color="green"],
+.pdf-reader__highlight-editor-swatches button[data-color="green"] {
+  --pdf-highlight-line-strong: rgb(23 104 63 / 78%);
+  --pdf-highlight-solid: rgb(47 157 94);
+}
+
+.pdf-reader__highlight-swatches button[data-color="blue"],
+.pdf-reader__highlight-editor-swatches button[data-color="blue"] {
+  --pdf-highlight-line-strong: rgb(30 91 142 / 78%);
+  --pdf-highlight-solid: rgb(61 137 198);
+}
+
+.pdf-reader__highlight-swatches button[data-color="rose"],
+.pdf-reader__highlight-editor-swatches button[data-color="rose"] {
+  --pdf-highlight-line-strong: rgb(139 43 73 / 76%);
+  --pdf-highlight-solid: rgb(201 78 113);
+}
+
+.pdf-reader__highlight-swatches button:focus-visible,
+.pdf-reader__highlight-editor-swatches button:focus-visible {
+  outline: 2px solid var(--y-focus);
+  outline-offset: 1px;
+}
+
+.pdf-reader__highlight-editor-backdrop {
+  position: absolute;
+  z-index: 28;
+  display: grid;
+  align-items: center;
+  justify-items: end;
+  inset: 0;
+  padding: 16px;
+  background: rgb(19 35 26 / 8%);
+}
+
+.pdf-reader__highlight-editor {
+  display: grid;
+  width: min(360px, 100%);
+  max-height: 100%;
+  border: 1px solid var(--y-line-strong);
+  border-radius: var(--y-radius-md);
+  background: var(--y-surface);
+  box-shadow: var(--y-shadow-popup);
+  overflow-y: auto;
+}
+
+.pdf-reader__highlight-editor > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--y-line);
+  padding: 12px 12px 11px;
+}
+
+.pdf-reader__highlight-editor-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: var(--y-radius-sm);
+  background: var(--pdf-highlight-fill-strong);
+  color: var(--pdf-highlight-line-strong);
+}
+
+.pdf-reader__highlight-editor-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.pdf-reader__highlight-editor h2 {
+  margin: 0;
+  color: var(--y-ink);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.pdf-reader__highlight-editor header p {
+  margin: 2px 0 0;
+  color: var(--y-ink-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.pdf-reader__highlight-editor header > button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--y-radius-sm);
+  background: transparent;
+  color: var(--y-ink-muted);
+  cursor: pointer;
+}
+
+.pdf-reader__highlight-editor header > button:hover:not(:disabled) {
+  background: var(--y-surface-subtle);
+  color: var(--y-ink);
+}
+
+.pdf-reader__highlight-editor header > button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pdf-reader__highlight-editor blockquote {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--y-line);
+  padding: 12px 14px;
+  color: var(--y-ink-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.pdf-reader__highlight-editor form {
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px 14px;
+}
+
+.pdf-reader__highlight-editor fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0 0 3px;
+}
+
+.pdf-reader__highlight-editor legend,
+.pdf-reader__highlight-editor label > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--y-ink-secondary);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.pdf-reader__highlight-editor textarea,
+.pdf-reader__highlight-editor input {
+  width: 100%;
+  border: 1px solid var(--y-control-line);
+  border-radius: var(--y-radius-sm);
+  padding: 9px 10px;
+  background: var(--y-surface);
+  color: var(--y-ink);
+  font: inherit;
+  font-size: 12px;
+  outline: 0;
+}
+
+.pdf-reader__highlight-editor textarea {
+  min-height: 104px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.pdf-reader__highlight-editor textarea:focus,
+.pdf-reader__highlight-editor input:focus {
+  border-color: var(--y-accent);
+  box-shadow: 0 0 0 3px var(--y-accent-soft);
+}
+
+.pdf-reader__highlight-editor form > p {
+  margin: -3px 0 2px;
+  color: var(--y-ink-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.pdf-reader__highlight-editor .pdf-reader__highlight-editor-error {
+  margin: 1px 0;
+  border-left: 2px solid var(--y-danger);
+  padding: 6px 8px;
+  background: var(--y-danger-soft);
+  color: var(--y-danger-hover);
+  font-size: 10px;
+}
+
+.pdf-reader__highlight-editor footer,
+.pdf-reader__highlight-editor footer > div,
+.pdf-reader__highlight-delete-confirmation > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pdf-reader__highlight-editor footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--y-line);
+  margin-top: 5px;
+  padding-top: 11px;
+}
+
+.pdf-reader__highlight-editor .pdf-reader__button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.pdf-reader__highlight-delete-confirmation {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--y-line);
+  margin-top: 5px;
+  padding-top: 11px;
+}
+
+.pdf-reader__highlight-delete-confirmation p {
+  margin: 0;
+  color: var(--y-danger-hover);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.pdf-reader__highlight-delete-confirmation > div {
+  justify-content: flex-end;
 }
 
 .pdf-reader__floating-controls {
@@ -1968,6 +2335,21 @@ body,
 
   .pdf-reader__document-tools .pdf-reader__pan-tool {
     display: none;
+  }
+
+  .pdf-reader__highlight-editor-backdrop {
+    align-items: end;
+    justify-items: stretch;
+    padding: 8px;
+  }
+
+  .pdf-reader__highlight-editor {
+    width: 100%;
+    max-height: calc(100% - 12px);
+  }
+
+  .pdf-reader__highlight-editor textarea {
+    min-height: 84px;
   }
 
   .pdf-reader__recent-list small {

@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PdfAnnotationRecord } from './schema';
-import { getPdfBacklinkSourceRects } from './pdfAnnotations';
+import type {
+  PdfAnnotationRecord,
+  SavedItemRecord,
+} from './schema';
+import {
+  getPdfBacklinkSourceRects,
+  getPdfHighlightsForResource,
+} from './pdfAnnotations';
 
 const resourceId = `pdf_${'a'.repeat(64)}`;
 const annotation: PdfAnnotationRecord = {
@@ -72,3 +78,86 @@ describe('PDF backlink annotation lookup', () => {
     ]);
   });
 });
+
+describe('PDF stored highlight lookup', () => {
+  it('joins annotation anchors to saved items and defaults legacy colors', async () => {
+    const savedItem: SavedItemRecord = {
+      id: 'saved-anchor',
+      text: annotation.quote,
+      type: 'sentence',
+      sourceDomain: 'pdf.local',
+      tags: ['selection', 'pdf'],
+      pdfAnnotationId: annotation.id,
+      createdAt: 1_000,
+      updatedAt: 1_100,
+    };
+    const store = createHighlightStore([annotation], [savedItem]);
+
+    await expect(getPdfHighlightsForResource(resourceId, store)).resolves.toEqual([{
+      annotation,
+      color: 'yellow',
+      savedItem,
+    }]);
+  });
+
+  it('filters malformed rectangles and orphaned annotation anchors', async () => {
+    const validAnnotation: PdfAnnotationRecord = {
+      ...annotation,
+      color: 'blue',
+      sourceRects: [
+        annotation.sourceRects[0]!,
+        { pageIndex: 2, x: 0, y: 0, width: Number.NaN, height: 10 },
+      ],
+    };
+    const orphan: PdfAnnotationRecord = {
+      ...annotation,
+      id: 'orphan',
+      sourceRects: [{ pageIndex: 2, x: 10, y: 20, width: 30, height: 10 }],
+    };
+    const savedItem: SavedItemRecord = {
+      id: 'saved-anchor',
+      text: annotation.quote,
+      type: 'sentence',
+      sourceDomain: 'pdf.local',
+      tags: ['selection', 'pdf', 'highlight'],
+      pdfAnnotationId: annotation.id,
+      createdAt: 1_000,
+    };
+
+    const highlights = await getPdfHighlightsForResource(
+      resourceId,
+      createHighlightStore([orphan, validAnnotation], [savedItem]),
+    );
+
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toMatchObject({
+      color: 'blue',
+      annotation: {
+        id: annotation.id,
+        sourceRects: [annotation.sourceRects[0]],
+      },
+    });
+  });
+});
+
+function createHighlightStore(
+  annotations: PdfAnnotationRecord[],
+  savedItems: SavedItemRecord[],
+) {
+  return {
+    pdfAnnotations: {
+      where: vi.fn(() => ({
+        equals: vi.fn(() => ({
+          toArray: vi.fn(async () => annotations),
+        })),
+      })),
+    },
+    savedItems: {
+      where: vi.fn(() => ({
+        anyOf: vi.fn(() => ({
+          toArray: vi.fn(async () => savedItems),
+        })),
+      })),
+    },
+  };
+}
