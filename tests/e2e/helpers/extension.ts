@@ -84,6 +84,69 @@ export async function openExtensionPage(
   return page;
 }
 
+export async function installPdfCompanionBrowserStubs(
+  context: BrowserContext,
+): Promise<void> {
+  await context.addInitScript(() => {
+    class TestTranslator {
+      static create(options: {
+        monitor?: (monitor: {
+          addEventListener: (
+            type: 'downloadprogress',
+            listener: (event: Event & { loaded: number }) => void,
+          ) => void;
+        }) => void;
+      }) {
+        options.monitor?.({
+          addEventListener: (_type, listener) => {
+            listener(Object.assign(new Event('downloadprogress'), {
+              loaded: 1,
+            }));
+          },
+        });
+        return Promise.resolve({
+          translate: async (text: string) => `本地译文：${text}`,
+          destroy: () => undefined,
+        });
+      }
+    }
+
+    class TestSpeechSynthesisUtterance {
+      lang = '';
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onstart: (() => void) | null = null;
+      pitch = 1;
+      rate = 1;
+      text: string;
+      voice: SpeechSynthesisVoice | null = null;
+
+      constructor(text = '') {
+        this.text = text;
+      }
+    }
+
+    Object.defineProperty(globalThis, 'Translator', {
+      configurable: true,
+      value: TestTranslator,
+    });
+    Object.defineProperty(globalThis, 'SpeechSynthesisUtterance', {
+      configurable: true,
+      value: TestSpeechSynthesisUtterance,
+    });
+    Object.defineProperty(globalThis, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        cancel: () => undefined,
+        getVoices: () => [],
+        speak: (utterance: TestSpeechSynthesisUtterance) => {
+          queueMicrotask(() => utterance.onstart?.());
+        },
+      },
+    });
+  });
+}
+
 export async function readExtensionPageText(
   context: BrowserContext,
   extensionId: string,

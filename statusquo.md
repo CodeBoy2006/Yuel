@@ -1563,3 +1563,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Rotated navigation now uses EmbedPDF's unscaled displayed page offset and `transformRect` projection instead of reducing the viewport boundary to source-space Y. All 71 unit/UI test files and 560 tests, TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader lifecycle pass.
+
+## [2026-07-16 20:47] PDF Selection Companion
+- **Changes:** Added a transient "划词伴读" action to PDF text selections with browser-provided English-to-Chinese translation, model-download progress, independent English speech controls, explicit capability/error states, cancellation-safe task handling, focus restoration, responsive page-clamped placement, and local-only privacy copy; added service, component, packaged-extension, and documentation coverage.
+- **Status:** Completed
+- **Next Steps:** Observe real first-use model download time and translation availability across supported Chrome desktop installations before considering language detection or explanatory AI features.
+- **Context:** The feature is progressively enhanced without new extension permissions or a higher manifest minimum; selected text and translations are never persisted. All 73 unit/UI test files and 576 tests, TypeScript checks, production build, extension smoke validation, whitespace validation, design-rule scan, desktop/390 px visual checks, and seven regular packaged Chromium scenarios pass; the opt-in 160-page pressure scenario remains skipped by default.

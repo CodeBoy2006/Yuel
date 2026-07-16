@@ -10,11 +10,11 @@ web
 
 ## Users
 
-Chinese-speaking learners and knowledge workers who read long-form English documentation and articles in a desktop browser. They use Yuel between paragraphs to understand what they have genuinely read, maintain a sustainable daily habit, and revisit useful vocabulary or excerpts without breaking reading flow.
+Chinese-speaking learners and knowledge workers who read long-form English documentation, PDFs, and articles in a desktop browser. They use Yuel between paragraphs to understand difficult passages, see what they have genuinely read, maintain a sustainable daily habit, and revisit useful vocabulary or excerpts without breaking reading flow.
 
 ## Product Purpose
 
-Yuel is a local-first browser extension that turns measured, engagement-gated reading activity into trustworthy daily progress, page coverage, reading-rhythm insights, vocabulary exposure, and saved excerpts. Success means users can glance at the extension, understand today's state immediately, and continue reading with confidence rather than feeling watched or scored.
+Yuel is a local-first browser extension that combines in-flow reading assistance with measured, engagement-gated activity to produce trustworthy daily progress, page coverage, reading-rhythm insights, vocabulary exposure, and saved excerpts. Success means users can resolve a difficult passage, understand today's state immediately, and continue reading with confidence rather than feeling watched or scored.
 
 ## Brand Personality
 

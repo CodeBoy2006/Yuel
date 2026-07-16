@@ -1,6 +1,7 @@
 import {
   clearPdfReadingChunks,
   expect,
+  installPdfCompanionBrowserStubs,
   openExtensionPage,
   readActiveTabCollectorStatus,
   readExtensionPageText,
@@ -133,6 +134,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   context,
   extensionId,
 }) => {
+  await installPdfCompanionBrowserStubs(context);
   const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
   const pdfFixture = createPdfSmokeFixture();
   const externalRequests: string[] = [];
@@ -363,6 +365,34 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     name: '复制所选文本',
   });
   await expect(copySelectionButton).toBeVisible();
+  const companionButton = pdfReader.getByRole('button', {
+    name: '打开划词伴读',
+  });
+  await expect(companionButton).toBeEnabled();
+  await companionButton.click();
+  const companion = pdfReader.getByRole('dialog', {
+    name: '划词伴读',
+  });
+  await expect(companion).toBeVisible();
+  await expect(companion).toContainText('选区不保存');
+  await expect(companion).toContainText('本地译文：Local PDFium');
+  const speechButton = companion.getByRole('button', {
+    name: '朗读所选英文',
+  });
+  await speechButton.click();
+  const stopSpeechButton = companion.getByRole('button', {
+    name: '停止朗读英文',
+  });
+  await expect(stopSpeechButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(stopSpeechButton).toContainText('停止');
+  await stopSpeechButton.click();
+  await expect(companion.getByRole('button', {
+    name: '朗读所选英文',
+  })).toHaveAttribute('aria-pressed', 'false');
+  await pdfReader.keyboard.press('Escape');
+  await expect(companion).toBeHidden();
+  await expect(companionButton).toBeFocused();
+
   await copySelectionButton.click();
   await expect(copySelectionButton).toContainText('已复制');
   await pdfReader.getByRole('radio', { name: '绿色高亮' }).click();

@@ -2,6 +2,7 @@ import {
   Highlighter,
   Check,
   Copy,
+  Languages,
   LoaderCircle,
   Save,
   Trash2,
@@ -32,7 +33,12 @@ import {
   updatePdfHighlight,
 } from '../../storage/saveItems';
 import type { PdfHighlightColor } from '../../storage/schema';
+import {
+  startPdfCompanionTranslation,
+  type PdfCompanionTranslationTask,
+} from '../companion/localCompanion';
 import type { PdfSourceMetadata } from '../source';
+import { PdfSelectionCompanion } from './PdfSelectionCompanion';
 
 const PDF_HIGHLIGHT_COLOR_OPTIONS = [
   { value: 'yellow', label: '黄色' },
@@ -46,6 +52,7 @@ const PDF_HIGHLIGHT_COLOR_OPTIONS = [
 
 export function PdfSelectionMenu({
   documentId,
+  context,
   menuWrapperProps,
   placement,
   rect,
@@ -56,17 +63,61 @@ export function PdfSelectionMenu({
 }) {
   const { provides: selection } = useSelectionCapability();
   const [copied, setCopied] = useState(false);
+  const [selectedText, setSelectedText] = useState<string>();
+  const [selectedTextStatus, setSelectedTextStatus] = useState<
+    'loading' | 'ready' | 'failed'
+  >('loading');
+  const [companion, setCompanion] = useState<{
+    task: PdfCompanionTranslationTask;
+    text: string;
+  }>();
   const [highlightColor, setHighlightColor] = useState<PdfHighlightColor>('yellow');
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'failed'
   >('idle');
+  const companionButtonRef = useRef<HTMLButtonElement>(null);
   const resetTimerRef = useRef<number | undefined>(undefined);
+  const selectionKey = [
+    context.pageIndex,
+    rect.origin.x,
+    rect.origin.y,
+    rect.size.width,
+    rect.size.height,
+  ].join(':');
 
   useEffect(() => {
     setCopied(false);
     setHighlightColor('yellow');
     setSaveStatus('idle');
-  }, [placement]);
+    setCompanion(undefined);
+  }, [selectionKey]);
+
+  useEffect(() => {
+    const scope = selection?.forDocument(documentId);
+    if (!scope) {
+      setSelectedText(undefined);
+      setSelectedTextStatus('failed');
+      return;
+    }
+
+    let active = true;
+    setSelectedText(undefined);
+    setSelectedTextStatus('loading');
+    void scope.getSelectedText().toPromise().then((lines) => {
+      if (!active) return;
+      const text = lines.join(' ').replace(/\s+/g, ' ').trim();
+      setSelectedText(text || undefined);
+      setSelectedTextStatus(text ? 'ready' : 'failed');
+    }).catch(() => {
+      if (!active) return;
+      setSelectedText(undefined);
+      setSelectedTextStatus('failed');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [documentId, selection, selectionKey]);
 
   useEffect(() => {
     const scope = selection?.forDocument(documentId);
@@ -132,6 +183,29 @@ export function PdfSelectionMenu({
     }
   };
 
+  const openCompanion = () => {
+    if (!selectedText || selectedTextStatus !== 'ready') return;
+
+    // This call must stay directly inside the click turn so Chrome can use
+    // transient user activation when a local translation model is first needed.
+    const task = startPdfCompanionTranslation(selectedText);
+    setCompanion({
+      task,
+      text: selectedText,
+    });
+  };
+  const retryCompanion = () => {
+    if (!companion) return;
+    setCompanion({
+      text: companion.text,
+      task: startPdfCompanionTranslation(companion.text),
+    });
+  };
+  const closeCompanion = () => {
+    setCompanion(undefined);
+    window.requestAnimationFrame(() => companionButtonRef.current?.focus());
+  };
+
   return (
     <div {...menuWrapperProps}>
       <div
@@ -140,6 +214,31 @@ export function PdfSelectionMenu({
           top: placement.suggestTop ? -48 : rect.size.height + 8,
         }}
       >
+        <button
+          ref={companionButtonRef}
+          type="button"
+          data-no-interaction
+          aria-label="打开划词伴读"
+          aria-controls={companion ? 'pdf-reader-selection-companion' : undefined}
+          aria-expanded={Boolean(companion)}
+          title={selectedTextStatus === 'failed'
+            ? '无法读取当前选区'
+            : '划词伴读'}
+          disabled={selectedTextStatus !== 'ready'}
+          onClick={() => {
+            if (companion) {
+              closeCompanion();
+            } else {
+              openCompanion();
+            }
+          }}
+        >
+          {selectedTextStatus === 'loading'
+            ? <LoaderCircle className="is-spinning" aria-hidden="true" />
+            : <Languages aria-hidden="true" />}
+          <span>伴读</span>
+        </button>
+        <span className="pdf-reader__selection-menu-divider" aria-hidden="true" />
         <div
           className="pdf-reader__highlight-swatches"
           role="radiogroup"
@@ -200,6 +299,18 @@ export function PdfSelectionMenu({
           <span>{copied ? '已复制' : '复制'}</span>
         </button>
       </div>
+      {companion ? (
+        <PdfSelectionCompanion
+          key={companion.text}
+          onClose={closeCompanion}
+          onRetry={retryCompanion}
+          pageNumber={context.pageIndex + 1}
+          placement={placement}
+          rectHeight={rect.size.height}
+          task={companion.task}
+          text={companion.text}
+        />
+      ) : null}
     </div>
   );
 }
