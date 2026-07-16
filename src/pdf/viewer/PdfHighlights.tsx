@@ -369,6 +369,7 @@ export function PdfHighlightEditor({
         aria-modal="true"
         aria-labelledby="pdf-reader-highlight-editor-title"
         aria-busy={Boolean(busyAction)}
+        data-pdf-reader-shortcuts-disabled=""
         tabIndex={-1}
       >
         <header>

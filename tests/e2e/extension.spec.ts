@@ -170,6 +170,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   );
   const printButton = pdfReader.getByRole('button', { name: '打印 PDF' });
   const downloadButton = pdfReader.getByRole('button', { name: '下载 PDF' });
+  const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
   const nextUnreadButton = pdfReader.getByRole('button', {
     name: '下一处未读内容',
   });
@@ -381,7 +382,27 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     name: '高亮与笔记',
   });
   await expect(highlightEditor).toBeVisible();
-  await highlightEditor.getByRole('radio', { name: '蓝色' }).click();
+  const blueHighlightRadio = highlightEditor.getByRole('radio', {
+    name: '蓝色',
+  });
+  await blueHighlightRadio.click();
+  await expect(blueHighlightRadio).toBeFocused();
+  await expect(unreadNotice).toBeHidden();
+  const rotationTitleBeforeEditorShortcuts = await rotateButton.getAttribute(
+    'title',
+  );
+  const pageBeforeEditorShortcuts = await toolbarPageInput.inputValue();
+  await pdfReader.keyboard.press('r');
+  await pdfReader.keyboard.press('ArrowRight');
+  await pdfReader.keyboard.press('n');
+  await expect(rotateButton).toHaveAttribute(
+    'title',
+    rotationTitleBeforeEditorShortcuts ?? '',
+  );
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe(
+    pageBeforeEditorShortcuts,
+  );
+  await expect(unreadNotice).toBeHidden();
   await highlightEditor.locator('textarea').fill(
     'Keep this beside the local PDF implementation notes.',
   );
@@ -478,7 +499,6 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
 
   const zoomInput = pdfReader.locator('.pdf-reader__zoom-input input');
   const zoomBeforeRotation = Number(await zoomInput.inputValue());
-  const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
   const preRotationScrollTop = await readerViewport.evaluate((element) => {
     element.scrollTop = Math.min(
       260,

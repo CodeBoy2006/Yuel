@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Rotation } from '@embedpdf/models';
 
 import type {
   PdfChunkReadingProgress,
@@ -38,6 +39,77 @@ describe('PDF next unread navigation', () => {
       pageY: 700,
     })?.chunkId).toBe('later');
   });
+
+  it.each([
+    ['90 degrees', Rotation.Degree90, 40, 260],
+    ['270 degrees', Rotation.Degree270, 500, 260],
+  ])(
+    'uses the displayed vertical axis at %s rotation',
+    (_label, documentRotation, aboveX, visibleX) => {
+      const progress = createProgress([
+        createPage(1, [
+          createChunk('above', 20, 0, 1, 80, aboveX, 60),
+          createChunk('visible', 20, 0, 1, 80, visibleX, 60),
+        ]),
+      ]);
+
+      expect(findNextUnreadPdfChunk(progress, {
+        pageNumber: 1,
+        pageY: 200,
+        documentRotation,
+      })?.chunkId).toBe('visible');
+    },
+  );
+
+  it.each([
+    {
+      label: '90 degrees',
+      pageRotation: Rotation.Degree0,
+      documentRotation: Rotation.Degree90,
+      far: { x: 480, y: 80 },
+      near: { x: 240, y: 80 },
+    },
+    {
+      label: '180 degrees from combined rotations',
+      pageRotation: Rotation.Degree90,
+      documentRotation: Rotation.Degree90,
+      far: { x: 72, y: 80 },
+      near: { x: 72, y: 500 },
+    },
+    {
+      label: '270 degrees',
+      pageRotation: Rotation.Degree0,
+      documentRotation: Rotation.Degree270,
+      far: { x: 60, y: 80 },
+      near: { x: 300, y: 80 },
+    },
+  ])(
+    'selects the nearest displayed unread chunk at $label',
+    ({
+      documentRotation,
+      far,
+      near,
+      pageRotation,
+    }) => {
+      const progress = createProgress([
+        createPage(1, [
+          createChunk('far', 20, 0, 1, far.y, far.x, 60),
+          createChunk('near', 20, 0, 1, near.y, near.x, 60),
+        ], pageRotation),
+      ]);
+
+      expect(findNextUnreadPdfChunk(progress, {
+        pageNumber: 1,
+        pageY: 200,
+        documentRotation,
+      })?.chunkId).toBe('near');
+      expect(findNextUnreadPdfChunk(progress, {
+        pageNumber: 1,
+        afterChunkId: 'near',
+        documentRotation,
+      })?.chunkId).toBe('far');
+    },
+  );
 
   it('advances past the previous target without wrapping', () => {
     const progress = createProgress([
@@ -106,6 +178,7 @@ function createProgress(
 function createPage(
   pageNumber: number,
   chunks: PdfChunkReadingProgress[],
+  rotation = Rotation.Degree0,
 ): PdfPageReadingProgress {
   const totalWords = chunks.reduce((total, chunk) => total + chunk.wordCount, 0);
   const coveredWords = chunks.reduce((total, chunk) => total + chunk.coveredWords, 0);
@@ -115,7 +188,7 @@ function createPage(
     pageIndex: pageNumber - 1,
     pageNumber,
     size: { width: 600, height: 800 },
-    rotation: 0,
+    rotation,
     chunks,
     totalWords,
     coveredWords,
@@ -132,6 +205,8 @@ function createChunk(
   coveredWords: number,
   pageNumber = 1,
   y?: number,
+  x = 72,
+  width = 240,
 ): PdfChunkReadingProgress {
   return {
     chunkId,
@@ -143,8 +218,8 @@ function createChunk(
     rects: y === undefined
       ? []
       : [{
-          origin: { x: 72, y },
-          size: { width: 240, height: 18 },
+          origin: { x, y },
+          size: { width, height: 18 },
         }],
   };
 }

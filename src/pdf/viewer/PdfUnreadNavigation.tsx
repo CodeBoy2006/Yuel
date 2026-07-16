@@ -12,8 +12,7 @@ import {
   useState,
 } from 'react';
 
-import type { PdfDocumentReadingProgress } from '../analytics/progress';
-import { toPdfPageCoordinates } from '../documentState';
+import { shouldIgnorePdfReaderShortcut } from './keyboard';
 import type { PdfReadingProgressState } from './usePdfReadingProgress';
 import {
   findNextUnreadPdfChunk,
@@ -53,9 +52,10 @@ export function PdfNextUnreadControl({
       ? Boolean(findNextUnreadPdfChunk(readyProgress, {
           pageNumber: readyProgress.pages[0]?.pageNumber ?? 1,
           pageY: 0,
+          documentRotation: rotation,
         }))
       : false
-  ), [readyProgress]);
+  ), [readyProgress, rotation]);
   const canNavigate = Boolean(
     scroll
     && readyProgress
@@ -145,15 +145,15 @@ export function PdfNextUnreadControl({
       ? {
           pageNumber: activePage,
           afterChunkId: cursor.chunkId,
+          documentRotation: rotation,
         }
       : {
           pageNumber: activePage,
-          pageY: getCurrentPdfReadingY(
-            readyProgress,
+          pageY: getCurrentDisplayedPageY(
             activePage,
             scroll.getMetrics(),
-            rotation,
           ),
+          documentRotation: rotation,
         });
 
     if (target) {
@@ -165,6 +165,7 @@ export function PdfNextUnreadControl({
     const firstUnread = findNextUnreadPdfChunk(readyProgress, {
       pageNumber: readyProgress.pages[0]?.pageNumber ?? 1,
       pageY: 0,
+      documentRotation: rotation,
     });
     showNotice(firstUnread
       ? {
@@ -190,12 +191,13 @@ export function PdfNextUnreadControl({
     const target = findNextUnreadPdfChunk(readyProgress, {
       pageNumber: readyProgress.pages[0]?.pageNumber ?? 1,
       pageY: 0,
+      documentRotation: rotation,
     });
     if (!target) return;
 
     cursorRef.current = undefined;
     focusLocation(target);
-  }, [focusLocation, readyProgress]);
+  }, [focusLocation, readyProgress, rotation]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -205,7 +207,7 @@ export function PdfNextUnreadControl({
         || event.altKey
         || event.shiftKey
         || event.key.toLowerCase() !== 'n'
-        || isEditableTarget(event.target)
+        || shouldIgnorePdfReaderShortcut(event.target)
         || !canNavigate
       ) {
         return;
@@ -317,29 +319,11 @@ function getButtonTitle(
     : '当前可测文本已覆盖 · N';
 }
 
-function getCurrentPdfReadingY(
-  progress: PdfDocumentReadingProgress,
+function getCurrentDisplayedPageY(
   currentPage: number,
   metrics: ScrollMetrics,
-  documentRotation: Rotation,
 ): number {
-  const page = progress.pages.find((candidate) =>
-    candidate.pageNumber === currentPage);
   const visibility = metrics.pageVisibilityMetrics.find((candidate) =>
     candidate.pageNumber === currentPage);
-  if (!page || !visibility) return 0;
-
-  return toPdfPageCoordinates(
-    {
-      x: visibility.original.pageX,
-      y: visibility.original.pageY,
-    },
-    page.size,
-    ((page.rotation + documentRotation) % 4) as Rotation,
-  ).y;
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return target instanceof Element
-    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+  return visibility?.original.pageY ?? 0;
 }

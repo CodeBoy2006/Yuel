@@ -81,6 +81,7 @@ import type {
 } from 'react';
 
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
+import { shouldIgnorePdfReaderShortcut } from './keyboard';
 import type { PdfReadingProgressState } from './usePdfReadingProgress';
 import type { PdfUnreadTarget } from './unreadNavigation';
 import {
@@ -809,14 +810,14 @@ function DocumentKeyboardShortcuts({
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (shouldIgnorePdfReaderShortcut(event.target)) return;
+
       const modifier = event.metaKey || event.ctrlKey;
       if (modifier && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         onOpenSearch();
         return;
       }
-
-      if (isEditableTarget(event.target)) return;
 
       if (modifier && event.key.toLowerCase() === 'c') {
         const selectionScope = selection?.forDocument(documentId);
@@ -1194,9 +1195,4 @@ function submitInputOnEnter(
   event.preventDefault();
   submit();
   event.currentTarget.blur();
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return target instanceof Element
-    && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
 }

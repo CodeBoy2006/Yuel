@@ -1557,3 +1557,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe real long-document highlight volume before considering page-indexed in-memory grouping or an in-reader annotation list.
 - **Context:** Native PDF annotations remain read-only and source PDF bytes are never rewritten. Legacy annotation-backed excerpts render yellow and upgrade atomically when edited. All 70 unit/UI test files and 552 tests, TypeScript checks, the production build, whitespace validation, desktop/390 px visual checks, and the packaged Chromium create/edit/reopen/focus/delete regression pass.
+
+## [2026-07-16 19:27] PDF Rotation and Modal Shortcut Fixes
+- **Changes:** Made next-unread navigation compare and order chunk geometry in the page's combined displayed rotation, including 90°, 180°, and 270° views; replaced duplicated editable-target checks with a shared reader-shortcut boundary and marked the persistent-highlight editor as shortcut-disabled; added focused geometry, keyboard-boundary, and packaged-browser regression coverage.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Rotated navigation now uses EmbedPDF's unscaled displayed page offset and `transformRect` projection instead of reducing the viewport boundary to source-space Y. All 71 unit/UI test files and 560 tests, TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader lifecycle pass.
