@@ -1539,3 +1539,9 @@
 - **Status:** Completed
 - **Next Steps:** Treat the ready-state “本地数据 · 已读取” trust signal as a separate boundary decision and remove it only if observed use shows that the privacy cue no longer earns its space.
 - **Context:** Error, empty, destructive, loading, saving, and share-setting failure copy remains visible; progress and chart meaning remain available through accessible labels. All 537 unit/UI tests, TypeScript checks, the production build, whitespace validation, three packaged-extension Chromium regressions, and desktop/mobile visual checks pass.
+
+## [2026-07-16 17:55] PDF Reading Coverage Map
+- **Changes:** Added a live page- and chapter-level PDF reading map backed by the existing full text snapshot and sparse local chunk metrics; introduced coverage, cumulative text, effective-time, and sufficiently sampled pace charts; added explicit loading, extraction-failure, unrecorded, and no-measurable-text states; connected map rows to virtualized page navigation; and documented the new PDF surface.
+- **Status:** Completed
+- **Next Steps:** Build the next-unread navigator on the shared progress model without introducing a second extraction or coverage pipeline.
+- **Context:** The map keeps chapters runtime-derived from top-level PDF bookmarks, requires at least 100 processed words and 30 seconds before showing pace, and retains the existing 256 px sidebar geometry so fit-width position restoration remains within the established tolerance.

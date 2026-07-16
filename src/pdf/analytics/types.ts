@@ -37,6 +37,11 @@ export interface PdfReadingSnapshot {
   chunks: PdfReadingTextChunk[];
 }
 
+export type PdfReadingSnapshotLoadState =
+  | { status: 'loading' }
+  | { status: 'ready'; snapshot: PdfReadingSnapshot }
+  | { status: 'error' };
+
 export interface CreatePdfReadingTextSectionInput {
   metadata: PdfSourceMetadata;
   pageId: string;

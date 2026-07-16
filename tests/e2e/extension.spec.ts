@@ -223,6 +223,36 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   expect(pixelEvidence.height).toBeGreaterThan(100);
   expect(pixelEvidence.nonWhitePixels).toBeGreaterThan(20);
 
+  const readingMapButton = pdfReader.getByRole('button', {
+    name: '打开阅读地图',
+  });
+  await readingMapButton.click();
+  await expect(readingMapButton).toHaveAttribute('aria-pressed', 'true');
+  const readingMap = pdfReader.locator('.pdf-reader__reading-map');
+  await expect(readingMap).toBeVisible();
+  await expect(pdfReader.getByRole('tab', { name: '阅读' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(readingMap).toContainText('累计覆盖估算');
+  await expect(readingMap.getByRole('button', { name: /第 1 页/ })).toBeVisible();
+  await expect(readingMap.getByRole('button', { name: /第 2 页/ })).toBeVisible();
+  await readingMap.getByRole('button', { name: '时间' }).click();
+  await expect(readingMap.getByRole('button', { name: '时间' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await readingMap.getByRole('button', { name: '章节' }).click();
+  await expect(readingMap.getByRole('button', { name: /Introduction/ })).toBeVisible();
+  await expect(readingMap.getByRole('button', { name: /Page two/ })).toBeVisible();
+  await readingMap.getByRole('button', { name: /Page two/ }).click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await readingMapButton.click();
+  await expect(pdfReader.locator('.pdf-reader__sidebar')).toBeHidden();
+  await toolbarPageInput.fill('1');
+  await toolbarPageInput.press('Enter');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
   const navigationPanelButton = pdfReader.getByRole('button', {
     name: '切换目录与缩略图面板',
   });

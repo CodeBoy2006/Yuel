@@ -52,6 +52,7 @@ import type {
   PdfSourceMetadata,
   PdfSourceProgress,
 } from '../source';
+import type { PdfReadingSnapshotLoadState } from '../analytics/types';
 import {
   clearPdfReaderSession,
   publishPdfReaderSession,
@@ -68,6 +69,7 @@ import {
   PdfReaderSidebar,
   type PdfReaderPanelMode,
 } from './PdfReaderSidebar';
+import { usePdfReadingProgress } from './usePdfReadingProgress';
 
 export const LOCAL_PDF_MAX_BYTES = 256 * 1024 * 1024;
 export const REMOTE_PDF_MAX_BYTES = 96 * 1024 * 1024;
@@ -114,6 +116,9 @@ export function PdfReaderWorkspace({
   const [statsFailed, setStatsFailed] = useState(false);
   const [panelMode, setPanelMode] = useState<PdfReaderPanelMode | null>(null);
   const [focusSearchRequest, setFocusSearchRequest] = useState(0);
+  const [readingSnapshotState, setReadingSnapshotState] = useState<
+    PdfReadingSnapshotLoadState
+  >();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
   const loadSequenceRef = useRef(0);
@@ -131,6 +136,7 @@ export function PdfReaderWorkspace({
   const isBusy = activity.kind === 'loading' || activity.kind === 'opening';
   const canOpenSource = pluginsReady && Boolean(documentManager) && !isBusy;
   const documentLoaded = activeDocument?.status === 'loaded';
+  const readingProgressState = usePdfReadingProgress(readingSnapshotState);
   const displayName = sourceMetadata?.displayName
     ?? activeDocument?.name
     ?? '尚未打开 PDF';
@@ -159,6 +165,7 @@ export function PdfReaderWorkspace({
 
   useEffect(() => {
     setPanelMode(null);
+    setReadingSnapshotState(undefined);
   }, [activeDocumentId]);
 
   useEffect(() => {
@@ -651,6 +658,7 @@ export function PdfReaderWorkspace({
             onClose={() => setPanelMode(null)}
             onModeChange={showPanel}
             onNavigate={closePanelAfterNarrowNavigation}
+            readingProgressState={readingProgressState}
           />
         ) : null}
 
@@ -663,6 +671,7 @@ export function PdfReaderWorkspace({
               onCloseDocument={closeDocument}
               onDocumentStateReady={refreshRecentDocuments}
               onOpenSearch={openSearchPanel}
+              onReadingSnapshotStateChange={setReadingSnapshotState}
               sourceMetadata={sourceMetadata?.resourceId === activeDocumentId
                 ? sourceMetadata
                 : undefined}

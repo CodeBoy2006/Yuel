@@ -55,6 +55,7 @@ import type { ZoomLevel } from '@embedpdf/plugin-zoom';
 import {
   AlertCircle,
   BookmarkPlus,
+  ChartNoAxesGantt,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -91,6 +92,7 @@ import type { PdfSourceRectRecord } from '../../storage/schema';
 import {
   PdfReadingAnalytics,
 } from '../analytics';
+import type { PdfReadingSnapshotLoadState } from '../analytics/types';
 import {
   recordPdfDocumentOpen,
   savePdfDocumentViewState,
@@ -108,6 +110,9 @@ interface PdfDocumentViewProps {
   onCloseDocument: () => Promise<void>;
   onDocumentStateReady?: () => void;
   onOpenSearch: () => void;
+  onReadingSnapshotStateChange?: (
+    state: PdfReadingSnapshotLoadState | undefined,
+  ) => void;
   initialTarget?: PdfReaderTarget;
   sourceMetadata?: PdfSourceMetadata;
 }
@@ -119,6 +124,7 @@ export function PdfDocumentView({
   onCloseDocument,
   onDocumentStateReady,
   onOpenSearch,
+  onReadingSnapshotStateChange,
   sourceMetadata,
 }: PdfDocumentViewProps) {
   return (
@@ -190,6 +196,7 @@ export function PdfDocumentView({
                           documentRotation={documentState.rotation}
                           engine={engine}
                           metadata={sourceMetadata}
+                          onSnapshotStateChange={onReadingSnapshotStateChange}
                           scale={documentState.scale}
                         />
                       </>
@@ -348,6 +355,17 @@ export function DocumentToolbarControls({
 
   return (
     <div className="pdf-reader__document-tools">
+      <button
+        className="pdf-reader__icon-button pdf-reader__context-tool"
+        type="button"
+        aria-label="打开阅读地图"
+        aria-controls="pdf-reader-context-panel"
+        aria-pressed={panelMode === 'progress'}
+        title="阅读地图"
+        onClick={() => onTogglePanel('progress')}
+      >
+        <ChartNoAxesGantt aria-hidden="true" />
+      </button>
       <button
         className="pdf-reader__icon-button pdf-reader__context-tool"
         type="button"

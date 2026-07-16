@@ -15,6 +15,7 @@ import type { ThumbMeta } from '@embedpdf/plugin-thumbnail';
 import { useZoom } from '@embedpdf/plugin-zoom/react';
 import {
   CaseSensitive,
+  ChartNoAxesGantt,
   ChevronDown,
   ChevronUp,
   FileSearch,
@@ -37,12 +38,14 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   getPdfOutlineDestination,
 } from './outline';
+import { PdfReadingMapPanel } from './PdfReadingMapPanel';
 import {
   getPdfSearchResultAnchor,
   groupPdfSearchResults,
 } from './searchResults';
+import type { PdfReadingProgressState } from './usePdfReadingProgress';
 
-export type PdfReaderPanelMode = 'outline' | 'thumbnails' | 'search';
+export type PdfReaderPanelMode = 'progress' | 'outline' | 'thumbnails' | 'search';
 
 interface PdfReaderSidebarProps {
   document: PdfDocumentObject;
@@ -53,6 +56,7 @@ interface PdfReaderSidebarProps {
   onClose: () => void;
   onModeChange: (mode: PdfReaderPanelMode) => void;
   onNavigate: () => void;
+  readingProgressState: PdfReadingProgressState;
 }
 
 export function PdfReaderSidebar({
@@ -64,6 +68,7 @@ export function PdfReaderSidebar({
   onClose,
   onModeChange,
   onNavigate,
+  readingProgressState,
 }: PdfReaderSidebarProps) {
   return (
     <>
@@ -78,6 +83,16 @@ export function PdfReaderSidebar({
             role="tablist"
             aria-label="导航内容"
           >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'progress'}
+              title="阅读地图"
+              onClick={() => onModeChange('progress')}
+            >
+              <ChartNoAxesGantt aria-hidden="true" />
+              <span>阅读</span>
+            </button>
             <button
               type="button"
               role="tab"
@@ -121,7 +136,15 @@ export function PdfReaderSidebar({
         </header>
 
         <div className="pdf-reader__sidebar-content">
-          {mode === 'outline' ? (
+          {mode === 'progress' ? (
+            <PdfReadingMapPanel
+              document={document}
+              documentId={documentId}
+              engine={engine}
+              onNavigate={onNavigate}
+              state={readingProgressState}
+            />
+          ) : mode === 'outline' ? (
             <PdfOutlinePanel
               document={document}
               documentId={documentId}

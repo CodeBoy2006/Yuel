@@ -21,7 +21,10 @@ import {
   startPdfReadingSessionBridge,
   type PdfReadingSessionBridge,
 } from './session';
-import type { PdfReadingRuntimeModel } from './runtime';
+import type {
+  PdfReadingRuntimeModel,
+} from './runtime';
+import type { PdfReadingSnapshotLoadState } from './types';
 
 export interface PdfReadingAnalyticsProps {
   document: PdfDocumentObject;
@@ -29,6 +32,7 @@ export interface PdfReadingAnalyticsProps {
   documentRotation: Rotation;
   engine: PdfTextRunsEngine;
   metadata: PdfSourceMetadata;
+  onSnapshotStateChange?: (state: PdfReadingSnapshotLoadState | undefined) => void;
   scale: number;
 }
 
@@ -38,6 +42,7 @@ export function PdfReadingAnalytics({
   documentRotation,
   engine,
   metadata,
+  onSnapshotStateChange,
   scale,
 }: PdfReadingAnalyticsProps) {
   const viewportElementRef = useViewportElement();
@@ -59,6 +64,7 @@ export function PdfReadingAnalytics({
     const activeDocument = documentRef.current;
     const activeMetadata = metadataRef.current;
     setModel(undefined);
+    onSnapshotStateChange?.({ status: 'loading' });
 
     void extractPdfReadingSnapshot(
       engine,
@@ -66,17 +72,24 @@ export function PdfReadingAnalytics({
       activeMetadata,
       { signal: controller.signal },
     ).then((snapshot) => {
-      if (!controller.signal.aborted && snapshot.chunks.length > 0) {
-        setModel(createPdfReadingRuntimeModel(snapshot, activeDocument));
+      if (!controller.signal.aborted) {
+        if (snapshot.chunks.length > 0) {
+          setModel(createPdfReadingRuntimeModel(snapshot, activeDocument));
+        }
+        onSnapshotStateChange?.({ status: 'ready', snapshot });
       }
     }).catch((error: unknown) => {
       if (!controller.signal.aborted && !isAbortError(error)) {
         console.warn('Failed to extract PDF text for local reading analytics', error);
+        onSnapshotStateChange?.({ status: 'error' });
       }
     });
 
-    return () => controller.abort();
-  }, [documentId, engine, metadata.resourceId]);
+    return () => {
+      controller.abort();
+      onSnapshotStateChange?.(undefined);
+    };
+  }, [documentId, engine, metadata.resourceId, onSnapshotStateChange]);
 
   useEffect(() => {
     const viewportElement = viewportElementRef?.current;
