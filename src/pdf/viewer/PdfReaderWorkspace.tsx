@@ -116,6 +116,8 @@ export function PdfReaderWorkspace({
   const [statsBusy, setStatsBusy] = useState(false);
   const [statsFailed, setStatsFailed] = useState(false);
   const [panelMode, setPanelMode] = useState<PdfReaderPanelMode | null>(null);
+  const [renderedPanelMode, setRenderedPanelMode] =
+    useState<PdfReaderPanelMode | null>(null);
   const [focusSearchRequest, setFocusSearchRequest] = useState(0);
   const [readingSnapshotState, setReadingSnapshotState] = useState<
     PdfReadingSnapshotLoadState
@@ -167,6 +169,7 @@ export function PdfReaderWorkspace({
 
   useEffect(() => {
     setPanelMode(null);
+    setRenderedPanelMode(null);
     setReadingSnapshotState(undefined);
     setUnreadTarget(undefined);
   }, [activeDocumentId]);
@@ -194,6 +197,7 @@ export function PdfReaderWorkspace({
   ]);
 
   const showPanel = useCallback((mode: PdfReaderPanelMode) => {
+    setRenderedPanelMode(mode);
     setPanelMode(mode);
     if (mode === 'search') {
       setFocusSearchRequest((request) => request + 1);
@@ -217,6 +221,12 @@ export function PdfReaderWorkspace({
       setPanelMode(null);
     }
   }, []);
+
+  const finishPanelClose = useCallback(() => {
+    if (panelMode === null) {
+      setRenderedPanelMode(null);
+    }
+  }, [panelMode]);
 
   const openSource = useCallback(async (
     sourceKind: 'local' | 'remote',
@@ -649,18 +659,20 @@ export function PdfReaderWorkspace({
       <main
         className="pdf-reader__workspace"
         data-panel-open={panelMode ? 'true' : 'false'}
+        data-panel-mode={renderedPanelMode ?? undefined}
       >
         {documentLoaded
           && activeDocumentId
-          && activeDocument?.document
-          && panelMode ? (
+          && activeDocument?.document ? (
           <PdfReaderSidebar
             document={activeDocument.document}
             documentId={activeDocumentId}
             engine={engine}
             focusSearchRequest={focusSearchRequest}
-            mode={panelMode}
+            mode={renderedPanelMode}
+            open={panelMode !== null}
             onClose={() => setPanelMode(null)}
+            onCloseAnimationEnd={finishPanelClose}
             onModeChange={showPanel}
             onNavigate={closePanelAfterNarrowNavigation}
             readingProgressState={readingProgressState}

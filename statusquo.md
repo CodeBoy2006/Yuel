@@ -1581,3 +1581,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The width isolation prevents search-panel geometry from perturbing rotated PDF position restoration while preserving the room required by the continuous map. TypeScript checks, the design-rule scan, all 73 test files and 579 tests, the production build, whitespace validation, and the full packaged Chromium PDF reader regression pass, including reading-map interaction, 300/256 px mode widths, rotation resume, zoom, and narrow-screen behavior.
+
+## [2026-07-17 08:52] PDF Sidebar Motion
+- **Changes:** Added coordinated expand and collapse motion for the PDF navigation sidebar and document viewport, retained panel content through the exit transition, and added narrow-screen drawer and backdrop transitions with reduced-motion support.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Desktop panel widths remain 300 px for the reading map and 256 px for outline, thumbnails, and search. TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass.

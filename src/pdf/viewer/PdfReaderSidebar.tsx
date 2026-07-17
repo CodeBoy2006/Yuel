@@ -33,7 +33,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  TransitionEvent as ReactTransitionEvent,
+} from 'react';
 
 import {
   getPdfOutlineDestination,
@@ -52,8 +55,10 @@ interface PdfReaderSidebarProps {
   documentId: string;
   engine: Pick<PdfEngine, 'getBookmarks'>;
   focusSearchRequest: number;
-  mode: PdfReaderPanelMode;
+  mode: PdfReaderPanelMode | null;
+  open: boolean;
   onClose: () => void;
+  onCloseAnimationEnd: () => void;
   onModeChange: (mode: PdfReaderPanelMode) => void;
   onNavigate: () => void;
   readingProgressState: PdfReadingProgressState;
@@ -65,18 +70,57 @@ export function PdfReaderSidebar({
   engine,
   focusSearchRequest,
   mode,
+  open,
   onClose,
+  onCloseAnimationEnd,
   onModeChange,
   onNavigate,
   readingProgressState,
 }: PdfReaderSidebarProps) {
+  const handleTransitionEnd = (event: ReactTransitionEvent<HTMLElement>) => {
+    if (
+      event.target === event.currentTarget
+      && event.propertyName === 'transform'
+      && !open
+    ) {
+      onCloseAnimationEnd();
+    }
+  };
+
+  if (!mode) {
+    return (
+      <>
+        <aside
+          id="pdf-reader-context-panel"
+          className="pdf-reader__sidebar"
+          data-open="false"
+          aria-label="PDF 导航面板"
+          aria-hidden="true"
+          inert
+        />
+        <button
+          className="pdf-reader__sidebar-backdrop"
+          type="button"
+          data-open="false"
+          aria-label="关闭导航面板"
+          aria-hidden="true"
+          disabled
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <aside
         id="pdf-reader-context-panel"
         className="pdf-reader__sidebar"
         data-mode={mode}
+        data-open={open ? 'true' : 'false'}
         aria-label="PDF 导航面板"
+        aria-hidden={!open}
+        inert={!open}
+        onTransitionEnd={handleTransitionEnd}
       >
         <header className="pdf-reader__sidebar-header">
           <div
@@ -170,7 +214,10 @@ export function PdfReaderSidebar({
       <button
         className="pdf-reader__sidebar-backdrop"
         type="button"
+        data-open={open ? 'true' : 'false'}
         aria-label="关闭导航面板"
+        aria-hidden={!open}
+        disabled={!open}
         onClick={onClose}
       />
     </>
