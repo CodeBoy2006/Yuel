@@ -643,8 +643,23 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.textContent).toContain('权限状态不可用');
+    expect(container.querySelector('.popup-current-site .yuel-status')).toBeNull();
     expect(container.textContent).not.toContain('暂时无法读取当前页面权限状态');
     expect(container.textContent).not.toContain('正在读取当前标签');
+  });
+
+  it('shows an unsupported popup page state only once', async () => {
+    const container = await renderPopup({
+      getCurrentTabSiteAccess: async () => ({
+        supported: false,
+        reason: 'unsupported-page',
+      }),
+    });
+
+    expect(container.textContent).toContain('当前页面无法记录');
+    expect(container.querySelector('.popup-current-site .yuel-status')).toBeNull();
+    expect(container.querySelector('[aria-label="打开侧栏"]')?.textContent).toContain('侧栏');
+    expect(container.textContent).not.toContain('当前页面不可用');
   });
 
   it('shows Chrome site restrictions without offering a manual enable flow', async () => {

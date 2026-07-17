@@ -359,7 +359,7 @@ export function SavedExcerptLibrary({
           <FileText aria-hidden="true" />
           <div>
             <h3>还没有摘录</h3>
-            <p>在网页中选中文本并右键保存，或在 PDF 阅读器中使用“保存”操作。</p>
+            <p>在网页或 PDF 阅读器中保存文本。</p>
           </div>
         </div>
       ) : null}
@@ -532,7 +532,7 @@ export function SavedExcerptLibrary({
                       />
                     </label>
                     <p id={`excerpt-tags-help-${item.id}`}>
-                      最多 {MAX_SAVED_ITEM_USER_TAGS} 个标签，用逗号分隔；每个不超过 {MAX_SAVED_ITEM_USER_TAG_LENGTH} 个字符。
+                      逗号分隔，最多 {MAX_SAVED_ITEM_USER_TAGS} 个，每个 {MAX_SAVED_ITEM_USER_TAG_LENGTH} 字。
                     </p>
                     {editError ? <InlineNotice tone="danger">{editError}</InlineNotice> : null}
                     <div className="excerpt-editor__actions">

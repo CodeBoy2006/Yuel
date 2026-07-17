@@ -272,9 +272,11 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
                 {formatSiteAccessTitle(siteAccess, siteAccessFailed)}
               </h1>
             </div>
-            <StatusPill tone={formatSiteAccessTone(siteAccess, siteAccessFailed)}>
-              {formatSiteAccessStatus(siteAccess, siteAccessFailed)}
-            </StatusPill>
+            {siteAccess?.supported ? (
+              <StatusPill tone={formatSiteAccessTone(siteAccess)}>
+                {formatSiteAccessStatus(siteAccess)}
+              </StatusPill>
+            ) : null}
           </div>
           {siteAccessDetail ? (
             <p className="popup-current-site__detail">
@@ -359,11 +361,9 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
           >
             {currentSiteLoading
               ? '检查中...'
-              : currentSiteUnavailable
-                ? isUnsupportedPageAccess(siteAccess) ? '当前页面不可用' : '无法确认当前页面'
-                : sidePanelBusy
-                  ? '打开中...'
-                  : '侧栏'}
+              : sidePanelBusy
+                ? '打开中...'
+                : '侧栏'}
           </ActionButton>
           <ActionButton
             type="button"
@@ -405,11 +405,9 @@ function formatSiteAccessTitle(siteAccess: SiteAccessState | undefined, failed: 
   return siteAccess.host;
 }
 
-function formatSiteAccessStatus(siteAccess: SiteAccessState | undefined, failed: boolean): string {
-  if (failed) return '错误';
-  if (!siteAccess) return '检查中';
-  if (isUnsupportedPageAccess(siteAccess)) return '不可用';
-  if (!siteAccess.supported) return '未知';
+function formatSiteAccessStatus(
+  siteAccess: Extract<SiteAccessState, { supported: true }>,
+): string {
   if (siteAccess.disabledReason === 'global-paused') return '全部暂停';
   if (siteAccess.disabledReason === 'site-paused') return '本站暂停';
   if (!siteAccess.enabled) return '访问受限';
@@ -419,11 +417,8 @@ function formatSiteAccessStatus(siteAccess: SiteAccessState | undefined, failed:
 }
 
 function formatSiteAccessTone(
-  siteAccess: SiteAccessState | undefined,
-  failed: boolean,
+  siteAccess: Extract<SiteAccessState, { supported: true }>,
 ): 'neutral' | 'positive' | 'warning' | 'danger' {
-  if (failed) return 'danger';
-  if (!siteAccess || !siteAccess.supported) return 'neutral';
   if (siteAccess.disabledReason === 'browser-restricted') return 'warning';
   if (!siteAccess.enabled) return 'neutral';
   return siteAccess.collectorState === 'recording' ? 'positive' : 'neutral';
