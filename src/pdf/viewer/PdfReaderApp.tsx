@@ -27,8 +27,7 @@ export function PdfReaderApp({ wasmUrl }: { wasmUrl: string }) {
     return (
       <div className="pdf-reader-engine-state yuel-app" role="status" aria-live="polite">
         <LoaderCircle className="is-spinning" aria-hidden="true" />
-        <h1>正在启动 PDF 引擎</h1>
-        <p>加载扩展内置的 PDFium WASM 与渲染 Worker。</p>
+        <h1>正在准备阅读器</h1>
       </div>
     );
   }

@@ -322,7 +322,6 @@ export function PdfDocumentView({
               <ReaderDocumentState
                 icon={LoaderCircle}
                 title="正在打开 PDF"
-                description="PDFium 正在解析页面结构。"
                 busy
                 overlay
               />
@@ -1199,7 +1198,7 @@ function ReaderDocumentState({
 }: {
   action?: ReactNode;
   busy?: boolean;
-  description: string;
+  description?: string;
   icon: typeof AlertCircle;
   overlay?: boolean;
   title: string;
@@ -1215,7 +1214,7 @@ function ReaderDocumentState({
           <Icon className={busy ? 'is-spinning' : ''} />
         </div>
         <h2>{title}</h2>
-        <p>{description}</p>
+        {description ? <p>{description}</p> : null}
         {action ? <div className="pdf-reader__state-actions">{action}</div> : null}
       </div>
     </div>

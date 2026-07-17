@@ -34,7 +34,7 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
   await popup.getByRole('button', { name: '打开 PDF 阅读器' }).click();
   const popupReaderPage = await popupReaderPagePromise;
   await popupReaderPage.waitForLoadState('load');
-  await expect(popupReaderPage.locator('body')).toContainText('打开 PDF，继续你的阅读');
+  await expect(popupReaderPage.locator('h1')).toHaveText('打开 PDF');
   await popupReaderPage.close();
   await popup.close();
 
@@ -46,7 +46,7 @@ test('loads the packaged extension pages', async ({ context, extensionId }) => {
   await sidePanel.close();
 
   const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
-  await expect(pdfReader.locator('body')).toContainText('打开 PDF，继续你的阅读');
+  await expect(pdfReader.locator('h1')).toHaveText('打开 PDF');
   await pdfReader.close();
 });
 

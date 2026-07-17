@@ -8,7 +8,6 @@ import {
   Link2,
   LoaderCircle,
   PanelRightOpen,
-  ShieldCheck,
   X,
 } from 'lucide-react';
 import {
@@ -565,8 +564,11 @@ export function PdfReaderWorkspace({
             onTogglePanel={togglePanel}
           />
         ) : (
-          <div className="pdf-reader__toolbar-status" role="status">
-            {pluginsReady ? '阅读器就绪' : '正在初始化'}
+          <div
+            className="pdf-reader__toolbar-status"
+            role={pluginsReady ? undefined : 'status'}
+          >
+            {pluginsReady ? null : '正在初始化'}
           </div>
         )}
 
@@ -613,8 +615,8 @@ export function PdfReaderWorkspace({
           >
             <div className="pdf-reader__remote-form-heading">
               <div>
-                <strong>打开远程 PDF</strong>
-                <span>当前版本会完整下载文件，上限 96 MB。</span>
+                <strong>远程 PDF</strong>
+                <span>完整下载，最大 96 MB。</span>
               </div>
               <button
                 type="button"
@@ -736,7 +738,7 @@ function ReaderActivityBanner({
   }
 
   const message = activity.kind === 'opening'
-    ? '正在交给 PDFium 打开文档'
+    ? '正在打开 PDF'
     : formatPdfSourceProgress(activity.progress);
   const totalBytes = activity.kind === 'loading' ? activity.progress.totalBytes : undefined;
   const progress = activity.kind === 'loading' && totalBytes
@@ -789,18 +791,17 @@ function ReaderEmptyState({
       <div className="pdf-reader__empty-mark" aria-hidden="true">
         {ready ? <FileText /> : <LoaderCircle className="is-spinning" />}
       </div>
-      <p className="pdf-reader__empty-kicker">Yuel PDF Reader</p>
       <h1>
         {!ready
-          ? '正在准备本地 PDF 引擎'
+          ? '正在准备阅读器'
           : pendingState
             ? `重新选择 ${pendingState.displayName}`
-            : '打开 PDF，继续你的阅读'}
+            : '打开 PDF'}
       </h1>
       <p className="pdf-reader__empty-copy">
         {pendingState
-          ? 'Yuel 不保存本地 PDF 文件。重新选择原文件后，将校验内容并恢复到保存的位置。'
-          : '文件内容只在当前设备处理。阅读统计复用现有本地优先数据流，不保存 PDF 文件本身。'}
+          ? '重新选择原文件以校验并恢复阅读位置。'
+          : '文件仅在本机处理，不保存 PDF 本身。'}
       </p>
       <div className="pdf-reader__empty-actions">
         <button
@@ -835,10 +836,7 @@ function ReaderEmptyState({
       </div>
       {recentDocuments.length > 0 ? (
         <div className="pdf-reader__recent">
-          <div className="pdf-reader__recent-heading">
-            <strong>最近文档</strong>
-            <span>最多显示 5 个</span>
-          </div>
+          <h2 className="pdf-reader__recent-heading">最近文档</h2>
           <div className="pdf-reader__recent-list">
             {recentDocuments.map((documentState) => (
               <button
@@ -865,10 +863,6 @@ function ReaderEmptyState({
           </div>
         </div>
       ) : null}
-      <div className="pdf-reader__empty-trust">
-        <ShieldCheck aria-hidden="true" />
-        <span>PDFium WASM 与 Worker 均由扩展本地提供</span>
-      </div>
     </section>
   );
 }

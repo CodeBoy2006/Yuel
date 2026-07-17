@@ -562,7 +562,7 @@ export function PdfHighlightEditor({
             />
           </label>
           <p id="pdf-reader-highlight-tags-help">
-            最多 {MAX_SAVED_ITEM_USER_TAGS} 个标签，每个不超过 {MAX_SAVED_ITEM_USER_TAG_LENGTH} 个字符。
+            最多 {MAX_SAVED_ITEM_USER_TAGS} 个，每个 {MAX_SAVED_ITEM_USER_TAG_LENGTH} 字。
           </p>
 
           {error ? (
