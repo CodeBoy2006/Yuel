@@ -75,15 +75,6 @@ body {
   min-width: 0;
 }
 
-.popup-eyebrow {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--y-ink-muted);
-  font-size: 11px;
-  font-weight: 720;
-  line-height: 1.2;
-}
-
 .popup-current-site h1 {
   margin: 0;
   overflow-wrap: anywhere;
@@ -118,24 +109,12 @@ body {
   padding-top: 12px;
 }
 
-.popup-current-site__control > div {
-  min-width: 0;
-}
-
 .popup-current-site__control h2 {
   margin: 0;
   color: var(--y-ink);
   font-size: 12px;
   font-weight: 740;
   line-height: 1.35;
-}
-
-.popup-current-site__control p {
-  margin: 4px 0 0;
-  color: var(--y-ink-secondary);
-  font-size: 11px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
 }
 
 .popup-current-site__control .yuel-switch {
@@ -211,13 +190,6 @@ body {
   font-size: 12px;
   font-weight: 740;
   line-height: 1.35;
-}
-
-.popup-pdf-handler p {
-  margin: 4px 0 0;
-  color: var(--y-ink-secondary);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .popup-pdf-handler .yuel-switch {

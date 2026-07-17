@@ -426,14 +426,20 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(text).toContain('阅量 Yuel');
     expect(container.querySelector('.popup-header .yuel-brand')?.getAttribute('role')).toBe('progressbar');
     expect(container.querySelector<HTMLElement>('.popup-header .yuel-brand__mark')?.dataset.state).toBe('complete');
-    expect(text).toContain('当前站点');
-    expect(text).toContain('今日有效阅读');
-    expect(text).toContain('默认使用 Yuel');
-    expect(text).toContain('打开侧栏');
-    expect(text).toContain('查看仪表盘');
+    expect(text).toContain('example.com');
+    expect(text).toContain('今日');
+    expect(text).toContain('网络 PDF');
+    expect(text).toContain('侧栏');
+    expect(text).toContain('仪表盘');
+    expect(text).not.toContain('当前站点');
+    expect(text).not.toContain('正在记录此网站的英文阅读');
+    expect(text).not.toContain('Chrome 顶层网络 PDF');
     expect(text).not.toContain('启用当前网站');
     expect(text).not.toContain('已启用网站');
-    expect(container.querySelector('.popup-current-site__detail')?.hasAttribute('aria-live')).toBe(false);
+    expect(container.querySelector('.popup-current-site__detail')).toBeNull();
+    expect(container.querySelector('[aria-label="打开侧栏"]')).toBeInstanceOf(HTMLButtonElement);
+    expect(container.querySelector('[aria-label="打开仪表盘"]')).toBeInstanceOf(HTMLButtonElement);
+    expect(container.querySelector('[aria-label="打开 PDF 阅读器"]')).toBeInstanceOf(HTMLButtonElement);
     expect(container.querySelector('.popup-metrics')?.hasAttribute('aria-live')).toBe(false);
   });
 
@@ -457,7 +463,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('值得关注');
     expect(container.textContent).toContain('新词 · 1 次');
     expect(container.textContent).not.toContain('新词 · 0 次');
-    expect(container.textContent).toContain('摘录');
+    expect(container.textContent).toContain('最近摘录');
     expect(container.textContent).not.toContain('Observe');
     expect(container.querySelector<HTMLElement>('.sidepanel-header .yuel-brand__mark')?.dataset.state).toBe('complete');
   });
@@ -478,9 +484,9 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(recording.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('记录中');
     expect(idle.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('未检测到英文');
-    expect(idle.textContent).toContain('当前页面未检测到可记录的英文内容');
+    expect(idle.textContent).not.toContain('当前页面未检测到可记录的英文内容');
     expect(unconfirmed.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('已启用');
-    expect(unconfirmed.textContent).toContain('正在确认页面采集状态');
+    expect(unconfirmed.textContent).not.toContain('正在确认页面采集状态');
   });
 
   it('shows active PDF document progress without treating the reader as an unsupported page', async () => {
@@ -533,10 +539,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(unknown.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('状态未知');
-    expect(unknown.textContent).toContain('暂时无法确认当前页面');
+    expect(unknown.textContent).not.toContain('暂时无法确认当前页面');
     expect(unknown.textContent).not.toContain('不可记录');
     expect(unsupported.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('不可记录');
-    expect(unsupported.textContent).toContain('当前页面无法记录');
+    expect(unsupported.textContent).not.toContain('当前页面无法记录');
   });
 
   it('renders the dashboard as a progress instrument panel with the danger action demoted', async () => {
@@ -635,7 +641,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.textContent).toContain('权限状态不可用');
-    expect(container.textContent).toContain('暂时无法读取当前页面权限状态');
+    expect(container.textContent).not.toContain('暂时无法读取当前页面权限状态');
     expect(container.textContent).not.toContain('正在读取当前标签');
   });
 
@@ -648,7 +654,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.textContent).toContain('访问受限');
-    expect(container.textContent).toContain('Chrome 已限制此网站的访问权限。');
+    expect(container.textContent).toContain('请在 Chrome 中允许此网站访问。');
     expect(container.textContent).not.toContain('启用当前网站');
     expect(container.textContent).not.toContain('暂停记录');
     expect(container.textContent).not.toContain('已启用网站');
@@ -679,7 +685,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     );
     expect(siteToggle?.checked).toBe(false);
     expect(container.textContent).toContain('本站暂停');
-    expect(container.textContent).toContain('网站记录设置已保存。');
+    expect(container.textContent).not.toContain('网站记录设置已保存。');
   });
 
   it('preserves the current-site preference while global recording is paused', async () => {
@@ -700,7 +706,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(siteToggle?.checked).toBe(true);
     expect(siteToggle?.disabled).toBe(true);
     expect(container.textContent).toContain('全部暂停');
-    expect(container.textContent).toContain('全局记录已暂停，可在仪表盘的阅读档案中恢复。');
+    expect(container.textContent).toContain('在仪表盘的“阅读档案”中恢复。');
     expect(setSiteReadingRecordingEnabled).not.toHaveBeenCalled();
   });
 
@@ -793,7 +799,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openSidePanel,
     });
 
-    await clickButton(findButton(container, '打开侧栏'));
+    await clickButton(findButton(container, '侧栏'));
 
     expect(openSidePanel).toHaveBeenCalledOnce();
   });
@@ -804,7 +810,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openPdfReader,
     });
 
-    await clickButton(findButton(container, '打开 PDF 阅读器'));
+    await clickButton(findButton(container, 'PDF 阅读器'));
 
     expect(openPdfReader).toHaveBeenCalledOnce();
   });
@@ -817,7 +823,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openPdfReader,
     });
 
-    await clickButton(findButton(container, '打开 PDF 阅读器'));
+    await clickButton(findButton(container, 'PDF 阅读器'));
     await flushReactMicrotasks();
 
     expect(openPdfReader).toHaveBeenCalledOnce();
@@ -832,7 +838,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openDashboard,
     });
 
-    await clickButton(findButton(container, '查看仪表盘'));
+    await clickButton(findButton(container, '仪表盘'));
     await flushReactMicrotasks();
 
     expect(openDashboard).toHaveBeenCalledOnce();
@@ -1273,9 +1279,10 @@ describe('extension UI entrypoint smoke rendering', () => {
       getSidePanelReadingDetails: async () => createSidePanelDetails(createDashboardDetails(320).summary),
     });
 
-    const cardButton = findButton(container, '达标后可打卡');
+    const cardButton = findButton(container, '今日卡片');
     expect(cardButton?.disabled).toBe(true);
     expect(cardButton?.title).toBe('还差 180 词完成今日打卡');
+    expect(cardButton?.getAttribute('aria-label')).toBe('今日卡片，还差 180 词解锁');
   });
 
   it('saves dashboard onboarding reading pace calibration', async () => {
@@ -1955,7 +1962,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('访问受限');
-    expect(container.textContent).toContain('Chrome 已限制此网站的访问权限');
+    expect(container.textContent).toContain('请在 Chrome 中允许网站访问。');
     expect(container.textContent).not.toContain('启用当前网站');
     expect(container.textContent).not.toContain('记录中');
   });
@@ -1974,10 +1981,10 @@ describe('extension UI entrypoint smoke rendering', () => {
     }));
 
     expect(globalPause.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('全部暂停');
-    expect(globalPause.textContent).toContain('全部网站的自动记录已暂停');
+    expect(globalPause.textContent).toContain('在“阅读档案”中恢复。');
     expect(globalPause.textContent).not.toContain('Chrome 已限制');
     expect(sitePause.querySelector('.sidepanel-header .yuel-status')?.textContent).toContain('本站暂停');
-    expect(sitePause.textContent).toContain('此网站的自动记录已暂停');
+    expect(sitePause.textContent).toContain('可在扩展弹窗中恢复。');
     expect(sitePause.textContent).not.toContain('Chrome 已限制');
   });
 
@@ -2034,7 +2041,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).not.toContain('old.example');
     expect(container.textContent).not.toContain('345 / 1,000 词');
     expect(container.textContent).toContain('— / — 词');
-    expect(container.textContent).toContain('正在读取当前页面');
+    expect(container.textContent).not.toContain('正在读取当前页面');
 
     await act(async () => {
       nextAccess.resolve(createSupportedSiteAccess({
@@ -2285,7 +2292,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openDashboard,
     });
 
-    await clickButton(findButton(container, '打开仪表盘'));
+    await clickButton(findButton(container, '仪表盘'));
 
     expect(openDashboard).toHaveBeenCalledOnce();
   });
@@ -2320,7 +2327,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openPdfReader,
     });
 
-    await clickButton(findButton(container, '第 5 页 · 跳回原文'));
+    await clickButton(findButton(container, '回到第 5 页'));
 
     expect(openPdfReader).toHaveBeenCalledWith({
       resourceId,
@@ -2355,7 +2362,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openPdfReader,
     });
 
-    await clickButton(findButton(container, '第 3 页 · 跳回原文'));
+    await clickButton(findButton(container, '回到第 3 页'));
     await flushReactMicrotasks();
 
     expect(openPdfReader).toHaveBeenCalledWith({
@@ -2374,7 +2381,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       openDashboard,
     });
 
-    await clickButton(findButton(container, '打开仪表盘'));
+    await clickButton(findButton(container, '仪表盘'));
     await flushReactMicrotasks();
 
     expect(openDashboard).toHaveBeenCalledOnce();

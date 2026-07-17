@@ -65,7 +65,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const [siteAccess, setSiteAccess] = useState<SiteAccessState>();
   const [siteAccessFailed, setSiteAccessFailed] = useState(false);
   const [siteRecordingStatus, setSiteRecordingStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'failed'
+    'idle' | 'saving' | 'failed'
   >('idle');
   const [pdfHandlerSettings, setPdfHandlerSettings] = useState<PdfHandlerSettings>();
   const [pdfHandlerStatus, setPdfHandlerStatus] = useState<
@@ -202,7 +202,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
       const settings = await dependencies.setSiteReadingRecordingEnabled(siteAccess.url, enabled);
       if (!mountedRef.current) return;
       setSiteAccess(applyReadingRecordingSettingsToSiteAccess(previousAccess, settings));
-      setSiteRecordingStatus('saved');
+      setSiteRecordingStatus('idle');
     } catch (error) {
       console.error('Failed to save Yuel current site recording setting', error);
       if (!mountedRef.current) return;
@@ -234,6 +234,7 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
   const hasLoaded = Boolean(summary) || loadFailed;
   const currentSiteLoading = !siteAccess && !siteAccessFailed;
   const currentSiteUnavailable = siteAccessFailed || siteAccess?.supported === false;
+  const siteAccessDetail = formatSiteAccessDetail(siteAccess, siteAccessFailed);
   const checkInThresholdWords = summary?.checkInThresholdWords ?? DEFAULT_DAILY_CHECK_IN_THRESHOLD_WORDS;
   const pdfHandlerStatusLabel = pdfHandlerStatus === 'loading'
     ? '读取中'
@@ -267,7 +268,6 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
         <section className="popup-current-site" aria-labelledby="popup-current-site-title">
           <div className="popup-current-site__heading">
             <div className="popup-current-site__identity">
-              <span className="popup-eyebrow">当前站点</span>
               <h1 id="popup-current-site-title" title={formatSiteAccessTitle(siteAccess, siteAccessFailed)}>
                 {formatSiteAccessTitle(siteAccess, siteAccessFailed)}
               </h1>
@@ -276,21 +276,17 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
               {formatSiteAccessStatus(siteAccess, siteAccessFailed)}
             </StatusPill>
           </div>
-          <p className="popup-current-site__detail">
-            {formatSiteAccessDetail(siteAccess, siteAccessFailed)}
-          </p>
+          {siteAccessDetail ? (
+            <p className="popup-current-site__detail">
+              {siteAccessDetail}
+            </p>
+          ) : null}
           {siteAccess?.supported ? (
             <div className="popup-current-site__control">
-              <div>
-                <h2>记录此网站</h2>
-                <p id="popup-site-recording-description">
-                  {formatSiteRecordingControlDetail(siteAccess)}
-                </p>
-              </div>
+              <h2>自动记录</h2>
               <SwitchControl
                 id="popup-site-recording-enabled"
                 label={`记录 ${siteAccess.host} 的英文阅读`}
-                describedBy="popup-site-recording-description"
                 checked={siteAccess.siteRecordingEnabled}
                 disabled={
                   !siteAccess.granted
@@ -307,18 +303,14 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
               />
             </div>
           ) : null}
-          {siteAccessFailed ? <InlineNotice tone="danger">权限状态暂时不可用。</InlineNotice> : null}
           {siteRecordingStatus === 'failed' ? (
             <InlineNotice tone="danger">网站记录设置保存失败，原设置未改变。</InlineNotice>
-          ) : null}
-          {siteRecordingStatus === 'saved' ? (
-            <InlineNotice tone="positive">网站记录设置已保存。</InlineNotice>
           ) : null}
         </section>
 
         <section className="popup-today" aria-label="今日有效阅读">
           <SectionHeader icon={BookOpen} meta={summary?.date ?? '本地'}>
-            今日有效阅读
+            今日
           </SectionHeader>
           <div className="popup-metrics">
             <Metric label="有效阅读" value={loadFailed ? '不可用' : summary ? formatWords(summary.effectiveWords) : '读取中'} />
@@ -331,14 +323,11 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
 
         <section className="popup-pdf-handler" aria-labelledby="popup-pdf-handler-title">
           <div>
-            <span className="popup-eyebrow">PDF 打开方式</span>
-            <h2 id="popup-pdf-handler-title">默认使用 Yuel</h2>
-            <p id="popup-pdf-handler-description">Chrome 顶层网络 PDF</p>
+            <h2 id="popup-pdf-handler-title">网络 PDF</h2>
           </div>
           <SwitchControl
             id="popup-pdf-handler-enabled"
-            label="默认用 Yuel 打开 Chrome PDF"
-            describedBy="popup-pdf-handler-description"
+            label="用 Yuel 打开网络 PDF"
             checked={pdfHandlerSettings?.openPdfInYuel ?? true}
             disabled={
               !pdfHandlerSettings
@@ -364,26 +353,28 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             variant="primary"
             icon={PanelRightOpen}
             disabled={sidePanelBusy || currentSiteUnavailable}
+            aria-label="打开侧栏"
             aria-busy={sidePanelBusy}
             onClick={() => void openSidePanel()}
           >
             {currentSiteLoading
-              ? '正在检查页面...'
+              ? '检查中...'
               : currentSiteUnavailable
                 ? isUnsupportedPageAccess(siteAccess) ? '当前页面不可用' : '无法确认当前页面'
                 : sidePanelBusy
                   ? '打开中...'
-                  : '打开侧栏'}
+                  : '侧栏'}
           </ActionButton>
           <ActionButton
             type="button"
             variant="secondary"
             icon={ExternalLink}
             disabled={dashboardBusy}
+            aria-label="打开仪表盘"
             aria-busy={dashboardBusy}
             onClick={() => void openDashboard()}
           >
-            {dashboardBusy ? '打开中...' : '查看仪表盘'}
+            {dashboardBusy ? '打开中...' : '仪表盘'}
           </ActionButton>
           <ActionButton
             className="popup-destinations__pdf"
@@ -391,10 +382,11 @@ export function PopupApp({ dependencies = defaultDependencies }: { dependencies?
             variant="secondary"
             icon={FileText}
             disabled={pdfReaderBusy}
+            aria-label="打开 PDF 阅读器"
             aria-busy={pdfReaderBusy}
             onClick={() => void openPdfReader()}
           >
-            {pdfReaderBusy ? '打开中...' : '打开 PDF 阅读器'}
+            {pdfReaderBusy ? '打开中...' : 'PDF 阅读器'}
           </ActionButton>
         </nav>
         {sidePanelFailed ? <InlineNotice tone="danger">侧栏暂时不可用。</InlineNotice> : null}
@@ -437,25 +429,15 @@ function formatSiteAccessTone(
   return siteAccess.collectorState === 'recording' ? 'positive' : 'neutral';
 }
 
-function formatSiteAccessDetail(siteAccess: SiteAccessState | undefined, failed: boolean): string {
-  if (failed) return '暂时无法读取当前页面权限状态。';
-  if (!siteAccess) return '正在读取当前标签。';
-  if (isUnsupportedPageAccess(siteAccess)) return '浏览器内部页面无法记录。';
-  if (!siteAccess.supported) return '暂时无法确认当前标签页状态。';
-  if (siteAccess.disabledReason === 'global-paused') return '全部网站的自动记录已暂停。';
-  if (siteAccess.disabledReason === 'site-paused') return '此网站的自动记录已暂停。';
-  if (!siteAccess.enabled) return 'Chrome 已限制此网站的访问权限。';
-  if (siteAccess.collectorState === 'recording') return '正在记录此网站的英文阅读。';
-  if (siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容。';
-  return '正在确认页面采集状态。';
-}
-
-function formatSiteRecordingControlDetail(
-  siteAccess: Extract<SiteAccessState, { supported: true }>,
-): string {
-  if (!siteAccess.granted) return '需先在 Chrome 中开放此网站的访问权限。';
-  if (!siteAccess.globalRecordingEnabled) return '全局记录已暂停，可在仪表盘的阅读档案中恢复。';
-  return `仅影响 ${siteAccess.host}，不会删除已有记录。`;
+function formatSiteAccessDetail(
+  siteAccess: SiteAccessState | undefined,
+  failed: boolean,
+): string | undefined {
+  if (failed || !siteAccess || !siteAccess.supported) return undefined;
+  if (siteAccess.disabledReason === 'global-paused') return '在仪表盘的“阅读档案”中恢复。';
+  if (siteAccess.disabledReason === 'site-paused') return undefined;
+  if (!siteAccess.granted || !siteAccess.enabled) return '请在 Chrome 中允许此网站访问。';
+  return undefined;
 }
 
 async function openExtensionSidePanel(): Promise<void> {

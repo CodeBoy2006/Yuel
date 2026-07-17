@@ -100,7 +100,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const [dashboardFailed, setDashboardFailed] = useState(false);
   const [pdfReaderBusy, setPdfReaderBusy] = useState(false);
   const [pdfReaderFailed, setPdfReaderFailed] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<number>();
   const mountedRef = useRef(false);
   const refreshSequenceRef = useRef(0);
   const dashboardActionSequenceRef = useRef(0);
@@ -224,9 +223,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
     })();
 
     await Promise.all([detailsTask, currentTargetTask]);
-    if (isCurrentRequest()) {
-      setLastUpdatedAt(Date.now());
-    }
   }, [dependencies]);
 
   runRefreshRef.current = runRefresh;
@@ -321,11 +317,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
   const savedItem = details?.recentSavedItems[0];
   const savedPdfAnchor = savedItem?.pdfAnchor;
   const savedItemSource = savedItem?.sourceTitle || savedItem?.sourceDomain;
-  const refreshLabel = loadFailed || siteAccessFailed || currentPageFailed
-    ? '同步未完成'
-    : lastUpdatedAt
-      ? '刚刚同步'
-      : '同步中';
+  const currentPageDetail = currentPage?.hasData
+    ? `有效 ${formatWords(currentPage.effectiveWords)} · ${formatMinutes(currentPage.effectiveMinutes)} · ${formatConfidence(currentPage.confidence)}`
+    : formatCurrentPageEmptyState(
+      pdfReaderState,
+      siteAccess,
+      siteAccessFailed,
+      currentPageFailed,
+    );
 
   const openDashboard = async (target?: 'share-card') => {
     if (dashboardActionBusyRef.current) return;
@@ -398,9 +397,6 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
               {isPdfReaderActive ? '当前文档' : '当前阅读'}
             </p>
             <h1 id="current-reading-title" title={currentHost}>{currentHost}</h1>
-            <span title={lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : undefined}>
-              {refreshLabel}
-            </span>
           </div>
 
           <div className="sidepanel-page__measure">
@@ -418,19 +414,11 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
               valueText={`覆盖 ${formatCount(currentPage.coveredWords)} / 总计 ${formatCount(currentPage.totalWords)} 词`}
             />
           ) : null}
-          <p className="sidepanel-page__meta">
-            {currentPage?.hasData
-              ? `累计有效 ${formatWords(currentPage.effectiveWords)} · ${formatMinutes(currentPage.effectiveMinutes)} · ${formatConfidence(currentPage.confidence)}`
-              : formatCurrentPageEmptyState(
-                pdfReaderState,
-                siteAccess,
-                siteAccessFailed,
-                currentPageFailed,
-              )}
-          </p>
+          {currentPageDetail ? <p className="sidepanel-page__meta">{currentPageDetail}</p> : null}
 
-          {siteAccessFailed ? <InlineNotice tone="danger">当前页面状态暂时不可用。</InlineNotice> : null}
-          {currentPageFailed ? <InlineNotice tone="danger">本页数据暂时未更新。</InlineNotice> : null}
+          {siteAccessFailed || currentPageFailed ? (
+            <InlineNotice tone="danger">当前页面数据暂时不可用。</InlineNotice>
+          ) : null}
         </section>
 
         <section className="sidepanel-section" aria-labelledby="today-title">
@@ -447,7 +435,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
         </section>
 
         <section className="sidepanel-section" aria-labelledby="vocabulary-title">
-          <SectionHeader icon={Languages} meta="词汇">
+          <SectionHeader icon={Languages}>
             <span id="vocabulary-title">值得关注</span>
           </SectionHeader>
           {vocabulary.length > 0 ? (
@@ -464,14 +452,14 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             </ul>
           ) : (
             <EmptyState>
-              {loadFailed ? '词汇数据暂时不可用。' : details ? '还没有值得关注的词汇。' : '正在读取词汇。'}
+              {loadFailed ? '词汇暂时不可用。' : details ? '暂无关注词汇。' : '正在读取...'}
             </EmptyState>
           )}
         </section>
 
         <section className="sidepanel-section sidepanel-section--last" aria-labelledby="excerpt-title">
-          <SectionHeader icon={Quote} meta="最近保存">
-            <span id="excerpt-title">摘录</span>
+          <SectionHeader icon={Quote}>
+            <span id="excerpt-title">最近摘录</span>
           </SectionHeader>
           {savedItem ? (
             <figure className="sidepanel-excerpt">
@@ -485,6 +473,7 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
                   className="sidepanel-excerpt__backlink"
                   type="button"
                   disabled={pdfReaderBusy}
+                  aria-label={`第 ${savedPdfAnchor.pageIndex + 1} 页 · 跳回原文`}
                   aria-busy={pdfReaderBusy}
                   onClick={() => void openPdfReader({
                     resourceId: savedPdfAnchor.resourceId,
@@ -498,12 +487,12 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
                   <ExternalLink aria-hidden="true" />
                   {pdfReaderBusy
                     ? '打开中...'
-                    : `第 ${savedPdfAnchor.pageIndex + 1} 页 · 跳回原文`}
+                    : `回到第 ${savedPdfAnchor.pageIndex + 1} 页`}
                 </button>
               ) : null}
             </figure>
           ) : (
-            <EmptyState>{loadFailed ? '摘录数据暂时不可用。' : details ? '还没有保存摘录。' : '正在读取摘录。'}</EmptyState>
+            <EmptyState>{loadFailed ? '摘录暂时不可用。' : details ? '暂无摘录。' : '正在读取...'}</EmptyState>
           )}
         </section>
       </main>
@@ -516,24 +505,28 @@ export function SidePanelApp({ dependencies = defaultDependencies }: { dependenc
             variant="primary"
             disabled={dashboardActionBusy || !checkInCompleted}
             title={checkInCompleted ? undefined : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
+            aria-label={checkInCompleted
+              ? '查看今日卡片'
+              : summary
+                ? `今日卡片，还差 ${formatCount(checkInRemainingWords)} 词解锁`
+                : loadFailed
+                  ? '今日卡片暂时不可用'
+                  : '正在读取今日卡片状态'}
             aria-busy={shareCardBusy}
             onClick={() => void openDashboard('share-card')}
           >
-            {shareCardBusy
-              ? '打开中...'
-              : checkInCompleted
-                ? '查看今日卡片'
-                : summary ? '达标后可打卡' : loadFailed ? '打卡状态不可用' : '读取打卡进度'}
+            {shareCardBusy ? '打开中...' : '今日卡片'}
           </ActionButton>
           <ActionButton
             type="button"
             icon={ExternalLink}
             variant="secondary"
             disabled={dashboardActionBusy}
+            aria-label="打开仪表盘"
             aria-busy={dashboardBusy}
             onClick={() => void openDashboard()}
           >
-            {dashboardBusy ? '打开中...' : '打开仪表盘'}
+            {dashboardBusy ? '打开中...' : '仪表盘'}
           </ActionButton>
         </div>
         {dashboardFailed ? <InlineNotice tone="danger">仪表盘暂时不可用。</InlineNotice> : null}
@@ -651,29 +644,27 @@ function formatCurrentPageEmptyState(
   siteAccess: SiteAccessState | undefined,
   siteAccessFailed: boolean,
   currentPageFailed: boolean,
-): string {
-  if (siteAccessFailed || currentPageFailed) return '本页状态暂时不可用';
+): string | undefined {
+  if (siteAccessFailed || currentPageFailed) return undefined;
   if (pdfReaderState?.active) {
     return pdfReaderState.session
-      ? '等待当前 PDF 产生有效阅读'
+      ? '等待有效阅读'
       : '尚未打开 PDF';
   }
-  if (!siteAccess) return '正在读取当前页面';
-  if (isUnsupportedPageAccess(siteAccess)) return '当前页面无法记录';
-  if (!siteAccess.supported) return '暂时无法确认当前页面';
-  if (siteAccess.disabledReason === 'global-paused') return '全部网站的自动记录已暂停';
-  if (siteAccess.disabledReason === 'site-paused') return '此网站的自动记录已暂停';
-  if (!siteAccess.enabled) return 'Chrome 已限制此网站的访问权限';
-  if (siteAccess.collectorState === 'idle') return '当前页面未检测到可记录的英文内容';
-  if (!siteAccess.collectorState) return '正在确认页面采集状态';
-  return '等待当前页面产生有效阅读';
+  if (!siteAccess || !siteAccess.supported) return undefined;
+  if (siteAccess.disabledReason === 'global-paused') return '在“阅读档案”中恢复。';
+  if (siteAccess.disabledReason === 'site-paused') return '可在扩展弹窗中恢复。';
+  if (!siteAccess.enabled) return '请在 Chrome 中允许网站访问。';
+  if (siteAccess.collectorState === 'idle') return undefined;
+  if (!siteAccess.collectorState) return undefined;
+  return '等待有效阅读';
 }
 
 function formatConfidence(confidence: number | undefined): string {
-  if (confidence === undefined) return '置信度待确认';
-  if (confidence >= 0.7) return '高置信度';
-  if (confidence >= 0.4) return '中置信度';
-  return '低置信度';
+  if (confidence === undefined) return '待确认';
+  if (confidence >= 0.7) return '高置信';
+  if (confidence >= 0.4) return '中置信';
+  return '低置信';
 }
 
 function mergeSidePanelRefreshReason(
