@@ -88,6 +88,11 @@ import {
   PdfPersistentHighlightLayer,
   PdfSelectionMenu,
 } from './PdfHighlights';
+import {
+  PdfSelectAllLayer,
+  PdfSelectAllProvider,
+  usePdfSelectAllControls,
+} from './PdfSelectAll';
 import { usePdfHighlights } from './usePdfHighlights';
 import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
 import type { PdfSourceRectRecord } from '../../storage/schema';
@@ -173,7 +178,12 @@ export function PdfDocumentView({
         if (!isLoading && !isLoaded) return null;
 
         return (
-          <>
+          <PdfSelectAllProvider
+            key={documentId}
+            document={documentState.document}
+            documentId={documentId}
+            engine={engine}
+          >
             {isLoaded ? (
               <>
                 <DocumentKeyboardShortcuts
@@ -273,12 +283,16 @@ export function PdfDocumentView({
                                   scale={documentState.scale}
                                   target={initialTarget}
                                 />
+                                <PdfSelectAllLayer
+                                  pageIndex={pageIndex}
+                                  scale={documentState.scale}
+                                />
                                 <div className="pdf-reader__text-selection-layer">
                                   <SelectionLayer
                                     documentId={documentId}
                                     pageIndex={pageIndex}
                                     textStyle={{
-                                      background: 'rgb(53 143 97 / 44%)',
+                                      background: 'var(--pdf-selection-fill)',
                                     }}
                                     selectionMenu={(props) => (
                                       <PdfSelectionMenu
@@ -321,7 +335,7 @@ export function PdfDocumentView({
                 onClose={() => setEditingHighlightId(undefined)}
               />
             ) : null}
-          </>
+          </PdfSelectAllProvider>
         );
       }}
     </DocumentContent>
@@ -808,12 +822,23 @@ function DocumentKeyboardShortcuts({
   const { provides: rotate } = useRotate(documentId);
   const { provides: pan, isPanning } = usePan(documentId);
   const { provides: selection } = useSelectionCapability();
+  const fullSelection = usePdfSelectAllControls();
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (shouldIgnorePdfReaderShortcut(event.target)) return;
 
       const modifier = event.metaKey || event.ctrlKey;
+      if (
+        modifier
+        && !event.altKey
+        && !event.shiftKey
+        && event.key.toLowerCase() === 'a'
+      ) {
+        event.preventDefault();
+        fullSelection.selectAll();
+        return;
+      }
       if (modifier && event.key.toLowerCase() === 'f') {
         event.preventDefault();
         onOpenSearch();
@@ -821,6 +846,11 @@ function DocumentKeyboardShortcuts({
       }
 
       if (modifier && event.key.toLowerCase() === 'c') {
+        if (fullSelection.active) {
+          event.preventDefault();
+          fullSelection.copy();
+          return;
+        }
         const selectionScope = selection?.forDocument(documentId);
         if (selectionScope?.getState().selection) {
           event.preventDefault();
@@ -870,6 +900,9 @@ function DocumentKeyboardShortcuts({
       } else if (event.key === '/') {
         event.preventDefault();
         onOpenSearch();
+      } else if (event.key === 'Escape' && fullSelection.active) {
+        event.preventDefault();
+        fullSelection.clear();
       } else if (event.key === 'Escape' && isPanning) {
         event.preventDefault();
         pan?.disablePan();
@@ -880,6 +913,7 @@ function DocumentKeyboardShortcuts({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [
     documentId,
+    fullSelection,
     isPanning,
     onOpenSearch,
     pan,

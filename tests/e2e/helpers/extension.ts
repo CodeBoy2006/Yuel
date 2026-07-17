@@ -144,6 +144,16 @@ export async function installPdfCompanionBrowserStubs(
         },
       },
     });
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          (globalThis as typeof globalThis & {
+            __yuelClipboardText?: string;
+          }).__yuelClipboardText = text;
+        },
+      },
+    });
   });
 }
 

@@ -19,6 +19,8 @@ import {
 } from './helpers/readingSite';
 import { createPdfSmokeFixture } from './helpers/pdf';
 
+const PRIMARY_MODIFIER = process.platform === 'darwin' ? 'Meta' : 'Control';
+
 test('loads the packaged extension pages', async ({ context, extensionId }) => {
   expect(extensionId).toMatch(/^[a-p]{32}$/);
 
@@ -246,6 +248,49 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   expect(pixelEvidence.height).toBeGreaterThan(100);
   expect(pixelEvidence.nonWhitePixels).toBeGreaterThan(20);
 
+  await pdfReader.keyboard.press(`${PRIMARY_MODIFIER}+A`);
+  const selectAllLayer = pdfReader.locator(
+    '.pdf-reader__select-all-layer[data-page-index="0"]',
+  );
+  const selectAllMark = selectAllLayer.locator(
+    '.pdf-reader__select-all-mark',
+  ).first();
+  await expect(selectAllMark).toBeVisible();
+  await expect(selectAllLayer).toHaveCSS('z-index', '5');
+  await expect(selectAllMark).toHaveCSS(
+    'background-color',
+    'rgba(53, 143, 97, 0.44)',
+  );
+  expect(await pdfReader.evaluate(() => window.getSelection()?.toString() ?? ''))
+    .toBe('');
+  await pdfReader.keyboard.press(`${PRIMARY_MODIFIER}+C`);
+  await expect.poll(() => pdfReader.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __yuelClipboardText?: string;
+    }
+  ).__yuelClipboardText ?? '')).toContain(
+    'Local PDFium WASM and Worker rendering',
+  );
+  await expect.poll(() => pdfReader.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __yuelClipboardText?: string;
+    }
+  ).__yuelClipboardText ?? '')).toContain(
+    'Thumbnail navigation reaches this page',
+  );
+  await pdfReader.keyboard.press('PageDown');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await expect(
+    pdfReader
+      .locator('.pdf-reader__select-all-layer[data-page-index="1"]')
+      .locator('.pdf-reader__select-all-mark')
+      .first(),
+  ).toBeVisible();
+  await pdfReader.keyboard.press('Home');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+  await pdfReader.keyboard.press('Escape');
+  await expect(selectAllLayer).toBeHidden();
+
   const readingMapButton = pdfReader.getByRole('button', {
     name: '打开阅读地图',
   });
@@ -348,6 +393,17 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   });
   await expect(searchInput).toBeFocused();
   await searchInput.fill('Local PDFium');
+  await searchInput.press(`${PRIMARY_MODIFIER}+A`);
+  await expect.poll(() => searchInput.evaluate((input) => {
+    if (!(input instanceof HTMLInputElement)) return undefined;
+    return {
+      end: input.selectionEnd,
+      start: input.selectionStart,
+    };
+  })).toEqual({
+    end: 'Local PDFium'.length,
+    start: 0,
+  });
   await expect(pdfReader.locator('.pdf-reader__search-summary')).toContainText(
     '1 个结果',
   );

@@ -1605,3 +1605,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The selection layer remains pointer-transparent while its menu stays interactive, so copy, companion, and persistent-highlight actions continue to work. All 73 unit test files and 572 tests, TypeScript checks, the production build, whitespace validation, and the targeted packaged Chromium PDF reader regression pass.
+
+## [2026-07-17 15:53] PDF Select-All Scope
+- **Changes:** Routed `Cmd/Ctrl+A` in the PDF reader to a document-wide selection state instead of browser DOM selection; added virtual-page text highlighting, whole-document copy, click and `Escape` clearing, shared selection color styling, and preserved native select-all behavior inside editable controls.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The implementation uses public PDF engine APIs rather than EmbedPDF private selection methods. Only mounted PDF pages load selection rectangles, while document text extraction is cached for copying. All 74 unit test files and 573 tests, TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass across both fixture pages.

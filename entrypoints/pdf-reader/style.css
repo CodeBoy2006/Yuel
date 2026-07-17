@@ -586,6 +586,8 @@ body,
 }
 
 .pdf-reader__page-layers {
+  --pdf-selection-fill: rgb(53 143 97 / 44%);
+
   position: relative;
   background: white;
   overflow: hidden;
@@ -706,11 +708,19 @@ body,
   pointer-events: none;
 }
 
+.pdf-reader__select-all-layer,
 .pdf-reader__text-selection-layer {
   position: absolute;
   z-index: 5;
   inset: 0;
   pointer-events: none;
+}
+
+.pdf-reader__select-all-mark {
+  position: absolute;
+  border-radius: 1px;
+  background: var(--pdf-selection-fill);
+  mix-blend-mode: multiply;
 }
 
 .pdf-reader__backlink-highlight {
