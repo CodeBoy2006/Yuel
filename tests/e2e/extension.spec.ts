@@ -380,6 +380,23 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   );
   await pdfReader.mouse.up();
 
+  const textSelectionLayer = pdfReader.locator(
+    '.pdf-reader__text-selection-layer',
+  ).first();
+  const textSelectionBounds = textSelectionLayer.locator(
+    ':scope > div',
+  ).first();
+  const textSelectionMark = textSelectionBounds.locator(
+    ':scope > div',
+  ).first();
+  await expect(textSelectionLayer).toHaveCSS('z-index', '5');
+  await expect(textSelectionLayer).toHaveCSS('pointer-events', 'none');
+  await expect(textSelectionMark).toBeVisible();
+  await expect(textSelectionMark).toHaveCSS(
+    'background-color',
+    'rgba(53, 143, 97, 0.44)',
+  );
+
   const copySelectionButton = pdfReader.getByRole('button', {
     name: '复制所选文本',
   });

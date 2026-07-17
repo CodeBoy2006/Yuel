@@ -273,20 +273,22 @@ export function PdfDocumentView({
                                   scale={documentState.scale}
                                   target={initialTarget}
                                 />
-                                <SelectionLayer
-                                  documentId={documentId}
-                                  pageIndex={pageIndex}
-                                  textStyle={{
-                                    background: 'rgb(53 143 97 / 34%)',
-                                  }}
-                                  selectionMenu={(props) => (
-                                    <PdfSelectionMenu
-                                      {...props}
-                                      documentId={documentId}
-                                      sourceMetadata={sourceMetadata}
-                                    />
-                                  )}
-                                />
+                                <div className="pdf-reader__text-selection-layer">
+                                  <SelectionLayer
+                                    documentId={documentId}
+                                    pageIndex={pageIndex}
+                                    textStyle={{
+                                      background: 'rgb(53 143 97 / 44%)',
+                                    }}
+                                    selectionMenu={(props) => (
+                                      <PdfSelectionMenu
+                                        {...props}
+                                        documentId={documentId}
+                                        sourceMetadata={sourceMetadata}
+                                      />
+                                    )}
+                                  />
+                                </div>
                                 <AnnotationLayer
                                   documentId={documentId}
                                   pageIndex={pageIndex}

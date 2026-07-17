@@ -706,6 +706,13 @@ body,
   pointer-events: none;
 }
 
+.pdf-reader__text-selection-layer {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+
 .pdf-reader__backlink-highlight {
   position: absolute;
   border-radius: 2px;

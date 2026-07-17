@@ -1599,3 +1599,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Downloaded files now use the `application/pdf` MIME type. All 73 unit test files and 572 tests, TypeScript checks, the production build, whitespace validation, and packaged Chromium regressions for extensionless network PDFs and local PDFs pass.
+
+## [2026-07-17 13:28] Visible PDF Text Selection
+- **Changes:** Moved active PDF text selection into a dedicated page layer above rendered content, search results, annotations, backlinks, and stored highlights; strengthened the forest-green selection fill; and added packaged-browser assertions for visibility, color, stacking, and pointer-event behavior.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The selection layer remains pointer-transparent while its menu stays interactive, so copy, companion, and persistent-highlight actions continue to work. All 73 unit test files and 572 tests, TypeScript checks, the production build, whitespace validation, and the targeted packaged Chromium PDF reader regression pass.
