@@ -552,6 +552,21 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     '.pdf-reader__stored-highlight[data-color="green"]',
   ).first();
   await expect(storedHighlight).toBeVisible();
+  await expect(storedHighlight).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(storedHighlight).toHaveCSS('border-top-width', '0px');
+  await expect(storedHighlight).toHaveCSS('box-shadow', 'none');
+  const storedHighlightPaint = await storedHighlight.evaluate((element) => {
+    const style = getComputedStyle(element, '::before');
+    return {
+      backgroundColor: style.backgroundColor,
+      mixBlendMode: style.mixBlendMode,
+    };
+  });
+  expect(storedHighlightPaint.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+  expect(storedHighlightPaint.mixBlendMode).toBe('multiply');
   await storedHighlight.click();
   let highlightEditor = pdfReader.getByRole('dialog', {
     name: '高亮与笔记',
@@ -623,9 +638,19 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect.poll(() => backlinkReader.locator(
     '.pdf-reader__document-tools .pdf-reader__page-control input',
   ).inputValue()).toBe('1');
-  await expect(backlinkReader.locator(
+  const backlinkHighlight = backlinkReader.locator(
     '.pdf-reader__backlink-highlight',
-  ).first()).toBeVisible();
+  ).first();
+  await expect(backlinkHighlight).toBeAttached();
+  await expect(backlinkHighlight).toHaveCSS('border-top-width', '0px');
+  await expect(backlinkHighlight).toHaveCSS('box-shadow', 'none');
+  await expect(backlinkHighlight).toHaveCSS(
+    'animation-name',
+    'pdf-reader-backlink-focus',
+  );
+  await expect(backlinkHighlight).toHaveCSS('opacity', '0', {
+    timeout: 3_000,
+  });
   const reopenedStoredHighlight = backlinkReader.locator(
     '.pdf-reader__stored-highlight[data-color="blue"]',
   ).first();

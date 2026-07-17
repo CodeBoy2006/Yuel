@@ -1623,3 +1623,9 @@
 - **Status:** Completed
 - **Next Steps:** Treat AcroForm PushButton navigation as a separate engine capability if a remaining document depends on it, because EmbedPDF 2.14.4 does not expose Widget button actions through its public model.
 - **Context:** Link buttons are now keyboard-focusable, retain a visible focus state, and sit below active text-selection controls but above stored highlights that previously could claim the pointer target. All 74 unit/UI test files and 577 tests, TypeScript checks, the production build, whitespace validation, and the focused packaged Chromium PDF reader regression pass.
+
+## [2026-07-17 21:31] PDF Highlight Layering
+- **Changes:** Separated persistent highlight paint from its transparent click target so PDF text keeps visual priority through multiply blending; removed persistent and backlink highlight borders; made the backlink locator fade out instead of permanently stacking over the saved highlight; and added packaged-browser assertions for the paint layer, border removal, and fade completion.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The keyboard-only focus outline remains for accessibility and is separate from the removed highlight border. TypeScript checks, the production build, whitespace validation, the complete packaged Chromium PDF highlight lifecycle, and a real rendered highlight crop all pass.
