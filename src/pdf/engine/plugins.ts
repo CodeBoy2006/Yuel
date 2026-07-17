@@ -5,7 +5,7 @@ import {
   LockModeType,
 } from '@embedpdf/plugin-annotation/react';
 import { DocumentManagerPluginPackage } from '@embedpdf/plugin-document-manager';
-import { ExportPluginPackage } from '@embedpdf/plugin-export/react';
+import { ExportPluginPackage } from '@embedpdf/plugin-export';
 import { HistoryPluginPackage } from '@embedpdf/plugin-history';
 import { InteractionManagerPluginPackage } from '@embedpdf/plugin-interaction-manager';
 import { PanPluginPackage } from '@embedpdf/plugin-pan/react';

@@ -557,6 +557,9 @@ export function PdfReaderWorkspace({
 
         {documentLoaded && activeDocumentId ? (
           <DocumentToolbarControls
+            downloadFileName={sourceMetadata?.resourceId === activeDocumentId
+              ? sourceMetadata.displayName
+              : activeDocument?.name}
             documentId={activeDocumentId}
             panelMode={panelMode}
             onTogglePanel={togglePanel}

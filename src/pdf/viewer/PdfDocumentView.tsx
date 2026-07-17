@@ -81,6 +81,7 @@ import type {
 } from 'react';
 
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
+import { downloadPdfBuffer } from './download';
 import { shouldIgnorePdfReaderShortcut } from './keyboard';
 import {
   PdfHighlightEditor,
@@ -326,10 +327,12 @@ export function PdfDocumentView({
 }
 
 export function DocumentToolbarControls({
+  downloadFileName,
   documentId,
   panelMode,
   onTogglePanel,
 }: {
+  downloadFileName?: string;
   documentId: string;
   panelMode: PdfReaderPanelMode | null;
   onTogglePanel: (mode: PdfReaderPanelMode) => void;
@@ -342,10 +345,17 @@ export function DocumentToolbarControls({
   const { provides: exportPdf } = useExport(documentId);
   const [zoomDraft, setZoomDraft] = useState('100');
   const [printStatus, setPrintStatus] = useState<'idle' | 'printing' | 'failed'>('idle');
+  const [downloadStatus, setDownloadStatus] = useState<
+    'idle' | 'downloading' | 'failed'
+  >('idle');
 
   useEffect(() => {
     setZoomDraft(String(Math.round((zoomState.currentZoomLevel || 1) * 100)));
   }, [zoomState.currentZoomLevel]);
+
+  useEffect(() => {
+    setDownloadStatus('idle');
+  }, [documentId]);
 
   const submitZoom = () => {
     if (!zoom) return;
@@ -376,6 +386,17 @@ export function DocumentToolbarControls({
       setPrintStatus('idle');
     } catch {
       setPrintStatus('failed');
+    }
+  };
+  const downloadDocument = async () => {
+    if (!exportPdf || downloadStatus === 'downloading') return;
+    setDownloadStatus('downloading');
+    try {
+      const buffer = await exportPdf.saveAsCopy().toPromise();
+      downloadPdfBuffer(buffer, downloadFileName);
+      setDownloadStatus('idle');
+    } catch {
+      setDownloadStatus('failed');
     }
   };
 
@@ -537,11 +558,14 @@ export function DocumentToolbarControls({
         className="pdf-reader__icon-button pdf-reader__output-tool"
         type="button"
         aria-label="下载 PDF"
-        title="下载 PDF"
-        disabled={!exportPdf}
-        onClick={() => exportPdf?.download()}
+        title={downloadStatus === 'failed' ? '下载失败，请重试' : '下载 PDF'}
+        disabled={!exportPdf || downloadStatus === 'downloading'}
+        aria-busy={downloadStatus === 'downloading'}
+        onClick={() => void downloadDocument()}
       >
-        <Download aria-hidden="true" />
+        {downloadStatus === 'downloading'
+          ? <LoaderCircle className="is-spinning" aria-hidden="true" />
+          : <Download aria-hidden="true" />}
       </button>
     </div>
   );

@@ -79,6 +79,17 @@ test('opens a top-level network PDF in the Yuel reader by default', async ({
         cookie.name === READING_SITE_PDF_COOKIE_NAME
         && cookie.value === READING_SITE_PDF_COOKIE_VALUE))
       .toBe(true);
+    await context.addInitScript(() => {
+      const createObjectUrl = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = ((object: Blob | MediaSource) => {
+        if (object instanceof File && /\.pdf$/i.test(object.name)) {
+          (globalThis as typeof globalThis & {
+            __yuelPdfDownloadMimeType?: string;
+          }).__yuelPdfDownloadMimeType = object.type;
+        }
+        return createObjectUrl(object);
+      }) as typeof URL.createObjectURL;
+    });
     const page = await context.newPage();
 
     try {
@@ -94,6 +105,15 @@ test('opens a top-level network PDF in the Yuel reader by default', async ({
       'default-reader',
     );
     await expect(page.locator('.pdf-reader__page-shell').first()).toBeVisible();
+    const networkDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下载 PDF' }).click();
+    const networkDownload = await networkDownloadPromise;
+    expect(networkDownload.suggestedFilename()).toBe('default-reader.pdf');
+    expect(await page.evaluate(() => (
+      globalThis as typeof globalThis & {
+        __yuelPdfDownloadMimeType?: string;
+      }
+    ).__yuelPdfDownloadMimeType)).toBe('application/pdf');
     await page.close();
 
     await extensionWorker.evaluate(async () => {

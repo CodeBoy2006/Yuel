@@ -1593,3 +1593,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The reading map, PDF analytics, search, persistent highlights, and saved view-state restoration remain unchanged. The change removes 924 lines before this log entry; all 72 unit test files and 570 tests, TypeScript checks, production builds, whitespace validation, and all seven packaged Chromium extension scenarios pass.
+
+## [2026-07-17 13:15] Typed PDF Downloads
+- **Changes:** Replaced the PDF reader's default MIME-less Blob download with a local typed-file path, preserved existing PDF names, appended `.pdf` when a source name lacks an extension, added busy/failure states, and removed the unused framework download utility.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Downloaded files now use the `application/pdf` MIME type. All 73 unit test files and 572 tests, TypeScript checks, the production build, whitespace validation, and packaged Chromium regressions for extensionless network PDFs and local PDFs pass.
