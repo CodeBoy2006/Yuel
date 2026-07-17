@@ -93,6 +93,7 @@ import {
   PdfSelectAllProvider,
   usePdfSelectAllControls,
 } from './PdfSelectAll';
+import { PdfLinkInteractionLayer } from './PdfLinkInteractionLayer';
 import { usePdfHighlights } from './usePdfHighlights';
 import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
 import type { PdfSourceRectRecord } from '../../storage/schema';
@@ -190,7 +191,10 @@ export function PdfDocumentView({
                   documentId={documentId}
                   onOpenSearch={onOpenSearch}
                 />
-                <PdfExternalLinkHandler documentId={documentId} />
+                <PdfExternalLinkHandler
+                  documentId={documentId}
+                  sourceUrl={sourceMetadata?.sourceUrl}
+                />
               </>
             ) : null}
             <GlobalPointerProvider
@@ -307,6 +311,12 @@ export function PdfDocumentView({
                                   documentId={documentId}
                                   pageIndex={pageIndex}
                                   className="pdf-reader__annotation-layer"
+                                />
+                                <PdfLinkInteractionLayer
+                                  documentId={documentId}
+                                  pageIndex={pageIndex}
+                                  scale={documentState.scale}
+                                  sourceUrl={sourceMetadata?.sourceUrl}
                                 />
                               </PagePointerProvider>
                             </Rotate>
@@ -926,7 +936,13 @@ function DocumentKeyboardShortcuts({
   return null;
 }
 
-function PdfExternalLinkHandler({ documentId }: { documentId: string }) {
+function PdfExternalLinkHandler({
+  documentId,
+  sourceUrl,
+}: {
+  documentId: string;
+  sourceUrl?: string;
+}) {
   const { provides: annotation } = useAnnotationCapability();
 
   useEffect(() => {
@@ -937,10 +953,10 @@ function PdfExternalLinkHandler({ documentId }: { documentId: string }) {
         event.documentId === documentId
         && event.result.outcome === 'uri'
       ) {
-        openSafePdfExternalLink(event.result.uri);
+        openSafePdfExternalLink(event.result.uri, sourceUrl);
       }
     });
-  }, [annotation, documentId]);
+  }, [annotation, documentId, sourceUrl]);
 
   return null;
 }

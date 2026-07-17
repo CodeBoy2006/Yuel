@@ -1617,3 +1617,9 @@
 - **Status:** Completed
 - **Next Steps:** Observe first-use comprehension in real browsing sessions and restore a removed hint only when specific usability evidence shows it is necessary.
 - **Context:** Error recovery, permission constraints, privacy guarantees, loading progress, destructive consequences, and first-use guidance remain visible. All 74 unit test files and 574 tests, TypeScript checks, the production build, whitespace validation, and packaged Chromium desktop/mobile visual checks pass without horizontal overflow; the fixed side-panel actions also leave the final content fully reachable.
+
+## [2026-07-17 19:58] PDF Link Interaction
+- **Changes:** Added a dedicated semantic interaction layer above reader highlights for parsed PDF links; preserved EmbedPDF navigation for direct destinations and GoTo actions; kept external links restricted to HTTP/HTTPS while resolving safe relative links against the remote PDF source URL; and expanded the generated PDF and packaged-browser regression coverage across direct, action-based, and URI links.
+- **Status:** Completed
+- **Next Steps:** Treat AcroForm PushButton navigation as a separate engine capability if a remaining document depends on it, because EmbedPDF 2.14.4 does not expose Widget button actions through its public model.
+- **Context:** Link buttons are now keyboard-focusable, retain a visible focus state, and sit below active text-selection controls but above stored highlights that previously could claim the pointer target. All 74 unit/UI test files and 577 tests, TypeScript checks, the production build, whitespace validation, and the focused packaged Chromium PDF reader regression pass.

@@ -156,6 +156,25 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   extensionId,
 }) => {
   await installPdfCompanionBrowserStubs(context);
+  await context.addInitScript(() => {
+    const openedLinks: Array<{
+      features?: string;
+      target?: string;
+      url: string;
+    }> = [];
+    Object.defineProperty(globalThis, '__yuelOpenedPdfLinks', {
+      configurable: true,
+      value: openedLinks,
+    });
+    globalThis.open = ((url?: string | URL, target?: string, features?: string) => {
+      openedLinks.push({
+        features,
+        target,
+        url: String(url),
+      });
+      return null;
+    }) as typeof globalThis.open;
+  });
   const pdfReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
   const pdfFixture = createPdfSmokeFixture();
   const externalRequests: string[] = [];
@@ -197,15 +216,49 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect(printButton).toBeEnabled();
   await expect(downloadButton).toBeEnabled();
 
-  const internalLink = pdfReader.locator(
-    '.pdf-reader__annotation-layer [style*="cursor: pointer"]',
+  const pdfLinkLayer = pdfReader.locator(
+    '.pdf-reader__link-interaction-layer[data-page-index="0"]',
   ).first();
-  await expect(internalLink).toBeVisible();
-  await internalLink.click();
+  const pdfLinks = pdfLinkLayer.locator('.pdf-reader__page-link');
+  await expect(pdfLinks).toHaveCount(3);
+  await expect(pdfLinkLayer).toHaveCSS('z-index', '5');
+  const internalPdfLinks = pdfLinkLayer.locator(
+    '.pdf-reader__page-link[data-pdf-link-kind="destination"], '
+      + '.pdf-reader__page-link[data-pdf-link-kind="goto"]',
+  );
+  await expect(internalPdfLinks).toHaveCount(2);
+
+  await internalPdfLinks.nth(0).click();
   await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
   await toolbarPageInput.fill('1');
   await toolbarPageInput.press('Enter');
   await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
+  await internalPdfLinks.nth(1).click();
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('2');
+  await toolbarPageInput.fill('1');
+  await toolbarPageInput.press('Enter');
+  await expect.poll(() => toolbarPageInput.inputValue()).toBe('1');
+
+  await pdfLinkLayer.locator(
+    '.pdf-reader__page-link[data-pdf-link-kind="uri"]',
+  ).click();
+  await expect.poll(() => pdfReader.evaluate(() => {
+    const openedLinks = (
+      globalThis as typeof globalThis & {
+        __yuelOpenedPdfLinks?: Array<{
+          features?: string;
+          target?: string;
+          url: string;
+        }>;
+      }
+    ).__yuelOpenedPdfLinks;
+    return openedLinks?.at(-1);
+  })).toEqual({
+    features: 'noopener,noreferrer',
+    target: '_blank',
+    url: 'https://example.com/yuel-pdf-link',
+  });
 
   const downloadPromise = pdfReader.waitForEvent('download');
   await downloadButton.click();
@@ -256,7 +309,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     '.pdf-reader__select-all-mark',
   ).first();
   await expect(selectAllMark).toBeVisible();
-  await expect(selectAllLayer).toHaveCSS('z-index', '5');
+  await expect(selectAllLayer).toHaveCSS('z-index', '6');
   await expect(selectAllMark).toHaveCSS(
     'background-color',
     'rgba(53, 143, 97, 0.44)',
@@ -445,7 +498,7 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   const textSelectionMark = textSelectionBounds.locator(
     ':scope > div',
   ).first();
-  await expect(textSelectionLayer).toHaveCSS('z-index', '5');
+  await expect(textSelectionLayer).toHaveCSS('z-index', '6');
   await expect(textSelectionLayer).toHaveCSS('pointer-events', 'none');
   await expect(textSelectionMark).toBeVisible();
   await expect(textSelectionMark).toHaveCSS(

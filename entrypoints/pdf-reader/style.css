@@ -622,6 +622,31 @@ body,
   pointer-events: none;
 }
 
+.pdf-reader__link-interaction-layer {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pdf-reader__page-link {
+  position: absolute;
+  border: 0;
+  border-radius: 2px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.pdf-reader__page-link:focus-visible {
+  outline: 2px solid var(--y-focus);
+  outline-offset: -2px;
+  background: rgb(53 143 97 / 10%);
+}
+
 .pdf-reader__search-layer {
   position: absolute;
   z-index: 3;
@@ -711,7 +736,7 @@ body,
 .pdf-reader__select-all-layer,
 .pdf-reader__text-selection-layer {
   position: absolute;
-  z-index: 5;
+  z-index: 6;
   inset: 0;
   pointer-events: none;
 }

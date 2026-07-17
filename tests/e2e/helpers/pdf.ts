@@ -7,6 +7,10 @@ export function createPdfSmokeFixture(): Buffer {
     '0 -42 Td',
     '/F1 14 Tf',
     '(Local PDFium WASM and Worker rendering) Tj',
+    '0 -30 Td',
+    '(GoTo action opens page two) Tj',
+    '0 -30 Td',
+    '(External URI action opens safely) Tj',
     'ET',
     '',
   ].join('\n');
@@ -38,11 +42,26 @@ export function createPdfSmokeFixture(): Buffer {
         pageIndex: 1,
       },
     ],
-    [{
-      pageIndex: 0,
-      targetPageIndex: 1,
-      rect: [70, 704, 410, 744],
-    }],
+    [
+      {
+        kind: 'destination',
+        pageIndex: 0,
+        targetPageIndex: 1,
+        rect: [70, 704, 410, 744],
+      },
+      {
+        kind: 'goto',
+        pageIndex: 0,
+        targetPageIndex: 1,
+        rect: [70, 632, 310, 660],
+      },
+      {
+        kind: 'uri',
+        pageIndex: 0,
+        uri: 'https://example.com/yuel-pdf-link',
+        rect: [70, 602, 310, 630],
+      },
+    ],
   );
 }
 
@@ -64,11 +83,20 @@ interface PdfFixtureOutlineNode {
   children?: PdfFixtureOutlineNode[];
 }
 
-interface PdfFixtureLink {
+interface PdfFixtureLinkBase {
   pageIndex: number;
-  targetPageIndex: number;
   rect: [number, number, number, number];
 }
+
+type PdfFixtureLink =
+  | PdfFixtureLinkBase & {
+    kind: 'destination' | 'goto';
+    targetPageIndex: number;
+  }
+  | PdfFixtureLinkBase & {
+    kind: 'uri';
+    uri: string;
+  };
 
 interface AssignedPdfFixtureOutlineNode extends PdfFixtureOutlineNode {
   objectId: number;
@@ -210,18 +238,28 @@ function createPdfFixture(
       pageContents.length - 1,
       'PDF link page index',
     );
-    assertIntegerInRange(
-      link.targetPageIndex,
-      0,
-      pageContents.length - 1,
-      'PDF link target page index',
-    );
+    if (link.kind !== 'uri') {
+      assertIntegerInRange(
+        link.targetPageIndex,
+        0,
+        pageContents.length - 1,
+        'PDF link target page index',
+      );
+    }
+    let target: string;
+    if (link.kind === 'uri') {
+      target = `   /A << /S /URI /URI (${escapePdfString(link.uri)}) >>`;
+    } else if (link.kind === 'goto') {
+      target = `   /A << /S /GoTo /D [${pageObjectIds[link.targetPageIndex]} 0 R /Fit] >>`;
+    } else {
+      target = `   /Dest [${pageObjectIds[link.targetPageIndex]} 0 R /Fit]`;
+    }
     objectsById.set(link.objectId, [
       '<< /Type /Annot',
       '   /Subtype /Link',
       `   /Rect [${link.rect.join(' ')}]`,
       '   /Border [0 0 0]',
-      `   /Dest [${pageObjectIds[link.targetPageIndex]} 0 R /Fit]`,
+      target,
       '>>',
     ].join('\n'));
   });
