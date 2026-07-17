@@ -82,12 +82,6 @@ import type {
 
 import type { PdfReaderPanelMode } from './PdfReaderSidebar';
 import { shouldIgnorePdfReaderShortcut } from './keyboard';
-import type { PdfReadingProgressState } from './usePdfReadingProgress';
-import type { PdfUnreadTarget } from './unreadNavigation';
-import {
-  PdfNextUnreadControl,
-  PdfUnreadTargetHighlightLayer,
-} from './PdfUnreadNavigation';
 import {
   PdfHighlightEditor,
   PdfPersistentHighlightLayer,
@@ -121,7 +115,6 @@ interface PdfDocumentViewProps {
   ) => void;
   initialTarget?: PdfReaderTarget;
   sourceMetadata?: PdfSourceMetadata;
-  unreadTarget?: PdfUnreadTarget;
 }
 
 export function PdfDocumentView({
@@ -133,7 +126,6 @@ export function PdfDocumentView({
   onOpenSearch,
   onReadingSnapshotStateChange,
   sourceMetadata,
-  unreadTarget,
 }: PdfDocumentViewProps) {
   const highlightsState = usePdfHighlights(documentId);
   const [editingHighlightId, setEditingHighlightId] = useState<string>();
@@ -280,11 +272,6 @@ export function PdfDocumentView({
                                   scale={documentState.scale}
                                   target={initialTarget}
                                 />
-                                <PdfUnreadTargetHighlightLayer
-                                  pageIndex={pageIndex}
-                                  scale={documentState.scale}
-                                  target={unreadTarget}
-                                />
                                 <SelectionLayer
                                   documentId={documentId}
                                   pageIndex={pageIndex}
@@ -340,15 +327,11 @@ export function PdfDocumentView({
 
 export function DocumentToolbarControls({
   documentId,
-  onUnreadTargetChange,
   panelMode,
-  readingProgressState,
   onTogglePanel,
 }: {
   documentId: string;
-  onUnreadTargetChange: (target: PdfUnreadTarget | undefined) => void;
   panelMode: PdfReaderPanelMode | null;
-  readingProgressState: PdfReadingProgressState;
   onTogglePanel: (mode: PdfReaderPanelMode) => void;
 }) {
   const { provides: scroll, state: scrollState } = useScroll(documentId);
@@ -398,14 +381,6 @@ export function DocumentToolbarControls({
 
   return (
     <div className="pdf-reader__document-tools">
-      <PdfNextUnreadControl
-        currentPage={scrollState.currentPage}
-        documentId={documentId}
-        onTargetChange={onUnreadTargetChange}
-        readingProgressState={readingProgressState}
-        rotation={rotation}
-        scroll={scroll}
-      />
       <button
         className="pdf-reader__icon-button pdf-reader__context-tool"
         type="button"

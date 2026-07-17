@@ -1,5 +1,4 @@
 import {
-  clearPdfReadingChunks,
   expect,
   installPdfCompanionBrowserStubs,
   openExtensionPage,
@@ -173,27 +172,8 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   const printButton = pdfReader.getByRole('button', { name: '打印 PDF' });
   const downloadButton = pdfReader.getByRole('button', { name: '下载 PDF' });
   const rotateButton = pdfReader.getByRole('button', { name: '顺时针旋转' });
-  const nextUnreadButton = pdfReader.getByRole('button', {
-    name: '下一处未读内容',
-  });
   await expect(printButton).toBeEnabled();
   await expect(downloadButton).toBeEnabled();
-  await expect(nextUnreadButton).toBeEnabled();
-  await clearPdfReadingChunks(pdfReader);
-  await expect(nextUnreadButton).toHaveAttribute('data-unread-available', 'true');
-
-  await nextUnreadButton.click();
-  const unreadNotice = pdfReader.locator('#pdf-reader-unread-status');
-  await expect(unreadNotice).toContainText('已定位到第');
-  await expect(
-    pdfReader.locator('.pdf-reader__unread-target-highlight').first(),
-  ).toBeVisible();
-  await expect(unreadNotice).toBeHidden({ timeout: 4_000 });
-  await pdfReader.keyboard.press('n');
-  await expect(unreadNotice).toBeVisible();
-  await expect(unreadNotice).toContainText(
-    /已定位到第|当前位置之后没有未读内容|当前可测文本已覆盖/,
-  );
 
   const internalLink = pdfReader.locator(
     '.pdf-reader__annotation-layer [style*="cursor: pointer"]',
@@ -436,14 +416,12 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   });
   await blueHighlightRadio.click();
   await expect(blueHighlightRadio).toBeFocused();
-  await expect(unreadNotice).toBeHidden();
   const rotationTitleBeforeEditorShortcuts = await rotateButton.getAttribute(
     'title',
   );
   const pageBeforeEditorShortcuts = await toolbarPageInput.inputValue();
   await pdfReader.keyboard.press('r');
   await pdfReader.keyboard.press('ArrowRight');
-  await pdfReader.keyboard.press('n');
   await expect(rotateButton).toHaveAttribute(
     'title',
     rotationTitleBeforeEditorShortcuts ?? '',
@@ -451,7 +429,6 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
   await expect.poll(() => toolbarPageInput.inputValue()).toBe(
     pageBeforeEditorShortcuts,
   );
-  await expect(unreadNotice).toBeHidden();
   await highlightEditor.locator('textarea').fill(
     'Keep this beside the local PDF implementation notes.',
   );

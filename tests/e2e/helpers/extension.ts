@@ -225,32 +225,6 @@ export async function seedSavedItems(
   }, records);
 }
 
-export async function clearPdfReadingChunks(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('yuel-local');
-      request.onerror = () => reject(request.error ?? new Error('Failed to open Yuel IndexedDB'));
-      request.onsuccess = () => resolve(request.result);
-    });
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const transaction = database.transaction('textChunks', 'readwrite');
-        transaction.objectStore('textChunks').clear();
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(
-          transaction.error ?? new Error('Failed to clear PDF reading chunks'),
-        );
-        transaction.onabort = () => reject(
-          transaction.error ?? new Error('PDF reading chunk transaction was aborted'),
-        );
-      });
-    } finally {
-      database.close();
-    }
-  });
-}
-
 export async function readActiveTabCollectorStatus(worker: Worker): Promise<ReadingCollectorStatusResponse> {
   const request: ReadingCollectorStatusRequest = {
     type: MESSAGE_TYPES.readingCollectorStatusRequest,

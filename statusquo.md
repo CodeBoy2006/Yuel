@@ -1587,3 +1587,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Desktop panel widths remain 300 px for the reading map and 256 px for outline, thumbnails, and search. TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass.
+
+## [2026-07-17 11:28] Remove PDF Next-Unread Navigation
+- **Changes:** Removed the PDF next-unread toolbar action, `N` shortcut, target navigation and highlight layers, transient notices, dedicated navigation model and tests, E2E helpers and assertions, styles, workspace state and props, and product documentation references.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The reading map, PDF analytics, search, persistent highlights, and saved view-state restoration remain unchanged. The change removes 924 lines before this log entry; all 72 unit test files and 570 tests, TypeScript checks, production builds, whitespace validation, and all seven packaged Chromium extension scenarios pass.
