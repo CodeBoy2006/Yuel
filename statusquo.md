@@ -1611,3 +1611,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The implementation uses public PDF engine APIs rather than EmbedPDF private selection methods. Only mounted PDF pages load selection rectangles, while document text extraction is cached for copying. All 74 unit test files and 573 tests, TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass across both fixture pages.
+
+## [2026-07-17 19:30] Frontend Copy Distillation
+- **Changes:** Removed duplicate normal-state explanations, success notices, implementation details, repeated metadata, and redundant status labels across the popup, side panel, dashboard, excerpt library, and PDF reader; shortened visible commands and empty states while preserving complete accessible labels; removed superseded state and style paths and updated smoke and packaged-browser assertions.
+- **Status:** Completed
+- **Next Steps:** Observe first-use comprehension in real browsing sessions and restore a removed hint only when specific usability evidence shows it is necessary.
+- **Context:** Error recovery, permission constraints, privacy guarantees, loading progress, destructive consequences, and first-use guidance remain visible. All 74 unit test files and 574 tests, TypeScript checks, the production build, whitespace validation, and packaged Chromium desktop/mobile visual checks pass without horizontal overflow; the fixed side-panel actions also leave the final content fully reachable.
