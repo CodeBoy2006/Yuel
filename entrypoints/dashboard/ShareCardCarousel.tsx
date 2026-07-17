@@ -44,7 +44,6 @@ export function ShareCardCarousel({
   settings: Pick<ShareCardSettings, 'showSiteIcons' | 'showStreak' | 'siteLimit'>;
 }) {
   const activeIndex = Math.max(0, SHARE_CARD_THEMES.findIndex((theme) => theme.id === selectedTheme));
-  const activeTheme = SHARE_CARD_THEMES[activeIndex];
 
   const moveToAdjacentTheme = (offset: number) => {
     const nextIndex = (activeIndex + offset + SHARE_CARD_THEMES.length) % SHARE_CARD_THEMES.length;
@@ -87,33 +86,27 @@ export function ShareCardCarousel({
         </div>
       </div>
 
-      <div className="share-carousel__controls">
-        <div className="share-carousel__caption" aria-live="polite" aria-atomic="true">
-          <span>{String(activeIndex + 1).padStart(2, '0')} / {String(SHARE_CARD_THEMES.length).padStart(2, '0')}</span>
-          <strong>{activeTheme.name}</strong>
-        </div>
-        <div className="share-carousel__arrows" aria-label="切换卡片样式">
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label="上一种卡片样式"
-            onClick={() => moveToAdjacentTheme(-1)}
-          >
-            <ChevronLeft aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            aria-label="下一种卡片样式"
-            onClick={() => moveToAdjacentTheme(1)}
-          >
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </div>
+      <div className="share-carousel__arrows" aria-label="切换卡片样式">
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label="上一种卡片样式"
+          onClick={() => moveToAdjacentTheme(-1)}
+        >
+          <ChevronLeft aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label="下一种卡片样式"
+          onClick={() => moveToAdjacentTheme(1)}
+        >
+          <ChevronRight aria-hidden="true" />
+        </button>
       </div>
 
       <fieldset className="share-theme-picker" disabled={disabled}>
-        <legend>选择卡片样式</legend>
+        <legend>样式</legend>
         <div className="share-theme-picker__options">
           {SHARE_CARD_THEMES.map((theme) => (
             <label key={theme.id} className="share-theme-option">
@@ -192,7 +185,6 @@ const ShareCardPreview = ({
           <strong>{content.effectiveWords}</strong>
           <span>Words</span>
         </div>
-        <small>今日英文阅读</small>
       </div>
 
       <dl className="share-card-preview__metrics">

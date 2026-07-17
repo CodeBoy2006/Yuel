@@ -844,11 +844,11 @@ test('records reading data through the extension runtime', async ({ context, ext
   const dashboard = await openExtensionPage(context, extensionId, 'dashboard.html');
   const dashboardBody = dashboard.locator('body');
   await expect(dashboardBody).toContainText(RUNTIME_LOOP_DOMAIN);
-  await expect(dashboardBody).toContainText('今日有效阅读');
+  await expect(dashboard.locator('#today-reading-title')).toHaveText('今日');
   await expect(dashboardBody).toContainText('每日有效时长');
   await expect(dashboardBody).toContainText('最近会话');
   await expect(dashboard.locator('.reading-duration-recent__list li')).toHaveCount(1);
-  await expect(dashboardBody).not.toContainText('从下一篇外语文章开始');
+  await expect(dashboardBody).not.toContainText('还没有阅读记录');
 
   const durationTrend = dashboard.locator('.reading-duration-trend');
   const durationSources = dashboard.locator('.reading-duration-sources');
@@ -1042,7 +1042,7 @@ test('records reading on an arbitrary HTTPS site and reports the live collector 
       dashboardText = await readExtensionPageText(context, extensionId, 'dashboard.html');
       return dashboardText;
     }).toContain(READING_SITE_HOST);
-    expect(dashboardText).not.toContain('从下一篇外语文章开始');
+    expect(dashboardText).not.toContain('还没有阅读记录');
 
     const sidePanel = await openExtensionPage(context, extensionId, 'sidepanel.html');
     await readingPage.bringToFront();

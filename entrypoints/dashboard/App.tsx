@@ -478,15 +478,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
   const hasStaleDetails = loadFailed && Boolean(details);
   const viewState: DashboardViewState = loadFailed && !details ? 'error' : !details ? 'loading' : details.hasData ? 'ready' : 'empty';
-  const statusText = hasStaleDetails
-    ? '上次结果'
-    : viewState === 'error'
-    ? '不可用'
-    : viewState === 'loading'
-      ? '读取中'
-      : viewState === 'empty'
-        ? '待记录'
-        : '已读取';
   const statusDescription = hasStaleDetails
     ? '本地数据：显示上次读取结果'
     : viewState === 'error'
@@ -496,8 +487,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       : viewState === 'empty'
         ? '本地数据：等待第一条记录'
         : '本地数据已读取';
-  const statusTone = hasStaleDetails ? 'warning' : viewState === 'error' ? 'danger' : viewState === 'ready' ? 'positive' : 'neutral';
-  const effectiveWordsValue = summary ? formatCount(summary.effectiveWords) : '—';
+  const statusTone = hasStaleDetails ? 'warning' : 'neutral';
   const readingTimeValue = summary ? formatMinutes(summary.minutes) : '—';
   const pagesTodayValue = summary ? String(summary.readPages) : '—';
   const learningWordsValue = summary ? String(summary.learningWords) : '—';
@@ -513,7 +503,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
     (question) => calibrationAnswers[question.id],
   );
   const shareCardContent = summary && checkInCompleted ? createShareCardContent(summary) : undefined;
-  const todayDomain = shareCardContent?.domains[0] ?? '暂无今日网站';
+  const todayDomain = shareCardContent?.domains[0] ?? '暂无来源';
   const shareActionBusy = copyStatus === 'copying' || downloadStatus === 'downloading';
   const selectedShareCardTheme = shareCardSettings.theme;
   const shareCardSettingsStatusText = formatShareCardSettingsStatus(shareCardSettingsStatus);
@@ -536,9 +526,9 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
       : readingRecordingSettings.recordingEnabled
         ? '已开启'
         : '已暂停';
-  const readingRecordingDescription = readingRecordingSettings.recordingEnabled
-    ? '仅在 Chrome 已授权网页中记录。'
-    : '已暂停；现有数据和网站偏好仍会保留。';
+  const readingRecordingDetail = readingRecordingSettings.recordingEnabled
+    ? undefined
+    : '现有记录和网站偏好保留。';
   const paceActionBusy = calibrationSaveStatus === 'saving' || paceResetStatus === 'resetting';
 
   const retryLoading = () => {
@@ -985,8 +975,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             aria-label={statusDescription}
           >
             <Database aria-hidden="true" />
-            <span>本地数据</span>
-            <strong>{statusText}</strong>
+            <span>本地</span>
+            {hasStaleDetails ? <strong>上次结果</strong> : null}
           </div>
         </section>
 
@@ -999,7 +989,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         {viewState === 'error' ? (
           <section className="dashboard-state" aria-labelledby="dashboard-error-title">
             <div>
-              <p className="dashboard-kicker">读取失败</p>
               <h2 id="dashboard-error-title">本地数据不可用</h2>
               <p>数据仍保留在浏览器中。</p>
             </div>
@@ -1010,11 +999,10 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         {viewState === 'empty' ? (
           <section className="dashboard-state dashboard-state--empty" aria-labelledby="dashboard-empty-title">
             <div>
-              <p className="dashboard-kicker">尚未开始</p>
-              <h2 id="dashboard-empty-title">从下一篇外语文章开始</h2>
-              <p>启用一个网站，阅读记录会自动汇入这里。</p>
+              <h2 id="dashboard-empty-title">还没有阅读记录</h2>
+              <p>在已授权网站开始阅读即可。</p>
             </div>
-            <ActionButton icon={Gauge} onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>先校准阅读速度</ActionButton>
+            <ActionButton icon={Gauge} onClick={() => scrollToSection(dashboardRootRef.current, 'reading-profile')}>校准阅读速度</ActionButton>
           </section>
         ) : null}
 
@@ -1023,37 +1011,39 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             <section className="today-ledger" aria-labelledby="today-reading-title">
               <div className="today-ledger__header">
                 <div className="today-ledger__identity">
-                  <p className="dashboard-kicker">{summary?.date}</p>
-                  <h2 id="today-reading-title">今日有效阅读</h2>
+                  <time className="dashboard-kicker" dateTime={summary?.date}>{summary?.date}</time>
+                  <h2 id="today-reading-title">今日</h2>
                   <p className="today-ledger__domain" title={todayDomain}>{todayDomain}</p>
                 </div>
                 <div className="today-ledger__actions">
                   <ActionButton
                     variant="quiet"
                     icon={SlidersHorizontal}
+                    aria-label="设置每日目标"
                     onClick={openCheckInGoalEditor}
                   >
-                    设置目标
+                    目标
                   </ActionButton>
                   <ActionButton
                     variant="quiet"
                     icon={Share2}
                     disabled={!checkInCompleted}
                     title={checkInCompleted ? undefined : `还差 ${formatCount(checkInRemainingWords)} 词完成今日打卡`}
+                    aria-label={checkInCompleted
+                      ? shareCardOpen ? '收起今日卡片' : '查看今日卡片'
+                      : `今日卡片，还差 ${formatCount(checkInRemainingWords)} 词解锁`}
                     aria-expanded={checkInCompleted ? shareCardOpen : false}
                     aria-controls={checkInCompleted && shareCardOpen ? 'share-card' : undefined}
                     onClick={() => setShareCardOpen((open) => !open)}
                   >
-                    {checkInCompleted
-                      ? shareCardOpen ? '收起今日卡片' : '查看今日卡片'
-                      : '达标后可打卡'}
+                    {shareCardOpen ? '收起卡片' : '今日卡片'}
                   </ActionButton>
                 </div>
               </div>
               <div className="today-ledger__goal">
                 <div className="today-ledger__goal-heading">
                   <StatusPill tone={checkInCompleted ? 'positive' : 'warning'}>
-                    {checkInCompleted ? '今日已打卡' : '今日未达标'}
+                    {checkInCompleted ? '已达标' : '未达标'}
                   </StatusPill>
                   <span>
                     {formatCount(checkInEffectiveWords)} / {formatCount(checkInThresholdWords)} 有效词
@@ -1069,7 +1059,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 />
               </div>
               <div className="today-ledger__metrics">
-                <Metric icon={BookOpen} label="有效阅读" value={`${effectiveWordsValue} 词`} />
                 <Metric icon={Activity} label="有效时长" value={readingTimeValue} />
                 <Metric icon={Database} label="今日页面" value={pagesTodayValue} />
                 <Metric icon={Languages} label="学习中词汇" value={learningWordsValue} />
@@ -1079,7 +1068,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
 
             {shareCardOpen && checkInCompleted ? (
               <section id="share-card" className="dashboard-panel share-section" aria-labelledby="share-card-title">
-                <SectionHeader icon={Share2} meta="4 款">
+                <SectionHeader icon={Share2}>
                   <span id="share-card-title" tabIndex={-1}>今日打卡卡片</span>
                 </SectionHeader>
                 <div className="share-section__layout">
@@ -1165,11 +1154,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                     >
                       {downloadStatus === 'downloading' ? '导出中...' : downloadStatus === 'downloaded' ? '已下载' : downloadStatus === 'failed' ? '导出失败' : '下载 PNG'}
                     </ActionButton>
-                    {copyStatus === 'copied' ? <InlineNotice tone="positive">文案已复制。</InlineNotice> : null}
-                    {downloadStatus === 'downloaded' ? <InlineNotice tone="positive">PNG 已下载。</InlineNotice> : null}
-                    {copyStatus === 'failed' || downloadStatus === 'failed'
-                      ? <InlineNotice tone="danger">卡片操作失败，请重试。</InlineNotice>
-                      : null}
                   </aside>
                 </div>
               </section>
@@ -1191,12 +1175,14 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
           <div className="check-in-setting reading-recording-setting">
             <div className="check-in-setting__copy">
               <h3>自动记录阅读</h3>
-              <p id="reading-recording-description">{readingRecordingDescription}</p>
+              {readingRecordingDetail ? (
+                <p id="reading-recording-description">{readingRecordingDetail}</p>
+              ) : null}
             </div>
             <SwitchControl
               id="reading-recording-enabled"
               label="自动记录英文阅读"
-              describedBy="reading-recording-description"
+              describedBy={readingRecordingDetail ? 'reading-recording-description' : undefined}
               checked={readingRecordingSettings.recordingEnabled}
               disabled={readingRecordingSettingsBusy}
               busy={readingRecordingSettingsBusy}
@@ -1259,7 +1245,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                   </div>
                 </div>
                 <p id="daily-check-in-threshold-hint">
-                  可设置 {formatCount(MIN_DAILY_CHECK_IN_THRESHOLD_WORDS)}–{formatCount(MAX_DAILY_CHECK_IN_THRESHOLD_WORDS)} 个有效词；保存后会重算历史连续记录。
+                  {formatCount(MIN_DAILY_CHECK_IN_THRESHOLD_WORDS)}–{formatCount(MAX_DAILY_CHECK_IN_THRESHOLD_WORDS)} 个有效词；保存后重算连续记录。
                 </p>
                 {checkInGoalSaveStatus === 'invalid' ? (
                   <InlineNotice tone="danger">请输入范围内的整数词数。</InlineNotice>
@@ -1283,9 +1269,6 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               </div>
             )}
           </div>
-          {checkInGoalSaveStatus === 'saved' ? (
-            <InlineNotice tone="positive">打卡目标已保存，连续记录已重新计算。</InlineNotice>
-          ) : null}
 
           <div className="check-in-setting reading-toolbar-setting">
             <div className="check-in-setting__copy">
@@ -1430,12 +1413,8 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
             </div>
           ) : null}
 
-          {calibrationSaveStatus === 'saved' ? <InlineNotice tone="positive">校准已保存。</InlineNotice> : null}
           {calibrationSaveStatus === 'rejected' ? (
             <InlineNotice tone="neutral">理解题未达门槛，本次速度样本未写入。</InlineNotice>
-          ) : null}
-          {paceResetStatus === 'reset' ? (
-            <InlineNotice tone="positive">已恢复默认阅读速度；后续有效阅读仍可重新自适应。</InlineNotice>
           ) : null}
           {paceResetStatus === 'failed' ? (
             <InlineNotice tone="danger">默认阅读速度恢复失败，原校准仍保留。</InlineNotice>
@@ -1445,7 +1424,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
         {viewState === 'ready' && details ? (
           <>
             <div className="dashboard-grid">
-              <Panel title="近期阅读量" meta={`${details.recentPages.length} 个页面`} icon={BookOpen}>
+              <Panel title="最近阅读" meta={`${details.recentPages.length} 个页面`} icon={BookOpen}>
                 <div className="record-list">
                   {details.recentPages.length
                     ? details.recentPages.map((page) => (
@@ -1455,7 +1434,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                           resolveFaviconUrl={dependencies.getWebsiteFaviconUrl}
                         />
                       ))
-                    : <EmptyState>还没有阅读记录。</EmptyState>}
+                    : <EmptyState>暂无近期阅读。</EmptyState>}
                 </div>
               </Panel>
 
@@ -1463,7 +1442,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
                 <div className="record-list">
                   {details.recentVocabulary.length
                     ? details.recentVocabulary.map((vocab) => <VocabularyCard key={vocab.lemma} vocab={vocab} />)
-                    : <EmptyState>还没有词汇记录。</EmptyState>}
+                    : <EmptyState>暂无词汇。</EmptyState>}
                 </div>
               </Panel>
             </div>
@@ -1498,7 +1477,7 @@ export function DashboardApp({ dependencies = defaultDependencies }: { dependenc
               <LockKeyhole aria-hidden="true" />
               <h2 id="local-data-title" tabIndex={-1}>本地数据</h2>
             </div>
-            <p>清除阅读、词汇、摘录和速度档案；网站权限不变。</p>
+            <p>清除阅读、词汇、摘录和速度档案；保留网站权限。</p>
           </div>
           <ActionButton
             variant="danger"
@@ -1566,7 +1545,7 @@ function RecentPageCard({
         <time dateTime={new Date(page.lastReadAt).toISOString()}>{formatDateTime(page.lastReadAt)}</time>
       </div>
       <p>
-        累计有效 {formatCount(page.effectiveWords)} 词 · 有效时长 {formatMinutes(page.effectiveMinutes)} · 内容覆盖 {formatCount(page.coveredWords)} / {formatCount(page.totalWords)} 词
+        有效 {formatCount(page.effectiveWords)} 词 · {formatMinutes(page.effectiveMinutes)} · 覆盖 {formatCount(page.coveredWords)} / {formatCount(page.totalWords)}
       </p>
       {page.totalWords > 0 ? (
         <ProgressBar
@@ -1587,7 +1566,7 @@ function VocabularyCard({ vocab }: { vocab: RecentVocabularySummary }) {
         <h3 title={vocab.lemma}>{vocab.lemma}</h3>
         <span className={`vocabulary-status vocabulary-status--${vocab.userStatus}`}>{formatVocabularyStatus(vocab.userStatus)}</span>
       </div>
-      <p>有效出现 {formatVocabularyExposureCount(vocab.effectiveSeenCount)} 次{vocab.savedCount > 0 ? ` · 已收藏 ${vocab.savedCount}` : ''}</p>
+      <p>出现 {formatVocabularyExposureCount(vocab.effectiveSeenCount)} 次{vocab.savedCount > 0 ? ` · 收藏 ${vocab.savedCount}` : ''}</p>
       {vocab.packTags.length > 0 ? (
         <div className="tag-list" aria-label="词汇标签">
           {vocab.packTags.map((tag) => <span key={tag} title={tag}>{tag}</span>)}
@@ -1609,11 +1588,11 @@ function scrollToSection(root: HTMLElement | null, id: string) {
 }
 
 function formatPaceSource(summary: ReadingPaceSummary): string {
-  if (summary.source === 'default') return '默认速度，等待校准或可靠样本。';
+  if (summary.source === 'default') return '默认速度';
   if (summary.source === 'onboarding') {
-    return summary.updatedAt ? `${formatDateTime(summary.updatedAt)} 完成校准` : '已完成初始校准';
+    return summary.updatedAt ? `校准于 ${formatDateTime(summary.updatedAt)}` : '已校准';
   }
-  return `${summary.adaptiveSampleCount} 个可靠样本正在缓慢调整速度`;
+  return `${summary.adaptiveSampleCount} 个自适应样本`;
 }
 
 function pauseCalibrationTimer(timer: CalibrationTimer | undefined, now: number): void {
@@ -1630,8 +1609,6 @@ function resumeCalibrationTimer(timer: CalibrationTimer | undefined, now: number
 function formatShareCardSettingsStatus(
   status: 'idle' | 'loading' | 'saving' | 'saved' | 'failed',
 ): string | undefined {
-  if (status === 'loading') return '正在读取偏好';
-  if (status === 'saving') return '正在自动保存';
   if (status === 'failed') return '设置仅对本次有效';
   return undefined;
 }

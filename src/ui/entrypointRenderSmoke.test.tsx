@@ -76,10 +76,11 @@ async function flushReactMicrotasks(rounds = 1) {
 }
 
 async function revealTodayCard(container: HTMLElement) {
-  const toggle = findButton(container, '查看今日卡片');
+  const toggle = findButton(container, '今日卡片');
+  expect(toggle?.getAttribute('aria-label')).toBe('查看今日卡片');
   expect(toggle?.getAttribute('aria-controls')).toBeNull();
   await clickButton(toggle);
-  expect(findButton(container, '收起今日卡片')?.getAttribute('aria-controls')).toBe('share-card');
+  expect(findButton(container, '收起卡片')?.getAttribute('aria-controls')).toBe('share-card');
   expect(container.textContent).toContain('今日打卡卡片');
   expect(container.querySelector('.share-card-preview .sr-only')).toBeNull();
 }
@@ -570,11 +571,12 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     const text = container.textContent ?? '';
     expect(container.querySelector('#dashboard-title')?.textContent).toBe('阅读记录');
-    expect(text).toContain('今日有效阅读');
-    expect(text).toContain('查看今日卡片');
-    expect(text).toContain('近期阅读量');
-    expect(text).toContain('本地数据');
-    expect(text.indexOf('今日有效阅读')).toBeLessThan(text.indexOf('清空本地数据'));
+    expect(container.querySelector('#today-reading-title')?.textContent).toBe('今日');
+    expect(text).toContain('今日卡片');
+    expect(text).toContain('最近阅读');
+    expect(text).toContain('本地');
+    expect(text).not.toContain('本地数据已读取');
+    expect(text).not.toContain('今日有效阅读');
     expect(text).not.toContain('Event driven');
     expect(container.querySelector<HTMLElement>('.dashboard-header .yuel-brand__mark')?.dataset.state).toBe('complete');
   });
@@ -911,13 +913,14 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('960');
     expect(container.textContent).toContain('developer.mozilla.org');
     expect(container.textContent).toContain('resilience');
-    expect(container.textContent).toContain('已收藏 2');
+    expect(container.textContent).toContain('收藏 2');
     expect(container.textContent).toContain('architecture');
     expect(container.textContent).toContain('fail gracefully under pressure');
     expect(container.textContent).toContain('摘录库');
-    expect(container.textContent).toContain('查看今日卡片');
+    expect(container.textContent).toContain('今日卡片');
     expect(container.textContent).not.toContain('今日打卡卡片');
-    expect(container.textContent).toContain('今日有效阅读');
+    expect(container.querySelector('#today-reading-title')?.textContent).toBe('今日');
+    expect(container.textContent).not.toContain('今日有效阅读');
     expect(container.textContent).toContain('阅读活动热力图');
     expect(container.textContent).toContain('有效阅读趋势');
     expect(container.textContent).toContain('星期日均');
@@ -925,7 +928,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('每日有效时长');
     expect(container.textContent).toContain('最近会话');
     expect(container.textContent).toContain('2 个页面 · 340 个有效词');
-    expect(container.textContent).toContain('有效时长 3 分钟');
+    expect(container.textContent).toContain('有效 620 词 · 3 分钟 · 覆盖 620 / 1,200');
     expect(container.querySelectorAll('.reading-heatmap__week')).toHaveLength(13);
     expect(container.querySelector('.excerpt-library__summary')).toBeNull();
     expect(container.textContent).not.toContain('当天达到目标后才计入连续打卡');
@@ -1105,9 +1108,11 @@ describe('extension UI entrypoint smoke rendering', () => {
       saveDailyCheckInThresholdWords,
     });
 
-    const lockedShareButton = findButton(container, '达标后可打卡');
+    const lockedShareButton = findButton(container, '今日卡片');
     expect(lockedShareButton?.disabled).toBe(true);
-    expect(container.textContent).toContain('今日未达标');
+    expect(lockedShareButton?.getAttribute('aria-label')).toBe('今日卡片，还差 180 词解锁');
+    expect(container.textContent).toContain('未达标');
+    expect(container.textContent).not.toContain('今日未达标');
     expect(container.textContent).not.toContain('再读 180 个有效词');
     expect(container.textContent).not.toContain('今日打卡卡片');
 
@@ -1120,7 +1125,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     const goalInput = container.querySelector<HTMLInputElement>('#daily-check-in-threshold');
     expect(goalInput).toBeInstanceOf(HTMLInputElement);
     expect(container.querySelector('#daily-check-in-threshold-hint')?.textContent)
-      .toContain('保存后会重算历史连续记录');
+      .toContain('保存后重算连续记录');
     await act(async () => {
       if (!goalInput) return;
       const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
@@ -1133,7 +1138,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(refreshReadingToolbarIcon).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('900 词 / 天');
-    expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
+    expect(container.textContent).not.toContain('打卡目标已保存');
   });
 
   it('loads and toggles the browser toolbar progress icon preference', async () => {
@@ -1193,7 +1198,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(container.textContent).toContain('自动记录阅读');
     expect(container.textContent).toContain('已暂停');
     expect(container.querySelector('#reading-recording-description')?.textContent)
-      .toBe('已暂停；现有数据和网站偏好仍会保留。');
+      .toBe('现有记录和网站偏好保留。');
 
     await act(async () => {
       recordingToggle?.click();
@@ -1203,8 +1208,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(setGlobalReadingRecordingEnabled).toHaveBeenCalledWith(true);
     expect(recordingToggle?.checked).toBe(true);
     expect(container.textContent).toContain('已开启');
-    expect(container.querySelector('#reading-recording-description')?.textContent)
-      .toBe('仅在 Chrome 已授权网页中记录。');
+    expect(container.querySelector('#reading-recording-description')).toBeNull();
   });
 
   it('restores the previous global recording preference when saving fails', async () => {
@@ -1510,14 +1514,15 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     expect(container.textContent).toContain('248 WPM');
-    expect(container.textContent).toContain('3 个可靠样本正在缓慢调整速度');
+    expect(container.textContent).toContain('3 个自适应样本');
     await clickButton(findButton(container, '恢复默认速度'));
     await flushReactMicrotasks(2);
 
     expect(resetReadingPaceCalibration).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('220 WPM');
     expect(findButton(container, '恢复默认速度')).toBeUndefined();
-    expect(container.textContent).toContain('已恢复默认阅读速度');
+    expect(container.textContent).toContain('默认速度');
+    expect(container.textContent).not.toContain('已恢复默认阅读速度');
     expect(document.activeElement).toBe(container.querySelector('#pace-calibration-trigger'));
   });
 
@@ -1546,7 +1551,7 @@ describe('extension UI entrypoint smoke rendering', () => {
       await pendingDetails.promise;
     });
 
-    expect(container.textContent).toContain('从下一篇外语文章开始');
+    expect(container.textContent).toContain('还没有阅读记录');
     expect(container.querySelector('main')?.getAttribute('aria-busy')).toBe('false');
   });
 
@@ -1561,16 +1566,16 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(container.textContent).toContain('本地数据不可用');
     expect(container.textContent).not.toContain('正在读取本地数据');
-    expect(container.textContent).not.toContain('从下一篇外语文章开始');
-    expect(container.textContent).not.toContain('今日有效阅读');
+    expect(container.textContent).not.toContain('还没有阅读记录');
+    expect(container.querySelector('#today-reading-title')).toBeNull();
 
     await clickButton(findButton(container, '重新读取'));
 
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('从下一篇外语文章开始');
+    expect(container.textContent).toContain('还没有阅读记录');
     expect(container.textContent).not.toContain('本地数据不可用');
     expect(container.textContent).not.toContain('正在读取本地数据');
-    expect(container.textContent).not.toContain('今日有效阅读');
+    expect(container.querySelector('#today-reading-title')).toBeNull();
   });
 
   it('does not show dashboard empty states while local reading details are loading', async () => {
@@ -1579,13 +1584,13 @@ describe('extension UI entrypoint smoke rendering', () => {
     });
 
     const dashboardStatus = container.querySelector('.dashboard-intro__status');
-    expect(dashboardStatus?.textContent).toContain('本地数据读取中');
+    expect(dashboardStatus?.textContent).toBe('本地');
     expect(dashboardStatus?.getAttribute('aria-label')).toBe('正在读取本地数据');
     expect(container.textContent).not.toContain('本地数据不可用');
-    expect(container.textContent).not.toContain('从下一篇外语文章开始');
-    expect(container.textContent).not.toContain('今日有效阅读');
-    expect(container.textContent).not.toContain('还没有阅读记录。');
-    expect(container.textContent).not.toContain('还没有词汇记录。');
+    expect(container.textContent).not.toContain('还没有阅读记录');
+    expect(container.querySelector('#today-reading-title')).toBeNull();
+    expect(container.textContent).not.toContain('暂无近期阅读。');
+    expect(container.textContent).not.toContain('暂无词汇。');
     expect(container.textContent).not.toContain('还没有保存摘录。');
   });
 
@@ -1748,7 +1753,8 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     await clickButton(container.querySelector<HTMLButtonElement>('button[aria-label="下一种卡片样式"]') ?? undefined);
     expect(themeInputs.find((input) => input.value === 'mist')?.checked).toBe(true);
-    expect(container.querySelector('.share-carousel__caption strong')?.textContent).toBe('雾白');
+    expect(container.querySelector('.share-carousel__caption')).toBeNull();
+    expect(container.textContent).toContain('雾白');
 
     await act(async () => {
       themeInputs.find((input) => input.value === 'berry')?.click();
@@ -1784,7 +1790,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(refreshReadingToolbarIcon).toHaveBeenCalledOnce();
     expect(getReadingDashboardDetails).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('从下一篇外语文章开始');
+    expect(container.textContent).toContain('还没有阅读记录');
   });
 
   it('keeps a saved goal successful when browser chrome refresh is unavailable', async () => {
@@ -1818,7 +1824,7 @@ describe('extension UI entrypoint smoke rendering', () => {
     await clickButton(findButton(container, '保存目标'));
 
     expect(container.textContent).toContain('900 词 / 天');
-    expect(container.textContent).toContain('打卡目标已保存，连续记录已重新计算。');
+    expect(container.textContent).not.toContain('打卡目标已保存');
     expect(console.error).toHaveBeenCalledWith(
       'Failed to refresh Yuel reading toolbar icon',
       expect.any(Error),
@@ -1849,8 +1855,8 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).toHaveBeenCalledOnce();
     expect(container.querySelectorAll('.dashboard-state--empty')).toHaveLength(1);
-    expect(container.textContent).toContain('从下一篇外语文章开始');
-    expect(container.textContent).not.toContain('今日有效阅读');
+    expect(container.textContent).toContain('还没有阅读记录');
+    expect(container.querySelector('#today-reading-title')).toBeNull();
     expect(container.textContent).not.toContain('今日打卡卡片');
     expect(container.textContent).not.toContain('查看今日卡片');
     expect(container.textContent).not.toContain('复制文案');
@@ -1912,7 +1918,8 @@ describe('extension UI entrypoint smoke rendering', () => {
 
     expect(clearLocalReadingData).not.toHaveBeenCalled();
     expect(getReadingDashboardDetails).toHaveBeenCalledOnce();
-    expect(container.textContent).toContain('本地数据已读取');
+    expect(container.querySelector('.dashboard-intro__status')?.textContent).toBe('本地');
+    expect(container.textContent).not.toContain('已读取');
   });
 
   it('uses the focused side-panel snapshot and merges overlapping refresh requests', async () => {
