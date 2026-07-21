@@ -506,6 +506,14 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     'rgba(53, 143, 97, 0.44)',
   );
 
+  await pdfReader.mouse.click(
+    highlightBox.x + highlightBox.width / 2,
+    selectionY,
+    { button: 'right' },
+  );
+  await pdfReader.keyboard.press('Escape');
+  await expect(textSelectionMark).toBeVisible();
+
   const copySelectionButton = pdfReader.getByRole('button', {
     name: '复制所选文本',
   });

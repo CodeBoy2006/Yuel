@@ -251,6 +251,9 @@ export function PdfDocumentView({
                                 pageIndex={pageIndex}
                                 className="pdf-reader__page-layers"
                                 style={{ height, width }}
+                                onPointerDownCapture={(event) => {
+                                  if (event.button !== 0) event.stopPropagation();
+                                }}
                               >
                                 <RenderLayer
                                   documentId={documentId}

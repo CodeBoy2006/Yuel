@@ -1629,3 +1629,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The keyboard-only focus outline remains for accessibility and is separate from the removed highlight border. TypeScript checks, the production build, whitespace validation, the complete packaged Chromium PDF highlight lifecycle, and a real rendered highlight crop all pass.
+
+## [2026-07-21 21:22] Preserve PDF Selection On Right Click
+- **Changes:** Blocked non-primary pointer presses before EmbedPDF's page selection handler so opening the context menu no longer clears an active text selection; added a packaged-browser regression for right-click selection retention.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** Primary-button drag selection remains unchanged. TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass.
