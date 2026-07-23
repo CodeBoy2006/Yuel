@@ -1635,3 +1635,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** Primary-button drag selection remains unchanged. TypeScript checks, the production build, whitespace validation, and the packaged Chromium PDF reader regression pass.
+
+## [2026-07-23 17:36] PDF Reader Brand Progress
+- **Changes:** Connected the PDF reader's shared Yuel brand mark to the live daily reading summary so it fills with effective-word progress and enters the existing completion state at the daily goal; added a focused reactive rendering check.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The PDF mark now uses the same daily-goal meaning, accessibility text, motion, and reduced-motion behavior as the popup, side panel, and dashboard. The focused test, TypeScript check, and production build pass.

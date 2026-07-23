@@ -10,6 +10,34 @@ import {
 } from '../analytics/progress';
 import type { PdfReadingSnapshotLoadState } from '../analytics/types';
 import { db } from '../../storage/schema';
+import { getTodayReadingSummary } from '../../storage/readingStats';
+import type { BrandLockupProps } from '../../ui/primitives';
+
+type PdfBrandProgressProps = Pick<BrandLockupProps, 'progress' | 'progressStatus'>;
+
+export function usePdfBrandProgress(): PdfBrandProgressProps {
+  const [props, setProps] = useState<PdfBrandProgressProps>({ progressStatus: 'loading' });
+
+  useEffect(() => {
+    const subscription = liveQuery(() => getTodayReadingSummary()).subscribe({
+      next: (summary) => setProps({
+        progress: {
+          effectiveWords: summary.effectiveWords,
+          thresholdWords: summary.checkInThresholdWords,
+          completed: summary.checkInCompleted,
+        },
+      }),
+      error: (error) => {
+        console.error('Failed to load Yuel daily progress in the PDF reader', error);
+        setProps({ progressStatus: 'unavailable' });
+      },
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return props;
+}
 
 export type PdfReadingProgressState =
   | { status: 'idle' }

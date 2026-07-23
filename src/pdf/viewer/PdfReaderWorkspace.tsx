@@ -68,7 +68,10 @@ import {
   PdfReaderSidebar,
   type PdfReaderPanelMode,
 } from './PdfReaderSidebar';
-import { usePdfReadingProgress } from './usePdfReadingProgress';
+import {
+  usePdfBrandProgress,
+  usePdfReadingProgress,
+} from './usePdfReadingProgress';
 
 export const LOCAL_PDF_MAX_BYTES = 256 * 1024 * 1024;
 export const REMOTE_PDF_MAX_BYTES = 96 * 1024 * 1024;
@@ -137,6 +140,7 @@ export function PdfReaderWorkspace({
   const isBusy = activity.kind === 'loading' || activity.kind === 'opening';
   const canOpenSource = pluginsReady && Boolean(documentManager) && !isBusy;
   const documentLoaded = activeDocument?.status === 'loaded';
+  const brandProgress = usePdfBrandProgress();
   const readingProgressState = usePdfReadingProgress(readingSnapshotState);
   const displayName = sourceMetadata?.displayName
     ?? activeDocument?.name
@@ -546,7 +550,7 @@ export function PdfReaderWorkspace({
 
       <header className="pdf-reader__toolbar">
         <div className="pdf-reader__identity">
-          <BrandLockup compact progressStatus="unavailable" />
+          <BrandLockup compact {...brandProgress} />
           <span className="pdf-reader__toolbar-divider" aria-hidden="true" />
           <div className="pdf-reader__document-name">
             <FileText aria-hidden="true" />
