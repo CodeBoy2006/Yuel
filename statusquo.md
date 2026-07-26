@@ -1641,3 +1641,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The PDF mark now uses the same daily-goal meaning, accessibility text, motion, and reduced-motion behavior as the popup, side panel, and dashboard. The focused test, TypeScript check, and production build pass.
+
+## [2026-07-26 08:51] Stable PDF Reader Startup
+- **Changes:** Removed React Strict Mode from the PDF reader entrypoint so EmbedPDF initializes one PDFium worker engine instead of racing duplicate development effects and worker teardown; other extension entrypoints remain unchanged.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The installed EmbedPDF hook completes cancelled initializations and destroys through a shared engine ref, making Strict Mode startup order-dependent. All 18 focused PDF source/engine tests, TypeScript checks, the production build, and three consecutive packaged-reader startup runs pass.
