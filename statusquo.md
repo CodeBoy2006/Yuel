@@ -1647,3 +1647,9 @@
 - **Status:** Completed
 - **Next Steps:** None.
 - **Context:** The installed EmbedPDF hook completes cancelled initializations and destroys through a shared engine ref, making Strict Mode startup order-dependent. All 18 focused PDF source/engine tests, TypeScript checks, the production build, and three consecutive packaged-reader startup runs pass.
+
+## [2026-07-26 09:02] Native PDF Selection Context
+- **Changes:** Mirrored EmbedPDF's virtual text selection into a hidden DOM range immediately before the native context menu opens, enabling browser-provided selection actions without replacing the reader's visible selection or toolbar; extended the packaged-reader regression.
+- **Status:** Completed
+- **Next Steps:** None.
+- **Context:** The native range exists only while a PDF text selection is active. TypeScript checks, the production build, whitespace validation, and the focused packaged Chromium PDF reader regression pass.

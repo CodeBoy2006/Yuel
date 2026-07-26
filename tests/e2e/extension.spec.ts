@@ -511,6 +511,8 @@ test('renders a local PDF through packaged PDFium WASM and records analytics wit
     selectionY,
     { button: 'right' },
   );
+  expect(await pdfReader.evaluate(() => window.getSelection()?.toString() ?? ''))
+    .toContain('Local PDFium');
   await pdfReader.keyboard.press('Escape');
   await expect(textSelectionMark).toBeVisible();
 

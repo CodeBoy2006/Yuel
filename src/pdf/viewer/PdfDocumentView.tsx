@@ -200,6 +200,18 @@ export function PdfDocumentView({
             <GlobalPointerProvider
               documentId={documentId}
               className="pdf-reader__pointer-surface"
+              onContextMenuCapture={(event) => {
+                const text = event.currentTarget.querySelector(
+                  '[data-pdf-native-selection]',
+                );
+                const nativeSelection = window.getSelection();
+                if (!text || !nativeSelection) return;
+
+                const range = document.createRange();
+                range.selectNodeContents(text);
+                nativeSelection.removeAllRanges();
+                nativeSelection.addRange(range);
+              }}
             >
               <Viewport
                 documentId={documentId}

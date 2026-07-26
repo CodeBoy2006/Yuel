@@ -208,6 +208,15 @@ export function PdfSelectionMenu({
 
   return (
     <div {...menuWrapperProps}>
+      {selectedTextStatus === 'ready' ? (
+        <span
+          className="sr-only"
+          data-pdf-native-selection
+          aria-hidden="true"
+        >
+          {selectedText}
+        </span>
+      ) : null}
       <div
         className="pdf-reader__selection-menu"
         style={{
