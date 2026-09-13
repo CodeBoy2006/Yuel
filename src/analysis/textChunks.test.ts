@@ -55,4 +55,28 @@ describe('splitTextIntoChunkTexts', () => {
       return wordCount >= MIN_TEXT_CHUNK_WORDS && wordCount <= MAX_TEXT_CHUNK_WORDS;
     })).toBe(true);
   });
+
+  it.each([
+    // Reference URL from page 23 of arXiv:2604.26962; previously looped forever.
+    'URL https://proceedings.neurips.cc/paper_files/paper/2023/hash/d842425e4bf79ba039352da0f658a906-Abstrac t-Conference.html.',
+    `Short lead. ${Array.from({ length: 60 }, () => 'alpha').join('-')}. Tiny ending.`,
+    `The expression is ${'x1+'.repeat(60)}x2.`,
+  ])('bounds dense text without losing source text or words: %s', (text) => {
+    const chunks = splitTextIntoChunkTexts(text);
+    const wordCounts = chunks.map((chunk) => analyzeEnglishText(chunk).wordCount);
+
+    expect(wordCounts.every((count) =>
+      count >= MIN_TEXT_CHUNK_WORDS && count <= MAX_TEXT_CHUNK_WORDS)).toBe(true);
+    expect(wordCounts.reduce((sum, count) => sum + count, 0)).toBe(
+      analyzeEnglishText(text).wordCount,
+    );
+    let offset = 0;
+    for (const chunk of chunks) {
+      const start = text.indexOf(chunk, offset);
+      expect(start).toBeGreaterThanOrEqual(offset);
+      expect(text.slice(offset, start).trim()).toBe('');
+      offset = start + chunk.length;
+    }
+    expect(text.slice(offset).trim()).toBe('');
+  });
 });

@@ -1,4 +1,4 @@
-import { analyzeEnglishText } from './english';
+import { analyzeEnglishText, ENGLISH_WORD_PATTERN } from './english';
 
 export const MIN_TEXT_CHUNK_WORDS = 8;
 export const TARGET_MIN_TEXT_CHUNK_WORDS = 16;
@@ -81,48 +81,24 @@ function splitIntoSentenceTexts(text: string): string[] {
 }
 
 function splitTextByBalancedWords(text: string): TextChunkUnit[] {
-  const parts = text.split(/\s+/).filter(Boolean);
-  const totalWordCount = analyzeEnglishText(text).wordCount;
-  const desiredChunkCount = Math.max(1, Math.ceil(totalWordCount / MAX_TEXT_CHUNK_WORDS));
+  // Count and split at the same boundaries: URLs and code can contain many
+  // words without spaces, which otherwise leaves rebalancing stuck forever.
+  const words = Array.from(text.matchAll(ENGLISH_WORD_PATTERN));
+  const desiredChunkCount = Math.max(1, Math.ceil(words.length / MAX_TEXT_CHUNK_WORDS));
   const chunks: TextChunkUnit[] = [];
-  let currentParts: string[] = [];
-  let currentWordCount = 0;
-  let remainingWordCount = totalWordCount;
-  let remainingChunkCount = desiredChunkCount;
+  let start = 0;
 
-  for (const part of parts) {
-    const wordCount = analyzeEnglishText(part).wordCount;
-    if (wordCount === 0) {
-      currentParts.push(part);
-      continue;
-    }
-
-    const targetWordCount = Math.ceil(remainingWordCount / Math.max(1, remainingChunkCount));
-    if (
-      currentWordCount > 0 &&
-      currentWordCount + wordCount > targetWordCount &&
-      chunks.length < desiredChunkCount - 1
-    ) {
-      chunks.push({
-        text: currentParts.join(' '),
-        wordCount: currentWordCount,
-      });
-      remainingWordCount -= currentWordCount;
-      remainingChunkCount -= 1;
-      currentParts = [part];
-      currentWordCount = wordCount;
-      continue;
-    }
-
-    currentParts.push(part);
-    currentWordCount += wordCount;
-  }
-
-  if (currentWordCount > 0) {
+  for (let wordIndex = 0; wordIndex < words.length;) {
+    const wordCount = Math.ceil(
+      (words.length - wordIndex) / (desiredChunkCount - chunks.length),
+    );
+    wordIndex += wordCount;
+    const end = words[wordIndex]?.index ?? text.length;
     chunks.push({
-      text: currentParts.join(' '),
-      wordCount: currentWordCount,
+      text: text.slice(start, end).trim(),
+      wordCount,
     });
+    start = end;
   }
 
   return chunks;

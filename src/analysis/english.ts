@@ -9,7 +9,7 @@ export interface EnglishTextHeuristicOptions {
   minWords?: number;
 }
 
-const WORD_PATTERN = /[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g;
+export const ENGLISH_WORD_PATTERN = /[A-Za-z]+(?:'[A-Za-z]+)?|\d+/g;
 const BASIC_STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'as', 'be', 'for', 'in', 'is', 'of', 'on', 'or', 'the', 'to']);
 const ENGLISH_SIGNAL_WORDS = new Set([
   'about',
@@ -71,7 +71,7 @@ const ENGLISH_SIGNAL_WORDS = new Set([
 
 export function analyzeEnglishText(text: string): EnglishAnalysis {
   const normalizedText = text.replace(/[‐-‒–—―]/g, ' ');
-  const tokens = Array.from(normalizedText.matchAll(WORD_PATTERN), (match) => normalizeToken(match[0])).filter(Boolean);
+  const tokens = Array.from(normalizedText.matchAll(ENGLISH_WORD_PATTERN), (match) => normalizeToken(match[0])).filter(Boolean);
 
   return {
     language: 'en',

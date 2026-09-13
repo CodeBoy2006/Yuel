@@ -147,7 +147,7 @@ export function createPdfStressFixture({
   };
 }
 
-function createPdfFixture(
+export function createPdfFixture(
   pageContents: string[],
   outline: PdfFixtureOutlineNode[] = [],
   links: PdfFixtureLink[] = [],
