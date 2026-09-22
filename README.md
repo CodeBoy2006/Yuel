@@ -59,6 +59,8 @@ PDF selections can be saved as yellow, green, blue, or rose local highlights fro
 
 The same PDF selection menu exposes a "划词伴读" action for English text. It opens a compact contextual panel with browser-provided English-to-Simplified-Chinese translation and English read-aloud controls. Translation is progressively enhanced through the built-in `Translator` API, including explicit model-download progress when required; read-aloud remains independently available through browser speech synthesis. Unsupported language pairs, unavailable APIs, oversized selections, and transient failures each receive a specific local fallback instead of blocking copy or highlighting, while closing or replacing the selection cancels stale task updates. Selected companion text and translations exist only in the current reader session and are not added to saved excerpts, annotations, or reading history.
 
+Right-clicking selected PDF text exposes it to Chrome's native selection menu, including after document-wide select-all. The reader keeps one temporary DOM selection at the clicked text rather than rendering a full text layer; native Copy writes plain text. Clicking elsewhere, changing the selection, scrolling, resizing, or closing the document clears that temporary range. Available native menu commands depend on Chrome and the operating system.
+
 ## MVP Surfaces
 
 - Popup: a current-site control center with an exact-site recording switch and distinct active, Yuel-paused, or browser-restricted state first, a compact today summary, a switch for choosing Yuel or Chrome as the top-level network PDF handler, and side-panel/dashboard launch actions.

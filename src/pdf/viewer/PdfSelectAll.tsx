@@ -25,6 +25,7 @@ interface PdfSelectAllControls {
   active: boolean;
   clear: () => void;
   copy: () => void;
+  getText: () => Promise<string>;
   selectAll: () => void;
 }
 
@@ -168,7 +169,7 @@ export function PdfSelectAllProvider({
     if (!active) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (event.button === 0) {
+      if (event.button === 0 && !event.ctrlKey) {
         setActive(false);
       }
     };
@@ -199,8 +200,9 @@ export function PdfSelectAllProvider({
     active,
     clear,
     copy,
+    getText: getDocumentText,
     selectAll,
-  }), [active, clear, copy, selectAll]);
+  }), [active, clear, copy, getDocumentText, selectAll]);
   const layerState = useMemo<PdfSelectAllLayerState>(() => ({
     active,
     pageRects,

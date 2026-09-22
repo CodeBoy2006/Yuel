@@ -94,6 +94,7 @@ import {
   usePdfSelectAllControls,
 } from './PdfSelectAll';
 import { PdfLinkInteractionLayer } from './PdfLinkInteractionLayer';
+import { PdfNativeSelection } from './PdfNativeSelection';
 import { usePdfHighlights } from './usePdfHighlights';
 import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
 import type { PdfSourceRectRecord } from '../../storage/schema';
@@ -200,19 +201,8 @@ export function PdfDocumentView({
             <GlobalPointerProvider
               documentId={documentId}
               className="pdf-reader__pointer-surface"
-              onContextMenuCapture={(event) => {
-                const text = event.currentTarget.querySelector(
-                  '[data-pdf-native-selection]',
-                );
-                const nativeSelection = window.getSelection();
-                if (!text || !nativeSelection) return;
-
-                const range = document.createRange();
-                range.selectNodeContents(text);
-                nativeSelection.removeAllRanges();
-                nativeSelection.addRange(range);
-              }}
             >
+              <PdfNativeSelection documentId={documentId} />
               <Viewport
                 documentId={documentId}
                 className="pdf-reader__viewport"
@@ -264,7 +254,7 @@ export function PdfDocumentView({
                                 className="pdf-reader__page-layers"
                                 style={{ height, width }}
                                 onPointerDownCapture={(event) => {
-                                  if (event.button !== 0) event.stopPropagation();
+                                  if (event.button !== 0 || event.ctrlKey) event.stopPropagation();
                                 }}
                               >
                                 <RenderLayer
