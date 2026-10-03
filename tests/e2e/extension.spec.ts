@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+
+import { createPdfReaderUrl } from '../../src/pdf/navigation';
+
 import {
   expect,
   installPdfCompanionBrowserStubs,
@@ -117,6 +121,22 @@ test('opens a top-level network PDF in the Yuel reader by default', async ({
       }
     ).__yuelPdfDownloadMimeType)).toBe('application/pdf');
     await page.close();
+
+    const recentReader = await openExtensionPage(context, extensionId, 'pdf-reader.html');
+    const recentDocument = recentReader.locator('.pdf-reader__recent-list button', { hasText: 'default-reader' });
+    await expect(recentDocument).toBeVisible();
+    await recentDocument.click();
+    await expect(recentReader.locator('.pdf-reader__page-shell').first()).toBeVisible();
+    await recentReader.close();
+
+    const targetReader = await context.newPage();
+    await targetReader.goto(createPdfReaderUrl(`chrome-extension://${extensionId}/pdf-reader.html`, {
+      resourceId: `pdf_${createHash('sha256').update(createPdfSmokeFixture()).digest('hex')}`,
+      pageIndex: 1,
+    }));
+    await expect(targetReader.locator('.pdf-reader__page-shell').first()).toBeVisible();
+    await expect(targetReader.locator('.pdf-reader__page-control input').first()).toHaveValue('2');
+    await targetReader.close();
 
     await extensionWorker.evaluate(async () => {
       type StorageArea = {

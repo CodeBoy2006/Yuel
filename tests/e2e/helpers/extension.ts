@@ -47,6 +47,7 @@ export const test = base.extend<ExtensionFixtures>({
           `--load-extension=${EXTENSION_PATH}`,
           '--allow-insecure-localhost',
           '--ignore-certificate-errors',
+          '--no-proxy-server',
           `--host-resolver-rules=MAP ${READING_SITE_HOST} 127.0.0.1`,
         ],
       });

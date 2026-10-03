@@ -353,13 +353,12 @@ export function PdfReaderWorkspace({
   const openRemoteDocument = useCallback((
     url: string,
     options?: OpenSourceOptions,
-    credentials: RequestCredentials = 'omit',
   ) => openSource('remote', (signal, onProgress) =>
     loadRemotePdfSource(url, {
       maxBytes: REMOTE_PDF_MAX_BYTES,
       signal,
       onProgress,
-      request: { credentials },
+      request: { credentials: 'include' },
     }), options), [openSource]);
 
   const openBrowserStreamDocument = useCallback((
@@ -434,7 +433,7 @@ export function PdfReaderWorkspace({
           '',
           browser.runtime.getURL('/pdf-reader.html'),
         );
-        await openRemoteDocument(redirectSource, undefined, 'include');
+        await openRemoteDocument(redirectSource);
       }
     })();
   }, [

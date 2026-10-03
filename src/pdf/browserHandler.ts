@@ -48,7 +48,8 @@ export async function readBrowserPdfStreamInfo(
   try {
     return normalizeBrowserPdfStreamInfo(await api.getStreamInfo());
   } catch {
-    // Manual reader tabs are not MIME handler invocations.
+    // Manual tabs have no stream, so a rejected fallback must leave them usable.
+    await fallbackToNativePdfHandler(api).catch(() => undefined);
     return undefined;
   }
 }

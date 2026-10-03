@@ -36,18 +36,34 @@ describe('browser PDF MIME handler adapter', () => {
     });
   });
 
-  it('treats manual reader tabs and malformed launches as absent', async () => {
-    await expect(readBrowserPdfStreamInfo(createApi(async () => {
-      throw new Error('not a MIME handler frame');
-    }))).resolves.toBeUndefined();
-    await expect(readBrowserPdfStreamInfo(createApi(async () => ({
+  it('attempts native fallback when stream acquisition fails', async () => {
+    const api = createApi(async () => { throw new Error('stream unavailable'); });
+    const fallback = vi.spyOn(api, 'abortAndFallbackToNativeHandler');
+
+    await expect(readBrowserPdfStreamInfo(api)).resolves.toBeUndefined();
+    expect(fallback).toHaveBeenCalledOnce();
+  });
+
+  it('returns malformed stream metadata to the native handler', async () => {
+    const api = createApi(async () => ({
       streamUrl: 'not a URL',
       originalUrl: 'https://example.com/document.pdf',
       mimeType: 'application/pdf',
       embedded: false,
       tabId: 42,
       responseHeaders: {},
-    })))).resolves.toBeUndefined();
+    }));
+    const fallback = vi.spyOn(api, 'abortAndFallbackToNativeHandler');
+
+    await expect(readBrowserPdfStreamInfo(api)).resolves.toBeUndefined();
+    expect(fallback).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a manual reader usable when there is no stream and native fallback rejects', async () => {
+    const api = createApi(async () => { throw new Error('not a MIME handler frame'); });
+    vi.spyOn(api, 'abortAndFallbackToNativeHandler').mockRejectedValue(new Error('no associated stream'));
+
+    await expect(readBrowserPdfStreamInfo(api)).resolves.toBeUndefined();
   });
 
   it('returns a failed native render to Chrome', async () => {
