@@ -161,13 +161,14 @@ export async function updateSavedItemMetadata(
   const savedItemId = id.trim();
   if (!savedItemId) return undefined;
 
-  const existing = await db.savedItems.get(savedItemId);
-  if (!existing) return undefined;
+  return db.transaction('rw', [db.savedItems], async () => {
+    const existing = await db.savedItems.get(savedItemId);
+    if (!existing) return undefined;
 
-  const record = createUpdatedSavedItemMetadata(existing, input, updatedAt);
-
-  await db.savedItems.put(record);
-  return record;
+    const record = createUpdatedSavedItemMetadata(existing, input, updatedAt);
+    await db.savedItems.put(record);
+    return record;
+  });
 }
 
 export async function updatePdfHighlight(
@@ -227,13 +228,13 @@ export async function deleteSavedItem(id: string): Promise<boolean> {
   const savedItemId = id.trim();
   if (!savedItemId) return false;
 
-  const record = await db.savedItems.get(savedItemId);
-  if (!record) return false;
-
-  await db.transaction(
+  return db.transaction(
     'rw',
     [db.savedItems, db.pdfAnnotations, db.vocabExposures],
     async () => {
+      const record = await db.savedItems.get(savedItemId);
+      if (!record) return false;
+
       await db.savedItems.delete(record.id);
       if (record.pdfAnnotationId) {
         await db.pdfAnnotations.delete(record.pdfAnnotationId);
@@ -241,10 +242,9 @@ export async function deleteSavedItem(id: string): Promise<boolean> {
       if (record.vocabularyTracked !== false) {
         await removeSavedVocabulary(record.text);
       }
+      return true;
     },
   );
-
-  return true;
 }
 
 function createUpdatedSavedItemMetadata(

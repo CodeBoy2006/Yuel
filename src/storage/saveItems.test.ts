@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SavedItemRecord } from './schema';
+
 import {
   deleteSavedItem,
   savePdfSelectedTextItem,
@@ -31,7 +33,7 @@ const mocks = vi.hoisted(() => {
     transaction: vi.fn(async (...args: unknown[]) => {
       const callback = args.at(-1);
       if (typeof callback === 'function') {
-        await callback();
+        return callback();
       }
     }),
   };
@@ -454,5 +456,56 @@ describe('saveSelectedTextItem', () => {
 
     expect(mocks.vocabExposures.delete).toHaveBeenCalledWith('resilience');
     expect(mocks.vocabExposures.put).not.toHaveBeenCalled();
+  });
+});
+
+describe('saved item transaction ordering', () => {
+  let records: Map<string, SavedItemRecord>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    records = new Map(['first', 'second'].map((id) => [id, {
+      id,
+      text: 'resilience',
+      type: 'word',
+      sourceDomain: 'example.com',
+      tags: ['selection'],
+      vocabularyTracked: true,
+      createdAt: savedAt,
+    }]));
+    mocks.savedItems.get.mockImplementation(async (id: string) => records.get(id));
+    mocks.savedItems.put.mockImplementation(async (record: SavedItemRecord) => { records.set(record.id, record); });
+    mocks.savedItems.delete.mockImplementation(async (id: string) => { records.delete(id); });
+    mocks.vocabExposures.get.mockResolvedValue({
+      lemma: 'resilience', savedCount: 2, seenCount: 1, effectiveSeenCount: 1, packTags: [], userStatus: 'learning',
+    });
+
+    // Model the serialization of read/write transactions sharing the saved-item table.
+    let tail = Promise.resolve();
+    mocks.db.transaction.mockImplementation((...args: unknown[]) => {
+      const callback = args.at(-1) as () => Promise<unknown>;
+      const transaction = tail.then(callback);
+      tail = transaction.then(() => undefined, () => undefined);
+      return transaction;
+    });
+  });
+
+  it('does not restore an item when a queued clear runs before its metadata update', async () => {
+    const clear = mocks.db.transaction('rw', [mocks.savedItems], async () => { records.clear(); });
+    const update = updateSavedItemMetadata('first', { note: 'Late edit', userTags: [] });
+
+    await clear;
+    await expect(update).resolves.toBeUndefined();
+    expect(records.size).toBe(0);
+    expect(mocks.savedItems.put).not.toHaveBeenCalled();
+  });
+
+  it('deducts vocabulary only once when two deletes target the same saved item', async () => {
+    const results = await Promise.all([deleteSavedItem('first'), deleteSavedItem('first')]);
+
+    expect(results).toEqual([true, false]);
+    expect(records.has('first')).toBe(false);
+    expect(records.has('second')).toBe(true);
+    expect(mocks.vocabExposures.put).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ savedCount: 1 }));
   });
 });
