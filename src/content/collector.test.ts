@@ -337,6 +337,47 @@ describe('startReadingCollector', () => {
     }
   });
 
+  it.each(['childList', 'characterData'] as const)('starts an initially empty SPA after a %s text update', async (type) => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    document.body.innerHTML = '<article><p id="guide"></p></article>';
+    const paragraph = document.querySelector('#guide')!;
+    const text = document.createTextNode('');
+    paragraph.append(text);
+    const controller = startReadingCollector({ dynamicRefreshDebounceMs: 50 });
+
+    try {
+      await flushPromises();
+      expect(controller.collecting).toBe(false);
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+
+      text.data = 'English documentation can arrive after the initial empty application shell and should start reading collection automatically.';
+      TestMutationObserver.instances[0].emit([{
+        type,
+        target: type === 'characterData' ? text : paragraph,
+        addedNodes: [text] as unknown as NodeList,
+        removedNodes: [] as unknown as NodeList,
+      }]);
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(controller.collecting).toBe(true);
+      expect(mocks.sendMessage.mock.calls[0][0].payload.chunks[0].selector).toBe('p#guide');
+
+      if (type === 'characterData') text.data = '';
+      else paragraph.replaceChildren();
+      TestMutationObserver.instances[0].emit([{
+        type,
+        target: type === 'characterData' ? text : paragraph,
+        addedNodes: [] as unknown as NodeList,
+        removedNodes: [text] as unknown as NodeList,
+      }]);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(controller.collecting).toBe(false);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
   it('uses the same text snapshot for page totals and flushed chunks', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     setGuideText('Dynamic pages should keep page word totals aligned with emitted chunk snapshots.');
@@ -566,9 +607,10 @@ describe('startReadingCollector', () => {
     }
   });
 
-  it('does not emit hidden block events for blocks that were never visible', async () => {
+  it('does not emit block events when text geometry stays below the visibility threshold', async () => {
     mocks.sendMessage.mockResolvedValue({ ok: true });
     setGuideText('Below threshold documentation blocks should not create hidden events before becoming visible.');
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(partiallyVisibleRect(0.1));
 
     const controller = startReadingCollector({ flushIntervalMs: 1_000 });
 
@@ -606,7 +648,7 @@ describe('startReadingCollector', () => {
 
       await vi.advanceTimersByTimeAsync(500);
       const hiddenAt = Date.now();
-      observer.emit([{ target: blockElement as Element, isIntersecting: false, intersectionRatio: 0.1 }]);
+      observer.emit([{ target: blockElement as Element, isIntersecting: false, intersectionRatio: 0 }]);
       await vi.advanceTimersByTimeAsync(9_500);
       await flushPromises();
 
@@ -630,7 +672,7 @@ describe('startReadingCollector', () => {
         occurredAt: hiddenAt,
         confidence: 'medium',
         value: {
-          visibleRatio: 0.1,
+          visibleRatio: 0,
           wordCount: visibleEvent.value.wordCount,
         },
       });
@@ -809,8 +851,8 @@ describe('startReadingCollector', () => {
         configurable: true,
         value: 200,
       });
-      vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(400));
-      emitFirstIntersection(longBlockElement);
+      vi.spyOn(longBlockElement, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(4_000));
+      emitFirstIntersection(longBlockElement, 0.05);
 
       await vi.advanceTimersByTimeAsync(1_000);
       await flushPromises();
@@ -873,6 +915,40 @@ describe('startReadingCollector', () => {
 
       expect(registeredChunks.length).toBeGreaterThan(1);
       expect(visibleChunkIds).toEqual([registeredChunks[1].chunkId]);
+    } finally {
+      controller.stop();
+      await flushPromises();
+    }
+  });
+
+  it('refreshes visible split chunks while their long parent keeps intersecting', async () => {
+    mocks.sendMessage.mockResolvedValue({ ok: true });
+    const rects = Array.from({ length: 30 }, () => [belowViewportRect()]);
+    rects[0][0] = visibleRect();
+    mockRangeClientRects(rects);
+    document.body.innerHTML = `<article><p id="long">${longReadableParagraph()}</p></article>`;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 200 });
+    const controller = startReadingCollector({ flushIntervalMs: 1_000 });
+
+    try {
+      await flushPromises();
+      const chunks = mocks.sendMessage.mock.calls[0][0].payload.chunks;
+      const element = document.querySelector('#long') as HTMLElement;
+      vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(tallPartiallyVisibleRect(4_000));
+      emitFirstIntersection(element, 0.05);
+      await vi.advanceTimersByTimeAsync(1_000);
+      mocks.sendMessage.mockClear();
+
+      rects[0][0] = belowViewportRect();
+      rects[1][0] = visibleRect();
+      element.dispatchEvent(new Event('scroll'));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      const events = mocks.sendMessage.mock.calls.flatMap((call) => call[0].payload.events);
+      const tick = events.find((event: { kind: string }) => event.kind === 'TextViewportExposureTick');
+      expect(tick.value.visibleChunks.map((chunk: { chunkId: string }) => chunk.chunkId)).toEqual([chunks[1].chunkId]);
+      expect(events).toContainEqual(expect.objectContaining({ kind: 'TextBlockHidden', chunkId: chunks[0].chunkId }));
+      expect(events).toContainEqual(expect.objectContaining({ kind: 'TextBlockVisible', chunkId: chunks[1].chunkId }));
     } finally {
       controller.stop();
       await flushPromises();

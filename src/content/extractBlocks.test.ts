@@ -156,6 +156,37 @@ describe('collectTextBlocks', () => {
     expect(blocks[1].sourceKey).toMatch(/^source\([a-z0-9]+:2\)::segment\(1\)$/);
   });
 
+  it('counts a paragraph nested in a blockquote only once', () => {
+    const text = 'This English paragraph contains enough words for reading collection and it appears inside a nested block quote element.';
+    document.body.innerHTML = `<article><blockquote><p>${text}</p></blockquote></article>`;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text).toBe(text);
+    expect(summarizeCurrentPage(document, blocks).totalWords).toBe(18);
+  });
+
+  it.each(['article', 'div'])('preserves surrounding list prose without duplicating nested text inside %s', (wrapper) => {
+    const before = 'Surrounding list guidance should remain available when nested paragraphs also match reading selectors.';
+    const paragraph = 'The nested paragraph explains why each text node must contribute to reading totals only once.';
+    const nested = 'Nested list content should also retain its original position within the complete reading passage.';
+    const after = 'Closing list guidance should remain available after all nested content has been collected.';
+    document.body.innerHTML = `
+      <${wrapper}><ul><li id="outer">
+        ${before}
+        <p>${paragraph}</p>
+        <ul><li>${nested}</li></ul>
+        ${after}
+      </li></ul></${wrapper}>
+    `;
+
+    const blocks = collectTextBlocks(document);
+
+    expect(blocks.map((block) => block.text).join(' ')).toBe([before, paragraph, nested, after].join(' '));
+    expect(blocks.every((block) => block.element.id === 'outer')).toBe(true);
+  });
+
   it('keeps chunk ids stable when unrelated content is inserted before a source element', () => {
     document.body.innerHTML = `
       <article>

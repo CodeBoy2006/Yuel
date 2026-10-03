@@ -146,9 +146,12 @@ export const DEFAULT_REAL_PAGE_CORPUS_URLS = [
 export async function validateBrowserDomTextExtraction(
   options: BrowserDomSmokeOptions = {},
 ): Promise<BrowserDomTextExtractionResult> {
+  const benchmarkExpression = await createRealPageBenchmarkExpression();
   return withSourceModuleServer(async (baseUrl) =>
     withBrowser(options, async ({ browserContext, timeoutMs }) => {
       return withOpenPage(browserContext, `${baseUrl}/browser-dom-fixture`, timeoutMs, async (page) => {
+        // Exercise the public-page injection path locally so dependency drift fails here.
+        await page.evaluate(benchmarkExpression);
         return waitFor(async () => {
           const result = await page.evaluate<BrowserDomTextExtractionResult | null>(
             'window.__YUEL_BROWSER_DOM_RESULT__ ?? null',
@@ -464,22 +467,24 @@ function createSpaDynamicCollectorHtml(): string {
   </head>
   <body>
     <main>
-      <article id="app">
-        <p id="initial-route">Initial SPA route content should start reading collection before dynamic updates.</p>
-      </article>
+      <article id="app"></article>
     </main>
     <script type="module">
       import { startReadingCollector } from '/src/content/collector.ts';
+      import { MESSAGE_TYPES } from '/src/messaging/contracts.ts';
 
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const publishResult = () => {
         const messages = window.__YUEL_SENT_MESSAGES__ ?? [];
+        const snapshots = messages
+          .filter((message) => message.type === MESSAGE_TYPES.readingPageSnapshotRegister)
+          .map((message) => message.payload);
         window.__YUEL_SPA_DYNAMIC_RESULT__ = {
           eventKinds: messages.flatMap((message) => message.payload.events.map((event) => event.kind)),
           finalHref: window.location.href,
           messageCount: messages.length,
-          pageIds: messages.map((message) => message.payload.page.pageId),
-          selectors: [...new Set(messages.flatMap((message) => message.payload.chunks.map((chunk) => chunk.selector)))],
+          pageIds: snapshots.map((snapshot) => snapshot.page.pageId),
+          selectors: [...new Set(snapshots.flatMap((snapshot) => snapshot.chunks.map((chunk) => chunk.selector)))],
         };
       };
 
@@ -491,6 +496,13 @@ function createSpaDynamicCollectorHtml(): string {
           routeCheckIntervalMs: 50,
         });
         await wait(100);
+
+        const initial = document.createElement('p');
+        initial.id = 'initial-route';
+        initial.textContent =
+          'Initial SPA route content should start reading collection after the empty application shell loads.';
+        document.querySelector('#app')?.append(initial);
+        await wait(120);
 
         const injected = document.createElement('p');
         injected.id = 'injected-route';
@@ -537,16 +549,18 @@ export const browser = {
 
 async function createRealPageBenchmarkExpression(): Promise<string> {
   // The injected benchmark is self-contained because public pages cannot
-  // import the extension's local source graph. Keep direct runtime dependency
-  // sources explicit so new imports fail here instead of inside a page.
-  const [englishSource, eventsSource, metricsSource, extractBlocksSource] = await Promise.all([
+  // import the extension's local source graph. The browser DOM fixture also
+  // evaluates this expression to catch missing runtime dependencies locally.
+  const [englishSource, textChunksSource, eventsSource, metricsSource, extractBlocksSource] = await Promise.all([
     readFile(path.join(PROJECT_ROOT, 'src/analysis/english.ts'), 'utf8'),
+    readFile(path.join(PROJECT_ROOT, 'src/analysis/textChunks.ts'), 'utf8'),
     readFile(path.join(PROJECT_ROOT, 'src/domain/events.ts'), 'utf8'),
     readFile(path.join(PROJECT_ROOT, 'src/domain/metrics.ts'), 'utf8'),
     readFile(path.join(PROJECT_ROOT, 'src/content/extractBlocks.ts'), 'utf8'),
   ]);
   const source = [
     stripModuleSyntax(englishSource),
+    stripModuleSyntax(textChunksSource),
     stripModuleSyntax(eventsSource),
     stripModuleSyntax(metricsSource),
     stripModuleSyntax(extractBlocksSource),

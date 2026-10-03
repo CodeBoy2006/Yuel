@@ -110,14 +110,20 @@ export function getDocumentPrimaryLanguage(doc: Document = document): string {
 
 function collectCandidates(doc: Document, pageId: string, selector: string): TextBlockCandidate[] {
   const sourceOccurrences = new Map<string, number>();
+  const collectedElements = new Set<HTMLElement>();
 
   return Array.from(doc.querySelectorAll<HTMLElement>(selector))
     .filter((element) => !hasExcludedAncestor(element))
     .flatMap((element) => {
+      // An accepted ancestor already contains this text, including any surrounding prose.
+      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        if (collectedElements.has(ancestor)) return [];
+      }
       const sourceFingerprint = createSourceFingerprint(element);
       const sourceOccurrence = (sourceOccurrences.get(sourceFingerprint) ?? 0) + 1;
       const candidates = createCandidates(pageId, element, sourceFingerprint, sourceOccurrence);
       if (candidates.length > 0) {
+        collectedElements.add(element);
         sourceOccurrences.set(sourceFingerprint, sourceOccurrence);
       }
       return candidates;

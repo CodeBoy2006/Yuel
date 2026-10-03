@@ -13,7 +13,6 @@ import { createSessionId } from '../domain/events';
 import { deliverReadingEventBatch } from '../messaging/readingEventsClient';
 import {
   collectTextBlocks,
-  getDocumentPrimaryLanguage,
   summarizeCurrentPage,
   type TextBlockCandidate,
 } from './extractBlocks';
@@ -35,10 +34,6 @@ interface CollectorRunController {
 }
 
 export function startReadingCollector(options: CollectorOptions = {}): CollectorController {
-  if (getDocumentPrimaryLanguage(document) !== 'en') {
-    return createNoopCollectorController();
-  }
-
   const dynamicRefreshDebounceMs = options.dynamicRefreshDebounceMs ?? 1_000;
   const routeCheckIntervalMs = options.routeCheckIntervalMs ?? 1_000;
   let stopped = false;
@@ -131,49 +126,64 @@ function startReadingCollectorRun(
   options: CollectorOptions = {},
   sessionId = createSessionId(),
 ): CollectorRunController {
-  if (getDocumentPrimaryLanguage(document) !== 'en') {
+  const blocks = collectTextBlocks();
+  if (blocks.length === 0) {
     return createNoopCollectorRunController();
   }
 
-  const blocks = collectTextBlocks();
   const page = summarizeCurrentPage(document, blocks);
   const chunks = blocks.map(
     ({ element: _element, chunkIndex: _chunkIndex, chunkCount: _chunkCount, textRange: _textRange, ...chunk }) => chunk,
   );
   const blocksByElement = groupBlocksByElement(blocks);
   const blocksByChunkId = new Map(blocks.map((block) => [block.chunkId, block]));
+  const intersectingElements = new Set<Element>();
   let session: ReadingSessionController | undefined;
+  let visibilityFrame: number | undefined;
 
-  const observer = new IntersectionObserver((entries) => {
+  const refreshVisibilities = (elements: Iterable<Element>) => {
     if (document.visibilityState === 'hidden' || !session) {
       return;
     }
 
-    for (const entry of entries) {
-      const entryBlocks = blocksByElement.get(entry.target);
-      if (!entryBlocks || entryBlocks.length === 0) continue;
-
-      const now = Date.now();
-      const entryIsVisible =
-        entry.isIntersecting && entry.intersectionRatio >= READING_VISIBILITY_THRESHOLD;
-      session.setChunkVisibilities(entryBlocks.map((block) => {
-        const visibleRatio = entryIsVisible ? getTextBlockVisibleRatio(block) : 0;
-        const visible = visibleRatio >= READING_VISIBILITY_THRESHOLD;
-
+    session.setChunkVisibilities(Array.from(elements).flatMap((element) =>
+      (blocksByElement.get(element) ?? []).map((block) => {
+        const visibleRatio = intersectingElements.has(element) ? getTextBlockVisibleRatio(block) : 0;
         return {
           chunkId: block.chunkId,
-          visible,
-          visibleRatio: visible ? visibleRatio : entryIsVisible ? 0 : entry.intersectionRatio,
+          visible: visibleRatio >= READING_VISIBILITY_THRESHOLD,
+          visibleRatio,
         };
-      }), now);
+      })), Date.now());
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        intersectingElements.add(entry.target);
+      } else {
+        intersectingElements.delete(entry.target);
+      }
     }
-  }, { threshold: [READING_VISIBILITY_THRESHOLD, 0.35, 0.65, 0.9] });
+    refreshVisibilities(entries.map((entry) => entry.target));
+  }, { threshold: 0 });
+
+  const scheduleVisibilityRefresh = () => {
+    if (visibilityFrame !== undefined || document.visibilityState === 'hidden') return;
+    // A long element can keep intersecting while different text chunks enter view.
+    visibilityFrame = window.requestAnimationFrame(() => {
+      visibilityFrame = undefined;
+      refreshVisibilities(intersectingElements);
+    });
+  };
 
   const onScroll = () => {
     session?.recordScroll();
+    scheduleVisibilityRefresh();
   };
   const onResize = () => {
     session?.resetScrollCoordinates();
+    scheduleVisibilityRefresh();
   };
 
   const onSelectionChange = () => {
@@ -218,7 +228,7 @@ function startReadingCollectorRun(
   for (const element of blocksByElement.keys()) {
     observer.observe(element);
   }
-  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
   window.addEventListener('resize', onResize, { passive: true });
   document.addEventListener('selectionchange', onSelectionChange);
 
@@ -234,10 +244,11 @@ function startReadingCollectorRun(
         return;
       }
 
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onResize);
       document.removeEventListener('selectionchange', onSelectionChange);
       observer.disconnect();
+      if (visibilityFrame !== undefined) window.cancelAnimationFrame(visibilityFrame);
       session.stop({ emitPageHidden });
     },
   };
@@ -262,6 +273,7 @@ function createDynamicContentObserver(onChanged: () => void): MutationObserver |
   });
 
   observer.observe(target, {
+    characterData: true,
     childList: true,
     subtree: true,
   });
@@ -270,6 +282,9 @@ function createDynamicContentObserver(onChanged: () => void): MutationObserver |
 }
 
 function isReadableContentMutation(record: MutationRecord): boolean {
+  if (record.type === 'characterData') {
+    return !record.target.parentElement?.closest('script, style, noscript, svg, canvas');
+  }
   if (record.type !== 'childList') {
     return false;
   }
@@ -295,13 +310,6 @@ function isPotentialReadableNode(node: Node): boolean {
   }
 
   return Boolean(node.innerText || node.textContent?.trim());
-}
-
-function createNoopCollectorController(): CollectorController {
-  return {
-    collecting: false,
-    stop: () => undefined,
-  };
 }
 
 function createNoopCollectorRunController(): CollectorRunController {
