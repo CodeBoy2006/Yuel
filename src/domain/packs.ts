@@ -1,5 +1,3 @@
-import { analyzeEnglishText } from '../analysis/english';
-
 export interface YuelPackManifest {
   id: string;
   name: string;
@@ -35,10 +33,9 @@ export interface PackMatch {
   tags: string[];
 }
 
-export function matchPackRules(pack: YuelPack, text: string): PackMatch[] {
-  const analysis = analyzeEnglishText(text);
-  const tokenSet = new Set(analysis.tokens);
-  const normalizedText = ` ${analysis.tokens.join(' ')} `;
+export function matchPackRules(pack: YuelPack, normalizedTokens: readonly string[]): PackMatch[] {
+  const tokenSet = new Set(normalizedTokens);
+  const normalizedText = ` ${normalizedTokens.join(' ')} `;
   const matches: PackMatch[] = [];
 
   for (const entry of pack.lexicon) {

@@ -84,4 +84,6 @@ Each accepted episode immediately enters the slow EMA. Confidence is derived fro
 
 ## Pack Boundary
 
+`matchPackRules(pack, normalizedTokens)` consumes the same ordered tokens produced by `tokenizeEnglishText` for vocabulary counting. The repository tokenizes each measured chunk once and reuses that result across active Packs; full sentence analysis remains separate for callers that need sentence counts.
+
 Packs are declarative data. V0 accepts `manifest`, `lexicon`, and `phrases`; validation rejects executable fields such as `scripts`, `code`, `eval`, and `wasmUrl`. This matches MV3 remote-code restrictions and keeps future commercial Packs auditable.

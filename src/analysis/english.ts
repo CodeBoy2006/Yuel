@@ -70,8 +70,7 @@ const ENGLISH_SIGNAL_WORDS = new Set([
 ]);
 
 export function analyzeEnglishText(text: string): EnglishAnalysis {
-  const normalizedText = text.replace(/[‐-‒–—―]/g, ' ');
-  const tokens = Array.from(normalizedText.matchAll(ENGLISH_WORD_PATTERN), (match) => normalizeToken(match[0])).filter(Boolean);
+  const tokens = tokenizeEnglishText(text);
 
   return {
     language: 'en',
@@ -79,6 +78,11 @@ export function analyzeEnglishText(text: string): EnglishAnalysis {
     sentenceCount: countSentences(text),
     tokens,
   };
+}
+
+export function tokenizeEnglishText(text: string): string[] {
+  const normalizedText = text.replace(/[‐-‒–—―]/g, ' ');
+  return Array.from(normalizedText.matchAll(ENGLISH_WORD_PATTERN), (match) => normalizeToken(match[0])).filter(Boolean);
 }
 
 export function normalizeToken(token: string): string {
@@ -90,8 +94,8 @@ export function isTrackableEnglishToken(token: string): boolean {
 }
 
 export function isLikelyEnglishText(text: string, { minWords = 8 }: EnglishTextHeuristicOptions = {}): boolean {
-  const analysis = analyzeEnglishText(text);
-  if (analysis.wordCount < minWords) {
+  const tokens = tokenizeEnglishText(text);
+  if (tokens.length < minWords) {
     return false;
   }
 
@@ -105,11 +109,11 @@ export function isLikelyEnglishText(text: string, { minWords = 8 }: EnglishTextH
     return false;
   }
 
-  if (cjkCharacterCount === 0 && analysis.wordCount >= 30) {
+  if (cjkCharacterCount === 0 && tokens.length >= 30) {
     return true;
   }
 
-  const signalWordCount = analysis.tokens.filter((token) => ENGLISH_SIGNAL_WORDS.has(token)).length;
+  const signalWordCount = tokens.filter((token) => ENGLISH_SIGNAL_WORDS.has(token)).length;
   return signalWordCount > 0;
 }
 

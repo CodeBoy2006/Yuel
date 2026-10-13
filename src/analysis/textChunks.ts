@@ -1,4 +1,4 @@
-import { analyzeEnglishText, ENGLISH_WORD_PATTERN, getSentenceSegmenter } from './english';
+import { ENGLISH_WORD_PATTERN, getSentenceSegmenter } from './english';
 
 export const MIN_TEXT_CHUNK_WORDS = 8;
 export const TARGET_MIN_TEXT_CHUNK_WORDS = 16;
@@ -62,9 +62,9 @@ export function normalizeWhitespace(text: string): string {
 
 function splitIntoChunkUnits(text: string): TextChunkUnit[] {
   return splitIntoSentenceTexts(text).flatMap((sentence) => {
-    const analysis = analyzeEnglishText(sentence);
-    if (analysis.wordCount <= MAX_TEXT_CHUNK_WORDS) {
-      return analysis.wordCount > 0 ? [{ text: sentence, wordCount: analysis.wordCount }] : [];
+    const wordCount = sentence.match(ENGLISH_WORD_PATTERN)?.length ?? 0;
+    if (wordCount <= MAX_TEXT_CHUNK_WORDS) {
+      return wordCount > 0 ? [{ text: sentence, wordCount }] : [];
     }
 
     return splitTextByBalancedWords(sentence);

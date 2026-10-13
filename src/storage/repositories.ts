@@ -1,4 +1,4 @@
-import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
+import { isTrackableEnglishToken, tokenizeEnglishText } from '../analysis/english';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import type { PageSnapshot, ReadingEvent } from '../domain/events';
 import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
@@ -1018,10 +1018,10 @@ function extractVocabExposureUpdates(text: string, now: number, coverage: number
   }
 
   const counts = new Map<string, number>();
-  const packTagsByLemma = collectPackTagsByLemma(text);
-  const analysis = analyzeEnglishText(text);
+  const tokens = tokenizeEnglishText(text);
+  const packTagsByLemma = collectPackTagsByLemma(tokens);
 
-  for (const token of analysis.tokens) {
+  for (const token of tokens) {
     if (!isTrackableEnglishToken(token)) {
       continue;
     }
@@ -1041,12 +1041,12 @@ function extractVocabExposureUpdates(text: string, now: number, coverage: number
   }));
 }
 
-function collectPackTagsByLemma(text: string): Map<string, string[]> {
+function collectPackTagsByLemma(tokens: readonly string[]): Map<string, string[]> {
   const tagsByLemma = new Map<string, Set<string>>();
 
   for (const pack of ACTIVE_PACKS) {
-    for (const match of matchPackRules(pack, text)) {
-      for (const lemma of analyzeEnglishText(match.text).tokens) {
+    for (const match of matchPackRules(pack, tokens)) {
+      for (const lemma of tokenizeEnglishText(match.text)) {
         if (!isTrackableEnglishToken(lemma)) {
           continue;
         }

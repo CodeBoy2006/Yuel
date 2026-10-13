@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeEnglishText, isLikelyEnglishText } from './english';
+import { analyzeEnglishText, isLikelyEnglishText, tokenizeEnglishText } from './english';
 
 describe('analyzeEnglishText', () => {
+  it('keeps dash-separated words, apostrophes, and numbers in the shared token stream', () => {
+    expect(tokenizeEnglishText("Fail—gracefully, don't add 42 retries; backward‑compatible.")).toEqual([
+      'fail', 'gracefully', "don't", 'add', '42', 'retries', 'backward', 'compatible',
+    ]);
+  });
+
   it('normalizes English text into tokens and counts sentence boundaries', () => {
     const result = analyzeEnglishText('Mitigate memory overhead, and fail gracefully when APIs change. Ship backward-compatible defaults.');
 

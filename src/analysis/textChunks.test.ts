@@ -61,6 +61,7 @@ describe('splitTextIntoChunkTexts', () => {
     'URL https://proceedings.neurips.cc/paper_files/paper/2023/hash/d842425e4bf79ba039352da0f658a906-Abstrac t-Conference.html.',
     `Short lead. ${Array.from({ length: 60 }, () => 'alpha').join('-')}. Tiny ending.`,
     `The expression is ${'x1+'.repeat(60)}x2.`,
+    `${Array.from({ length: 30 }, () => "don't").join('—')} 42 backward‑compatible.`,
   ])('bounds dense text without losing source text or words: %s', (text) => {
     const chunks = splitTextIntoChunkTexts(text);
     const wordCounts = chunks.map((chunk) => analyzeEnglishText(chunk).wordCount);

@@ -1,4 +1,4 @@
-import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english';
+import { isTrackableEnglishToken, tokenizeEnglishText } from '../analysis/english';
 import { getDomain, hashText } from '../domain/events';
 import { getPdfReadingDomain } from '../pdf/analytics/identity';
 import type { PdfSourceMetadata } from '../pdf/source';
@@ -319,7 +319,7 @@ async function removeSavedVocabulary(text: string): Promise<void> {
 }
 
 function getSavedVocabularyLemmas(text: string): string[] {
-  return Array.from(new Set(analyzeEnglishText(text).tokens.filter(isTrackableEnglishToken)));
+  return Array.from(new Set(tokenizeEnglishText(text).filter(isTrackableEnglishToken)));
 }
 
 function createSavedVocabularyRecord(

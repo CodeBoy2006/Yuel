@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { tokenizeEnglishText } from '../analysis/english';
 import { matchPackRules, type YuelPack } from './packs';
 
 const basePack: YuelPack = {
@@ -24,9 +25,21 @@ const basePack: YuelPack = {
 
 describe('matchPackRules', () => {
   it('matches lexicon terms and phrases from normalized English text', () => {
-    const matches = matchPackRules(basePack, 'Mitigate memory overhead and fail gracefully during rollout.');
+    const matches = matchPackRules(basePack, tokenizeEnglishText(
+      'Mitigate memory overhead and fail gracefully during rollout.',
+    ));
 
     expect(matches.map((match) => match.text)).toEqual(['mitigate', 'overhead', 'fail gracefully']);
     expect(matches[2].kind).toBe('phrase');
+  });
+
+  it('matches normalized phrases in pack order without duplicating repeated terms', () => {
+    const matches = matchPackRules(basePack, tokenizeEnglishText(
+      'Backward—compatible changes mitigate failures and fail gracefully. Mitigate again.',
+    ));
+
+    expect(matches.map((match) => match.text)).toEqual([
+      'mitigate', 'fail gracefully', 'backward compatible',
+    ]);
   });
 });
