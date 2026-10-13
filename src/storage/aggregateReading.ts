@@ -79,7 +79,8 @@ export function summarizeReadingEventBatch(
 ): ReadingBatchSummary {
   const chunksById = new Map(payload.chunks.map((chunk) => [chunk.chunkId, chunk]));
   const chunkUpdates = new Map<string, ChunkReadingUpdate>();
-  const chunkStates = cloneChunkStates(state.chunkStates);
+  // Updates replace entries, so only the maps need independent copies.
+  const chunkStates = new Map(state.chunkStates);
   const chunkDayStates = cloneChunkDayStates(state.chunkDayStates);
   const chunkDayUpdates = new Map<string, ChunkDayReadingUpdate>();
   const dailyUpdates = new Map<string, DailyReadingUpdate>();
@@ -160,6 +161,8 @@ export function summarizeReadingEventBatch(
 
     recordVisibleChunkRawExposure(chunkUpdates, chunkDayUpdates, date, visibleChunks, estimate.rawExposureMs, estimate.confidenceScore);
 
+    let tickNewWords = 0;
+    let tickReviewWords = 0;
     for (const chunkEstimate of estimate.chunkEstimates) {
       const existingUpdate = chunkUpdates.get(chunkEstimate.chunkId);
       const nextEffectiveWords = (existingUpdate?.effectiveWords ?? 0) + chunkEstimate.effectiveWords;
@@ -186,6 +189,8 @@ export function summarizeReadingEventBatch(
       });
       pageNewWords += chunkEstimate.newWords;
       pageReviewWords += chunkEstimate.reviewWords;
+      tickNewWords += chunkEstimate.newWords;
+      tickReviewWords += chunkEstimate.reviewWords;
       incrementRunningChunkState(chunkStates, chunkEstimate.chunkId, chunkEstimate.effectiveWords, chunkEstimate.newWords);
       incrementRunningChunkDayState(chunkDayStates, date, chunkEstimate.chunkId, chunkEstimate.effectiveWords);
       const chunkDayUpdateKey = `${date}:${chunkEstimate.chunkId}`;
@@ -210,8 +215,8 @@ export function summarizeReadingEventBatch(
     dailyUpdates.set(date, {
       date,
       effectiveWords: (existingDailyUpdate?.effectiveWords ?? 0) + estimate.allocatedWords,
-      newWords: (existingDailyUpdate?.newWords ?? 0) + sumChunkField(estimate.chunkEstimates, 'newWords'),
-      reviewWords: (existingDailyUpdate?.reviewWords ?? 0) + sumChunkField(estimate.chunkEstimates, 'reviewWords'),
+      newWords: (existingDailyUpdate?.newWords ?? 0) + tickNewWords,
+      reviewWords: (existingDailyUpdate?.reviewWords ?? 0) + tickReviewWords,
       minutes: (existingDailyUpdate?.minutes ?? 0) + estimate.effectiveReadingMs / 60_000,
       rawExposureMs: (existingDailyUpdate?.rawExposureMs ?? 0) + estimate.rawExposureMs,
       effectiveReadingMs: (existingDailyUpdate?.effectiveReadingMs ?? 0) + estimate.effectiveReadingMs,
@@ -267,17 +272,13 @@ function recordVisibleChunkRawExposure(
   }
 }
 
-function cloneChunkStates(states: Map<string, ChunkReadingState> | undefined): Map<string, ChunkReadingState> {
-  return new Map(Array.from(states ?? [], ([chunkId, state]) => [chunkId, { ...state }]));
-}
-
 function cloneChunkDayStates(
   states: Map<string, Map<string, ChunkDayReadingState>> | undefined,
 ): Map<string, Map<string, ChunkDayReadingState>> {
   return new Map(
     Array.from(states ?? [], ([date, chunkStates]) => [
       date,
-      new Map(Array.from(chunkStates, ([chunkId, state]) => [chunkId, { ...state }])),
+      new Map(chunkStates),
     ]),
   );
 }
@@ -308,10 +309,6 @@ function incrementRunningChunkDayState(
     effectiveWords: (existing?.effectiveWords ?? 0) + effectiveWords,
   });
   states.set(date, dayStates);
-}
-
-function sumChunkField(chunks: Array<{ newWords: number; reviewWords: number }>, key: 'newWords' | 'reviewWords'): number {
-  return chunks.reduce((sum, chunk) => sum + chunk[key], 0);
 }
 
 function readPositiveFiniteNumber(value: number | undefined): number | undefined {

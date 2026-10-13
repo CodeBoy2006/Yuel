@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { formatLocalDate } from '../domain/localDate';
 import type { ReadingEventBatchPayload } from '../messaging/contracts';
 import { summarizeReadingEventBatch } from './aggregateReading';
 
@@ -182,6 +183,43 @@ describe('summarizeReadingEventBatch', () => {
       expect.closeTo(90, 6),
       expect.closeTo(90, 6),
     ]);
+  });
+
+  it('accumulates multiple ticks without changing supplied state maps or entries', () => {
+    const payload = createPayload();
+    payload.events.push({
+      ...payload.events[0],
+      id: 'TextViewportExposureTick_event-2',
+      occurredAt: capturedAt + 60_000,
+    });
+    const date = formatLocalDate(capturedAt);
+    const chunkState = Object.freeze({
+      sessionEffectiveWords: 0,
+      todayEffectiveWords: 0,
+      lifetimeEffectiveWords: 110,
+    });
+    const dayState = Object.freeze({ effectiveWords: 0 });
+    const chunkStates = new Map([['chunk-1', chunkState]]);
+    const dayStates = new Map([['chunk-1', dayState]]);
+    const chunkDayStates = new Map([[date, dayStates]]);
+
+    const summary = summarizeReadingEventBatch(payload, { chunkStates, chunkDayStates });
+
+    expect(summary.pageEffectiveWords).toBe(240);
+    expect(summary.pageNewWords).toBe(130);
+    expect(summary.pageReviewWords).toBe(110);
+    expect(summary.dailyUpdates).toEqual([expect.objectContaining({
+      date,
+      effectiveWords: 240,
+      newWords: 130,
+      reviewWords: 110,
+    })]);
+    expect(chunkStates.size).toBe(1);
+    expect(chunkStates.get('chunk-1')).toBe(chunkState);
+    expect(chunkDayStates.size).toBe(1);
+    expect(chunkDayStates.get(date)).toBe(dayStates);
+    expect(dayStates.size).toBe(1);
+    expect(dayStates.get('chunk-1')).toBe(dayState);
   });
 
   it('persists local-rate words while keeping directly allocated attention time', () => {
