@@ -250,14 +250,13 @@ function hasUniqueVisibleChunkLinks(value: Record<string, unknown> | undefined):
 }
 
 function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[], events: ReadingEvent[]): boolean {
-  const chunkIds = new Set(chunks.map((chunk) => chunk.chunkId));
   const chunksById = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
   const eventIds = new Set(events.map((event) => event.id));
   const eventSessionIds = new Set(events.map((event) => event.sessionId));
   const totalChunkWords = chunks.reduce((sum, chunk) => sum + chunk.wordCount, 0);
 
   return (
-    chunkIds.size === chunks.length &&
+    chunksById.size === chunks.length &&
     hasConsistentBatchWordTotal(page, totalChunkWords) &&
     eventIds.size === events.length &&
     eventSessionIds.size <= 1 &&
@@ -282,7 +281,7 @@ function hasConsistentBatchLinks(page: PageSnapshot, chunks: TextChunkSnapshot[]
       }
 
       if (CHUNK_SCOPED_READING_EVENT_KINDS.has(event.kind)) {
-        if (event.chunkId === undefined || !chunkIds.has(event.chunkId)) {
+        if (event.chunkId === undefined || !chunksById.has(event.chunkId)) {
           return false;
         }
 

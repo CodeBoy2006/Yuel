@@ -799,15 +799,10 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects duplicate chunk IDs in a batch', () => {
+    const chunk = validMessage.payload.chunks[0];
     expectInvalidPayload({
-      chunks: [
-        validMessage.payload.chunks[0],
-        {
-          ...validMessage.payload.chunks[0],
-          textHash: 'chunk-text-copy',
-          text: 'A duplicate chunk identity would make local aggregate writes ambiguous.',
-        },
-      ],
+      page: { ...validMessage.payload.page, totalWords: chunk.wordCount * 2 },
+      chunks: [chunk, { ...chunk }],
     });
   });
 
@@ -893,6 +888,12 @@ describe('isReadingEventBatchMessage', () => {
   });
 
   it('rejects events linked to an unknown chunk', () => {
+    expectInvalidEvent({
+      id: 'TextBlockVisible_event-1',
+      kind: 'TextBlockVisible',
+      chunkId: 'chunk-2',
+      value: { visibleRatio: 1, wordCount: validVisibleChunk.wordCount },
+    });
     expectInvalidEvent({
       value: {
         ...validViewportTickValue,
