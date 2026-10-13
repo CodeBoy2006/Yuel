@@ -3,6 +3,7 @@ import { getDomain, hashText } from '../domain/events';
 import { getPdfReadingDomain } from '../pdf/analytics/identity';
 import type { PdfSourceMetadata } from '../pdf/source';
 import { normalizePdfHighlightColor } from './pdfAnnotations';
+import { normalizeHttpUrl } from './savedItemNormalization';
 import {
   db,
   type PdfAnnotationRecord,
@@ -60,13 +61,15 @@ export async function saveSelectedTextItem(
   const createdAt = options.createdAt ?? Date.now();
   const type = classifySavedText(text);
   const vocabularyTracked = shouldTrackSavedVocabulary(type);
+  const sourceUrl = normalizeHttpUrl(options.sourceUrl);
+  const sourceTitle = normalizeSingleLine(options.sourceTitle);
   const record: SavedItemRecord = {
     id: createSavedItemId(text, createdAt),
     text,
     type,
     sourceDomain: getDomain(options.sourceUrl ?? ''),
-    ...(normalizeHttpUrl(options.sourceUrl) ? { sourceUrl: normalizeHttpUrl(options.sourceUrl) } : {}),
-    ...(normalizeSingleLine(options.sourceTitle) ? { sourceTitle: normalizeSingleLine(options.sourceTitle) } : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    ...(sourceTitle ? { sourceTitle } : {}),
     tags: ['selection'],
     vocabularyTracked,
     createdAt,
@@ -106,6 +109,8 @@ export async function savePdfSelectedTextItem(
     ?? (options.highlightColor ? 'highlight' : 'excerpt');
   const note = normalizeNote(options.note ?? '');
   const userTags = normalizeUserTags(options.userTags ?? []);
+  const sourceUrl = normalizeHttpUrl(options.metadata.sourceUrl);
+  const sourceTitle = normalizeSingleLine(options.metadata.displayName);
   const annotation: PdfAnnotationRecord = {
     id: annotationId,
     resourceId: options.metadata.resourceId,
@@ -125,12 +130,8 @@ export async function savePdfSelectedTextItem(
     text,
     type,
     sourceDomain: getPdfReadingDomain(options.metadata),
-    ...(normalizeHttpUrl(options.metadata.sourceUrl)
-      ? { sourceUrl: normalizeHttpUrl(options.metadata.sourceUrl) }
-      : {}),
-    ...(normalizeSingleLine(options.metadata.displayName)
-      ? { sourceTitle: normalizeSingleLine(options.metadata.displayName) }
-      : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    ...(sourceTitle ? { sourceTitle } : {}),
     tags: annotationType === 'highlight'
       ? ['selection', 'pdf', 'highlight']
       : ['selection', 'pdf'],
@@ -381,20 +382,6 @@ function classifySavedText(text: string): SavedItemRecord['type'] {
   }
 
   return 'quote';
-}
-
-function normalizeHttpUrl(value: string | undefined): string | undefined {
-  const input = value?.trim();
-  if (!input) return undefined;
-
-  try {
-    const url = new URL(input);
-    return url.protocol === 'http:' || url.protocol === 'https:'
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function normalizeSingleLine(value: string | undefined): string | undefined {

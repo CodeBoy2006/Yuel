@@ -2,6 +2,7 @@ import { createPageId } from '../domain/events';
 import { hasCompletedDailyCheckIn } from '../domain/checkIn';
 import { formatLocalDate, shiftLocalDate } from '../domain/localDate';
 import { getDailyCheckInThresholdWords } from './checkInSettings';
+import { normalizeHttpUrl } from './savedItemNormalization';
 import {
   db,
   type DailyStatRecord,
@@ -511,14 +512,14 @@ function getPageCoveredWords(page: PageRecord): number {
 
 function hasVisibleVocabularyMemory(vocab: VocabExposureRecord): boolean {
   return (
-    normalizeVocabularyLemma(vocab.lemma).length > 0 &&
+    normalizeInlineText(vocab.lemma).length > 0 &&
     vocab.userStatus !== 'ignored' &&
     (vocab.effectiveSeenCount > 0 || vocab.savedCount > 0)
   );
 }
 
 function hasVisibleSavedItem(item: SavedItemRecord): boolean {
-  return normalizeSavedItemText(item.text).length > 0;
+  return normalizeInlineText(item.text).length > 0;
 }
 
 function createRecentVocabularySummaries(
@@ -529,7 +530,7 @@ function createRecentVocabularySummaries(
     .filter(hasVisibleVocabularyMemory)
     .slice(0, limit)
     .map((vocab) => ({
-      lemma: normalizeVocabularyLemma(vocab.lemma),
+      lemma: normalizeInlineText(vocab.lemma),
       effectiveSeenCount: vocab.effectiveSeenCount,
       savedCount: vocab.savedCount,
       packTags: normalizeTags(vocab.packTags),
@@ -552,21 +553,21 @@ function createRecentSavedItemSummaries(
       const firstRect = annotation?.sourceRects.find(
         (rect) => rect.pageIndex === annotation.pageIndex,
       ) ?? annotation?.sourceRects[0];
+      const sourceUrl = normalizeHttpUrl(item.sourceUrl);
+      const sourceTitle = normalizeInlineText(item.sourceTitle ?? '');
+      const userTags = normalizeTags(item.userTags ?? []);
+      const note = normalizeSavedItemNote(item.note);
 
       return {
         id: item.id,
-        text: normalizeSavedItemText(item.text),
+        text: normalizeInlineText(item.text),
         type: item.type,
         sourceDomain: normalizeDisplayDomain(item.sourceDomain),
-        ...(normalizeHttpUrl(item.sourceUrl) ? { sourceUrl: normalizeHttpUrl(item.sourceUrl) } : {}),
-        ...(normalizeSavedItemText(item.sourceTitle ?? '')
-          ? { sourceTitle: normalizeSavedItemText(item.sourceTitle ?? '') }
-          : {}),
+        ...(sourceUrl ? { sourceUrl } : {}),
+        ...(sourceTitle ? { sourceTitle } : {}),
         tags: normalizeTags(item.tags),
-        ...(normalizeTags(item.userTags ?? []).length > 0
-          ? { userTags: normalizeTags(item.userTags ?? []) }
-          : {}),
-        ...(normalizeSavedItemNote(item.note) ? { note: normalizeSavedItemNote(item.note) } : {}),
+        ...(userTags.length > 0 ? { userTags } : {}),
+        ...(note ? { note } : {}),
         ...(annotation ? {
           pdfAnchor: {
             annotationId: annotation.id,
@@ -606,30 +607,12 @@ function normalizeTopDomains(topDomains: string[]): string[] {
   return Array.from(new Set(topDomains.map((domain) => domain.trim()).filter(Boolean)));
 }
 
-function normalizeSavedItemText(text: string): string {
+function normalizeInlineText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeSavedItemNote(note: string | undefined): string {
   return note?.replace(/\r\n?/g, '\n').trim() ?? '';
-}
-
-function normalizeHttpUrl(value: string | undefined): string | undefined {
-  const input = value?.trim();
-  if (!input) return undefined;
-
-  try {
-    const url = new URL(input);
-    return url.protocol === 'http:' || url.protocol === 'https:'
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function normalizeVocabularyLemma(lemma: string): string {
-  return lemma.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeTags(tags: string[]): string[] {

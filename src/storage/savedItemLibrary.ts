@@ -1,3 +1,4 @@
+import { normalizeHttpUrl } from './savedItemNormalization';
 import {
   db,
   type PdfAnnotationRecord,
@@ -67,6 +68,9 @@ export async function getSavedItemLibrary(
     const sourceKind = record.tags.includes('pdf') || record.pdfAnnotationId
       ? 'pdf'
       : 'web';
+    const sourceUrl = normalizeHttpUrl(record.sourceUrl);
+    const sourceTitle = normalizeInlineText(record.sourceTitle);
+    const note = normalizeNote(record.note);
 
     return [{
       id: record.id,
@@ -74,11 +78,9 @@ export async function getSavedItemLibrary(
       type: record.type,
       sourceKind,
       sourceDomain: normalizeDisplayText(record.sourceDomain) || 'unknown',
-      ...(normalizeHttpUrl(record.sourceUrl) ? { sourceUrl: normalizeHttpUrl(record.sourceUrl) } : {}),
-      ...(normalizeInlineText(record.sourceTitle)
-        ? { sourceTitle: normalizeInlineText(record.sourceTitle) }
-        : {}),
-      ...(normalizeNote(record.note) ? { note: normalizeNote(record.note) } : {}),
+      ...(sourceUrl ? { sourceUrl } : {}),
+      ...(sourceTitle ? { sourceTitle } : {}),
+      ...(note ? { note } : {}),
       userTags: normalizeUserTags(record.userTags ?? []),
       ...(annotation ? {
         pdfAnchor: {
@@ -97,20 +99,6 @@ export async function getSavedItemLibrary(
       updatedAt: Math.max(record.createdAt, record.updatedAt ?? record.createdAt),
     }];
   });
-}
-
-function normalizeHttpUrl(value: string | undefined): string | undefined {
-  const input = value?.trim();
-  if (!input) return undefined;
-
-  try {
-    const url = new URL(input);
-    return url.protocol === 'http:' || url.protocol === 'https:'
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function normalizeInlineText(value: string | undefined): string {
