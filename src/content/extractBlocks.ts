@@ -25,39 +25,7 @@ interface NormalizedTextMap {
   ends: Array<TextPosition | undefined>;
 }
 
-const TEXT_BLOCK_SELECTOR = [
-  'article p',
-  'article li',
-  'article h1',
-  'article h2',
-  'article h3',
-  'article pre',
-  'main p',
-  'main li',
-  'main h1',
-  'main h2',
-  'main h3',
-  'main pre',
-  'section p',
-  'section li',
-  'section h1',
-  'section h2',
-  'section h3',
-  'section pre',
-  '.markdown-body p',
-  '.markdown-body li',
-  '.markdown-body h1',
-  '.markdown-body h2',
-  '.markdown-body h3',
-  '.markdown-body pre',
-  '[class*="docs"] p',
-  '[class*="docs"] li',
-  '[class*="docs"] h1',
-  '[class*="docs"] h2',
-  '[class*="docs"] h3',
-  '[class*="docs"] pre',
-  'blockquote',
-].join(',');
+const TEXT_BLOCK_SELECTOR = ':is(article, main, section, .markdown-body, [class*="docs"]) :is(p, li, h1, h2, h3, pre), blockquote';
 const FALLBACK_TEXT_BLOCK_SELECTOR = 'body p, body li, body h1, body h2, body h3, body pre, body blockquote';
 const EXCLUDED_ANCESTOR_SELECTOR = [
   'nav',
@@ -153,11 +121,6 @@ function createCandidates(
     return [];
   }
 
-  const textAnalysis = analyzeEnglishText(text);
-  if (textAnalysis.wordCount < MIN_TEXT_CHUNK_WORDS) {
-    return [];
-  }
-
   const selector = describeElement(element);
   const textChunks = splitTextIntoChunkTexts(text);
   const textRanges = createChunkTextRanges(element, textChunks);
@@ -219,12 +182,13 @@ function createChunkTextRanges(element: HTMLElement, textChunks: string[]): Arra
 }
 
 function createNormalizedTextMap(element: HTMLElement): NormalizedTextMap {
-  const textNodes = collectTextNodes(element);
+  const walker = element.ownerDocument.createTreeWalker(element, 4);
   const starts: Array<TextPosition | undefined> = [];
   const ends: Array<TextPosition | undefined> = [];
   let text = '';
 
-  for (const node of textNodes) {
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const node = current as Text;
     const nodeText = node.data;
     const wordPattern = /\S+/g;
     let match: RegExpExecArray | null;
@@ -246,19 +210,6 @@ function createNormalizedTextMap(element: HTMLElement): NormalizedTextMap {
   }
 
   return { text, starts, ends };
-}
-
-function collectTextNodes(element: HTMLElement): Text[] {
-  const walker = element.ownerDocument.createTreeWalker(element, 4);
-  const nodes: Text[] = [];
-  let current = walker.nextNode();
-
-  while (current) {
-    nodes.push(current as Text);
-    current = walker.nextNode();
-  }
-
-  return nodes;
 }
 
 function findRangeStart(positions: Array<TextPosition | undefined>, index: number): TextPosition | undefined {
@@ -285,9 +236,7 @@ function findRangeEnd(positions: Array<TextPosition | undefined>, index: number)
 
 function isVisibleElement(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
-  const styles = window.getComputedStyle(element);
-
-  return rect.width > 0 && rect.height > 0 && styles.visibility !== 'hidden' && styles.display !== 'none';
+  return rect.width > 0 && rect.height > 0 && !isElementStyleHidden(element);
 }
 
 function describeElement(element: HTMLElement): string {

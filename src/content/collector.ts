@@ -289,7 +289,7 @@ function isReadableContentMutation(record: MutationRecord): boolean {
     return false;
   }
 
-  return [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some(isPotentialReadableNode);
+  return [...record.addedNodes, ...record.removedNodes].some(isPotentialReadableNode);
 }
 
 function isPotentialReadableNode(node: Node): boolean {

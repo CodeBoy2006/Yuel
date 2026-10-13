@@ -1,4 +1,4 @@
-import { analyzeEnglishText, ENGLISH_WORD_PATTERN } from './english';
+import { analyzeEnglishText, ENGLISH_WORD_PATTERN, getSentenceSegmenter } from './english';
 
 export const MIN_TEXT_CHUNK_WORDS = 8;
 export const TARGET_MIN_TEXT_CHUNK_WORDS = 16;
@@ -11,7 +11,7 @@ interface TextChunkUnit {
 
 export function splitTextIntoChunkTexts(text: string): string[] {
   const units = splitIntoChunkUnits(normalizeWhitespace(text));
-  let chunks: TextChunkUnit[] = [];
+  const chunks: TextChunkUnit[] = [];
   let currentTexts: string[] = [];
   let currentWordCount = 0;
 
@@ -37,7 +37,7 @@ export function splitTextIntoChunkTexts(text: string): string[] {
     });
   }
 
-  chunks = rebalanceUndersizedChunks(chunks);
+  rebalanceUndersizedChunks(chunks);
 
   const lastChunk = chunks.at(-1);
   const previousChunk = chunks.at(-2);
@@ -104,24 +104,13 @@ function splitTextByBalancedWords(text: string): TextChunkUnit[] {
   return chunks;
 }
 
-function rebalanceUndersizedChunks(chunks: TextChunkUnit[]): TextChunkUnit[] {
-  const rebalanced = chunks.map((chunk) => ({ ...chunk }));
-  let undersizedIndex = rebalanced.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
+function rebalanceUndersizedChunks(chunks: TextChunkUnit[]): void {
+  let undersizedIndex = chunks.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
 
-  while (undersizedIndex >= 0 && rebalanced.length > 1) {
-    const pairStart = undersizedIndex === rebalanced.length - 1 ? undersizedIndex - 1 : undersizedIndex;
-    const combinedText = `${rebalanced[pairStart].text} ${rebalanced[pairStart + 1].text}`;
-    rebalanced.splice(pairStart, 2, ...splitTextByBalancedWords(combinedText));
-    undersizedIndex = rebalanced.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
+  while (undersizedIndex >= 0 && chunks.length > 1) {
+    const pairStart = undersizedIndex === chunks.length - 1 ? undersizedIndex - 1 : undersizedIndex;
+    const combinedText = `${chunks[pairStart].text} ${chunks[pairStart + 1].text}`;
+    chunks.splice(pairStart, 2, ...splitTextByBalancedWords(combinedText));
+    undersizedIndex = chunks.findIndex((chunk) => chunk.wordCount < MIN_TEXT_CHUNK_WORDS);
   }
-
-  return rebalanced;
-}
-
-function getSentenceSegmenter(): Intl.Segmenter | undefined {
-  if (typeof Intl === 'undefined' || typeof Intl.Segmenter === 'undefined') {
-    return undefined;
-  }
-
-  return new Intl.Segmenter('en', { granularity: 'sentence' });
 }

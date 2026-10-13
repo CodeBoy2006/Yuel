@@ -132,7 +132,7 @@ function countPatternMatches(text: string, pattern: RegExp): number {
   return Array.from(text.matchAll(pattern)).length;
 }
 
-function getSentenceSegmenter(): Intl.Segmenter | undefined {
+export function getSentenceSegmenter(): Intl.Segmenter | undefined {
   if (typeof Intl === 'undefined' || typeof Intl.Segmenter === 'undefined') {
     return undefined;
   }
