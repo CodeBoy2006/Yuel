@@ -85,7 +85,7 @@ export async function getPdfHighlightsForResource(
     if (!savedItem) return [];
 
     const sourceRects = annotation.sourceRects
-      .filter(isValidSourceRect)
+      .filter(isValidPdfSourceRect)
       .map((rect) => ({ ...rect }));
     if (sourceRects.length === 0) return [];
 
@@ -128,7 +128,7 @@ export async function getPdfBacklinkSourceRects(
   }
 
   return annotation.sourceRects
-    .filter((rect) => rect.pageIndex === renderedPageIndex && isValidSourceRect(rect))
+    .filter((rect) => rect.pageIndex === renderedPageIndex && isValidPdfSourceRect(rect))
     .map((rect) => ({ ...rect }));
 }
 
@@ -157,7 +157,7 @@ function comparePdfStoredHighlights(
   return left.annotation.createdAt - right.annotation.createdAt;
 }
 
-function isValidSourceRect(rect: PdfSourceRectRecord): boolean {
+export function isValidPdfSourceRect(rect: PdfSourceRectRecord): boolean {
   return (
     Number.isSafeInteger(rect.pageIndex)
     && rect.pageIndex >= 0

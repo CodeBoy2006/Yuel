@@ -2,7 +2,7 @@ import { analyzeEnglishText, isTrackableEnglishToken } from '../analysis/english
 import { getDomain, hashText } from '../domain/events';
 import { getPdfReadingDomain } from '../pdf/analytics/identity';
 import type { PdfSourceMetadata } from '../pdf/source';
-import { normalizePdfHighlightColor } from './pdfAnnotations';
+import { isValidPdfSourceRect, normalizePdfHighlightColor } from './pdfAnnotations';
 import { normalizeHttpUrl } from './savedItemNormalization';
 import {
   db,
@@ -271,16 +271,7 @@ function createSavedItemId(text: string, createdAt: number): string {
 
 function normalizePdfSourceRects(sourceRects: PdfSourceRectRecord[]): PdfSourceRectRecord[] {
   return sourceRects.flatMap((rect) => {
-    if (
-      !Number.isSafeInteger(rect.pageIndex)
-      || rect.pageIndex < 0
-      || !isFiniteNonNegative(rect.x)
-      || !isFiniteNonNegative(rect.y)
-      || !Number.isFinite(rect.width)
-      || rect.width <= 0
-      || !Number.isFinite(rect.height)
-      || rect.height <= 0
-    ) {
+    if (!isValidPdfSourceRect(rect)) {
       return [];
     }
 
@@ -292,10 +283,6 @@ function normalizePdfSourceRects(sourceRects: PdfSourceRectRecord[]): PdfSourceR
       height: rect.height,
     }];
   });
-}
-
-function isFiniteNonNegative(value: number): boolean {
-  return Number.isFinite(value) && value >= 0;
 }
 
 async function recordSavedVocabulary(text: string, savedAt: number): Promise<void> {

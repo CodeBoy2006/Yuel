@@ -1,3 +1,4 @@
+import { isValidPdfSourceRect } from './pdfAnnotations';
 import { normalizeHttpUrl } from './savedItemNormalization';
 import {
   db,
@@ -63,8 +64,8 @@ export async function getSavedItemLibrary(
       ? annotationsById.get(record.pdfAnnotationId)
       : undefined;
     const firstRect = annotation?.sourceRects.find(
-      (rect) => rect.pageIndex === annotation.pageIndex && isValidSourceRect(rect),
-    ) ?? annotation?.sourceRects.find(isValidSourceRect);
+      (rect) => rect.pageIndex === annotation.pageIndex && isValidPdfSourceRect(rect),
+    ) ?? annotation?.sourceRects.find(isValidPdfSourceRect);
     const sourceKind = record.tags.includes('pdf') || record.pdfAnnotationId
       ? 'pdf'
       : 'web';
@@ -124,19 +125,4 @@ function normalizeUserTags(tags: string[]): string[] {
     normalized.push(tag);
   }
   return normalized;
-}
-
-function isValidSourceRect(rect: PdfAnnotationRecord['sourceRects'][number]): boolean {
-  return (
-    Number.isSafeInteger(rect.pageIndex)
-    && rect.pageIndex >= 0
-    && Number.isFinite(rect.x)
-    && rect.x >= 0
-    && Number.isFinite(rect.y)
-    && rect.y >= 0
-    && Number.isFinite(rect.width)
-    && rect.width > 0
-    && Number.isFinite(rect.height)
-    && rect.height > 0
-  );
 }
