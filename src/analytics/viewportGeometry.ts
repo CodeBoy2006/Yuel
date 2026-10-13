@@ -30,7 +30,8 @@ export function measureViewportChunk(
     return undefined;
   }
 
-  const visibleRatio = getRectsVisibleRatio(rects, viewport);
+  const visibleArea = rects.reduce((sum, rect) => sum + getVisibleArea(rect, viewport), 0);
+  const visibleRatio = visibleArea / totalArea;
   const boundingRect = getBoundingRect(rects);
   const viewportHeight = Math.max(1, viewport.height);
   const viewportCenterY = viewport.top + viewportHeight / 2;
