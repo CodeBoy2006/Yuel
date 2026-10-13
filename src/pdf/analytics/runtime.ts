@@ -95,14 +95,14 @@ export function capturePdfReadingLayout(
       continue;
     }
 
-    const bounds = toRectBounds(element.getBoundingClientRect());
+    const bounds = element.getBoundingClientRect();
     if (bounds.width > 0 && bounds.height > 0) {
       pages.set(pageNumber, bounds);
     }
   }
 
   return {
-    viewport: toRectBounds(viewportElement.getBoundingClientRect()),
+    viewport: viewportElement.getBoundingClientRect(),
     pages,
   };
 }
@@ -204,18 +204,4 @@ function toEventChunkSnapshot(
   } = chunk;
 
   return eventChunk;
-}
-
-function toRectBounds(rect: Pick<
-  DOMRect,
-  'left' | 'top' | 'right' | 'bottom' | 'width' | 'height'
->): RectBounds {
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-  };
 }

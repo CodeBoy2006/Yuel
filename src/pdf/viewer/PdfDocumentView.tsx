@@ -98,9 +98,7 @@ import { PdfNativeSelection } from './PdfNativeSelection';
 import { usePdfHighlights } from './usePdfHighlights';
 import { getPdfBacklinkSourceRects } from '../../storage/pdfAnnotations';
 import type { PdfSourceRectRecord } from '../../storage/schema';
-import {
-  PdfReadingAnalytics,
-} from '../analytics';
+import { PdfReadingAnalytics } from '../analytics/PdfReadingAnalytics';
 import type { PdfReadingSnapshotLoadState } from '../analytics/types';
 import {
   recordPdfDocumentOpen,

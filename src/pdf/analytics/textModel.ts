@@ -34,7 +34,6 @@ import type {
 interface NormalizedRunSegment {
   start: number;
   end: number;
-  text: string;
   rect?: Rect;
 }
 
@@ -140,7 +139,6 @@ function createNormalizedPageText(
     segments.push({
       start,
       end: text.length,
-      text: normalizedText,
       rect,
     });
     previousRun = run;
@@ -209,7 +207,7 @@ function createChunkRects(
 
     const overlapStart = Math.max(chunkStart, segment.start) - segment.start;
     const overlapEnd = Math.min(chunkEnd, segment.end) - segment.start;
-    return [sliceTextRect(segment.rect, overlapStart, overlapEnd, segment.text.length)];
+    return [sliceTextRect(segment.rect, overlapStart, overlapEnd, segment.end - segment.start)];
   });
 
   return mergeAdjacentTextRects(rects);
