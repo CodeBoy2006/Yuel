@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createPageId } from '../domain/events';
 import {
@@ -943,6 +943,32 @@ describe('getSidePanelReadingDetails', () => {
     expect(details.summary.effectiveWords).toBe(320);
     expect(details.recentVocabulary[0]?.lemma).toBe('resilience');
     expect(details.recentSavedItems[0]?.text).toBe('fail gracefully');
+  });
+});
+
+describe('recent saved-item annotation queries', () => {
+  it.each([
+    ['dashboard', getReadingDashboardDetails, 5],
+    ['side panel', getSidePanelReadingDetails, 1],
+  ] as const)('loads annotations only for visible %s results', async (_surface, load, limit) => {
+    const records = Array.from({ length: 7 }, (_, index) => createSavedItemRecord({
+      id: `saved-${index}`,
+      pdfAnnotationId: `annotation-${index}`,
+    }));
+    const store = createStore({
+      recentSavedItems: [
+        createSavedItemRecord({ id: 'blank', text: '\n\t', pdfAnnotationId: 'blank-annotation' }),
+        ...records,
+      ],
+    });
+    const bulkGet = vi.spyOn(store.pdfAnnotations!, 'bulkGet');
+
+    const details = await load(store, morningOnJune27);
+    const selected = records.slice(0, limit);
+
+    expect(bulkGet).toHaveBeenCalledOnce();
+    expect(bulkGet).toHaveBeenCalledWith(selected.map((record) => record.pdfAnnotationId));
+    expect(details.recentSavedItems.map((item) => item.id)).toEqual(selected.map((record) => record.id));
   });
 });
 

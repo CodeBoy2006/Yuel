@@ -285,10 +285,12 @@ export async function getReadingDashboardDetails(
     }));
   const readingSessions = createReadingFocusSessionSummaries(readingSessionRecords);
   const recentVocabulary = createRecentVocabularySummaries(recentVocabularyRecords);
+  const selectedSavedItems = recentSavedItemRecords
+    .filter(hasVisibleSavedItem)
+    .slice(0, RECENT_SAVED_ITEM_LIMIT);
   const recentSavedItems = createRecentSavedItemSummaries(
-    recentSavedItemRecords,
-    RECENT_SAVED_ITEM_LIMIT,
-    await loadPdfAnnotationsForSavedItems(store, recentSavedItemRecords),
+    selectedSavedItems,
+    await loadPdfAnnotationsForSavedItems(store, selectedSavedItems),
   );
 
   const hasHistoricalReading = history.some((day) => day.effectiveWords > 0 || day.minutes > 0);
@@ -454,14 +456,16 @@ export async function getSidePanelReadingDetails(
     store.vocabExposures.orderBy('lastSeenAt').reverse().limit(RECENT_VOCABULARY_SCAN_LIMIT).toArray(),
     store.savedItems.orderBy('createdAt').reverse().limit(RECENT_SAVED_ITEM_SCAN_LIMIT).toArray(),
   ]);
-  const pdfAnnotations = await loadPdfAnnotationsForSavedItems(store, recentSavedItemRecords);
+  const selectedSavedItems = recentSavedItemRecords
+    .filter(hasVisibleSavedItem)
+    .slice(0, SIDE_PANEL_SAVED_ITEM_LIMIT);
+  const pdfAnnotations = await loadPdfAnnotationsForSavedItems(store, selectedSavedItems);
 
   return {
     summary,
     recentVocabulary: createRecentVocabularySummaries(recentVocabularyRecords, SIDE_PANEL_VOCABULARY_LIMIT),
     recentSavedItems: createRecentSavedItemSummaries(
-      recentSavedItemRecords,
-      SIDE_PANEL_SAVED_ITEM_LIMIT,
+      selectedSavedItems,
       pdfAnnotations,
     ),
   };
@@ -540,12 +544,9 @@ function createRecentVocabularySummaries(
 
 function createRecentSavedItemSummaries(
   records: SavedItemRecord[],
-  limit = RECENT_SAVED_ITEM_LIMIT,
-  pdfAnnotations = new Map<string, PdfAnnotationRecord>(),
+  pdfAnnotations: Map<string, PdfAnnotationRecord>,
 ): RecentSavedItemSummary[] {
   return records
-    .filter(hasVisibleSavedItem)
-    .slice(0, limit)
     .map((item) => {
       const annotation = item.pdfAnnotationId
         ? pdfAnnotations.get(item.pdfAnnotationId)
