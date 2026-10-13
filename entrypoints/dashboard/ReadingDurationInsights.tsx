@@ -9,6 +9,7 @@ import type {
 } from '../../src/storage/readingStats';
 import { formatCount, formatMinutes } from '../../src/ui/formatters';
 import { SectionHeader } from '../../src/ui/primitives';
+import { formatPeriodLabel, fullDateFormatter, monthDayFormatter, parseLocalDate } from './readingHistoryDates';
 
 interface ReadingDurationInsightsProps {
   history: ReadingHistoryDay[];
@@ -23,10 +24,6 @@ const RANGE_OPTIONS: Array<{ label: string; value: DurationRange }> = [
   { label: '30 天', value: '30' },
   { label: '13 周', value: '91' },
 ];
-const monthDayFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: 'short',
-  day: 'numeric',
-});
 const sessionDateFormatter = new Intl.DateTimeFormat('zh-CN', {
   month: 'short',
   day: 'numeric',
@@ -35,12 +32,6 @@ const sessionDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 const timeFormatter = new Intl.DateTimeFormat('zh-CN', {
   hour: '2-digit',
   minute: '2-digit',
-});
-const fullDateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  weekday: 'short',
 });
 
 export function ReadingDurationInsights({
@@ -361,16 +352,4 @@ function normalizeHistory(history: ReadingHistoryDay[]): ReadingHistoryDay[] {
       minutes: Math.max(0, day.minutes),
     }))
     .sort((left, right) => left.date.localeCompare(right.date));
-}
-
-function formatPeriodLabel(history: ReadingHistoryDay[]): string {
-  const first = history[0];
-  const last = history.at(-1);
-  if (!first || !last) return '近 13 周';
-  return `${monthDayFormatter.format(parseLocalDate(first.date))}–${monthDayFormatter.format(parseLocalDate(last.date))}`;
-}
-
-function parseLocalDate(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12);
 }

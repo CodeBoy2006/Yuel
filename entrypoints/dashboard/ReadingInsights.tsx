@@ -10,6 +10,7 @@ import {
   HEATMAP_LEVEL_COUNT,
 } from '../../src/ui/heatmapIntensity';
 import { SectionHeader } from '../../src/ui/primitives';
+import { formatPeriodLabel, fullDateFormatter, monthDayFormatter, parseLocalDate } from './readingHistoryDates';
 
 interface ReadingInsightsProps {
   dailyGoal: number;
@@ -33,13 +34,6 @@ const compactNumberFormatter = new Intl.NumberFormat('zh-CN', {
   maximumFractionDigits: 1,
 });
 const monthFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'short' });
-const monthDayFormatter = new Intl.DateTimeFormat('zh-CN', { month: 'short', day: 'numeric' });
-const fullDateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-  weekday: 'short',
-});
 
 export function ReadingInsights({ dailyGoal, history }: ReadingInsightsProps) {
   const normalizedHistory = useMemo(() => normalizeHistory(history), [history]);
@@ -454,16 +448,4 @@ function createConicGradient(
       return `${item.color} ${start}% ${cursor}%`;
     });
   return `conic-gradient(${stops.join(', ')})`;
-}
-
-function formatPeriodLabel(history: ReadingHistoryDay[]): string {
-  const first = history[0];
-  const last = history.at(-1);
-  if (!first || !last) return '近 13 周';
-  return `${monthDayFormatter.format(parseLocalDate(first.date))}–${monthDayFormatter.format(parseLocalDate(last.date))}`;
-}
-
-function parseLocalDate(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12);
 }
