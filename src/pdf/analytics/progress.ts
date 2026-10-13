@@ -74,36 +74,26 @@ export function createPdfDocumentReadingProgress(
         finiteNonNegative(record?.effectiveWords),
       );
 
-      if (!record) {
-        return {
-          chunkId: chunk.chunkId,
-          sectionId: chunk.sectionId,
-          pageIndex: chunk.pageIndex,
-          pageNumber: chunk.pageNumber,
-          wordCount: chunk.wordCount,
-          coveredWords: chunkCoveredWords,
-          rects: chunk.rects,
-        };
+      if (record) {
+        const chunkProcessedWords = Math.max(
+          chunkCoveredWords,
+          finiteNonNegative(record.newWords ?? chunkCoveredWords)
+            + finiteNonNegative(record.reviewWords),
+        );
+        const chunkEffectiveReadingMs = finiteNonNegative(record.effectiveReadingMs);
+
+        coveredWords += chunkCoveredWords;
+        processedWords += chunkProcessedWords;
+        effectiveReadingMs += chunkEffectiveReadingMs;
+        rawExposureMs += finiteNonNegative(
+          record.rawExposureMs ?? record.exposureSeconds * 1_000,
+        );
+        addConfidence(
+          confidence,
+          record.confidence,
+          chunkProcessedWords || chunkEffectiveReadingMs,
+        );
       }
-
-      const chunkProcessedWords = Math.max(
-        chunkCoveredWords,
-        finiteNonNegative(record.newWords ?? chunkCoveredWords)
-          + finiteNonNegative(record.reviewWords),
-      );
-      const chunkEffectiveReadingMs = finiteNonNegative(record.effectiveReadingMs);
-
-      coveredWords += chunkCoveredWords;
-      processedWords += chunkProcessedWords;
-      effectiveReadingMs += chunkEffectiveReadingMs;
-      rawExposureMs += finiteNonNegative(
-        record.rawExposureMs ?? record.exposureSeconds * 1_000,
-      );
-      addConfidence(
-        confidence,
-        record.confidence,
-        chunkProcessedWords || chunkEffectiveReadingMs,
-      );
 
       return {
         chunkId: chunk.chunkId,

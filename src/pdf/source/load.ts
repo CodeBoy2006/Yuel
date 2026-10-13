@@ -151,7 +151,7 @@ async function readPdfResponse(
   try {
     return response.body
       ? await readBoundedStream(response.body, contentLength, maxBytes, options)
-      : await readResponseBuffer(response, maxBytes, options);
+      : await readBoundedBuffer(response, maxBytes, options);
   } catch (error) {
     throw normalizeReadError(error, options.signal, 'network-error');
   }
@@ -234,26 +234,18 @@ async function readLocalFile(
       return await readBoundedStream(file.stream(), file.size, maxBytes, options);
     }
 
-    const buffer = await file.arrayBuffer();
-    throwIfAborted(options.signal);
-    throwIfTooLarge(buffer.byteLength, maxBytes);
-    emitProgress(options.onProgress, {
-      stage: 'reading',
-      loadedBytes: buffer.byteLength,
-      totalBytes: buffer.byteLength,
-    });
-    return buffer;
+    return await readBoundedBuffer(file, maxBytes, options);
   } catch (error) {
     throw normalizeReadError(error, options.signal, 'read-error');
   }
 }
 
-async function readResponseBuffer(
-  response: Response,
+async function readBoundedBuffer(
+  source: { arrayBuffer(): Promise<ArrayBuffer> },
   maxBytes: number,
   options: PdfSourceLoadOptions,
 ): Promise<ArrayBuffer> {
-  const buffer = await response.arrayBuffer();
+  const buffer = await source.arrayBuffer();
   throwIfAborted(options.signal);
   throwIfTooLarge(buffer.byteLength, maxBytes);
   emitProgress(options.onProgress, {
