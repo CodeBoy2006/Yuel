@@ -4,6 +4,7 @@ import {
   isReadingEventReferenceBatchMessage,
   isReadingPageSnapshotRegistrationMessage,
   type ReadingEventBatchPayload,
+  type ReadingMessageResponse,
 } from '../messaging/contracts';
 import { recordReadingEventBatch } from '../storage/repositories';
 import { canRecordReadingBatch, type ReadingMessageSender } from './readingAccess';
@@ -22,13 +23,6 @@ export interface ReadingMessageDependencies {
   recordBatch?: ReadingEventBatchRecorder;
   snapshotRegistry?: ReadingPageSnapshotRegistry;
   syncToolbarIcon?: ReadingToolbarIconSyncer;
-}
-
-export interface ReadingMessageResponse {
-  ok: boolean;
-  accepted?: boolean;
-  reason?: 'snapshot-missing' | 'invalid-snapshot-reference' | 'snapshot-registration-rejected';
-  snapshotRegistered?: boolean;
 }
 
 export function handleReadingRuntimeMessage(

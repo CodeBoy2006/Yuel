@@ -41,6 +41,13 @@ export interface ReadingEventBatchMessage {
   payload: ReadingEventBatchPayload;
 }
 
+export interface ReadingMessageResponse {
+  ok: boolean;
+  accepted?: boolean;
+  reason?: 'snapshot-missing' | 'invalid-snapshot-reference' | 'snapshot-registration-rejected';
+  snapshotRegistered?: boolean;
+}
+
 export interface ReadingPageSnapshotRegistrationPayload extends ReadingEventBatchPayload {
   snapshotId: string;
 }

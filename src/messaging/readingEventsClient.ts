@@ -7,6 +7,7 @@ import {
 import {
   MESSAGE_TYPES,
   type ReadingEventBatchPayload,
+  type ReadingMessageResponse,
 } from './contracts';
 
 export type ReadingEventBatchDelivery = (
@@ -21,13 +22,6 @@ interface ReadingPageSnapshotDeliveryState {
   snapshotId: string;
   registered: boolean;
   suppressed: boolean;
-}
-
-interface ReadingMessageResponse {
-  ok: boolean;
-  accepted?: boolean;
-  snapshotRegistered?: boolean;
-  reason?: string;
 }
 
 export function createReadingEventBatchDelivery(
