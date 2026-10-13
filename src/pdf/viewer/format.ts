@@ -1,5 +1,3 @@
-import { PdfErrorCode } from '@embedpdf/models';
-
 import { isPdfSourceError } from '../source';
 import type { PdfSourceProgress } from '../source';
 
@@ -65,26 +63,11 @@ export function formatPdfOpenError(error: unknown): string {
     }
   }
 
-  const reason = getTaskReason(error);
-  if (reason?.message) return reason.message;
+  const reason = error && typeof error === 'object' && 'reason' in error ? error.reason : error;
+  if (reason && typeof reason === 'object' && 'message' in reason
+    && typeof reason.message === 'string' && reason.message) {
+    return reason.message;
+  }
   if (error instanceof Error && error.message) return error.message;
   return '无法打开 PDF，请重试或选择其他文件。';
-}
-
-export function isPasswordPdfError(error: unknown): boolean {
-  return getTaskReason(error)?.code === PdfErrorCode.Password;
-}
-
-function getTaskReason(error: unknown): { code?: number; message?: string } | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-
-  const reason = 'reason' in error ? error.reason : error;
-  if (!reason || typeof reason !== 'object') return undefined;
-
-  return {
-    ...('code' in reason && typeof reason.code === 'number' ? { code: reason.code } : {}),
-    ...('message' in reason && typeof reason.message === 'string'
-      ? { message: reason.message }
-      : {}),
-  };
 }

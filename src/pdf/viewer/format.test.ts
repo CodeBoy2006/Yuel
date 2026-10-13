@@ -1,4 +1,3 @@
-import { PdfErrorCode } from '@embedpdf/models';
 import { describe, expect, it } from 'vitest';
 
 import { PdfSourceError } from '../source';
@@ -6,7 +5,6 @@ import {
   formatPdfBytes,
   formatPdfOpenError,
   formatPdfSourceProgress,
-  isPasswordPdfError,
 } from './format';
 
 describe('PDF reader formatting', () => {
@@ -26,13 +24,13 @@ describe('PDF reader formatting', () => {
     }))).toBe('文件过大：120 MB，当前完整加载上限为 96 MB。');
   });
 
-  it('recognizes password failures nested in EmbedPDF task errors', () => {
-    expect(isPasswordPdfError({
-      reason: {
-        code: PdfErrorCode.Password,
-        message: 'Password required',
-      },
-    })).toBe(true);
-    expect(isPasswordPdfError(new Error('other'))).toBe(false);
+  it.each([
+    [{ reason: { message: 'Task failed' }, message: 'Outer failure' }, 'Task failed'],
+    [new Error('Open failed'), 'Open failed'],
+    [Object.assign(new Error('Open failed'), { reason: { message: '' } }), 'Open failed'],
+    [{ reason: { message: 42 }, message: 'Outer failure' }, '无法打开 PDF，请重试或选择其他文件。'],
+    [null, '无法打开 PDF，请重试或选择其他文件。'],
+  ])('preserves task and ordinary error messages for %j', (error, expected) => {
+    expect(formatPdfOpenError(error)).toBe(expected);
   });
 });
