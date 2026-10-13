@@ -1,5 +1,4 @@
 import type {
-  Rect,
   Rotation,
   Size,
 } from '@embedpdf/models';
@@ -21,23 +20,12 @@ export interface PdfReadingProgressMetrics {
   confidence?: number;
 }
 
-export interface PdfChunkReadingProgress {
-  chunkId: string;
-  sectionId: string;
-  pageIndex: number;
-  pageNumber: number;
-  wordCount: number;
-  coveredWords: number;
-  rects: Rect[];
-}
-
 export interface PdfPageReadingProgress extends PdfReadingProgressMetrics {
   sectionId: string;
   pageIndex: number;
   pageNumber: number;
   rotation: Rotation;
   size: Size;
-  chunks: PdfChunkReadingProgress[];
 }
 
 export interface PdfDocumentReadingProgress extends PdfReadingProgressMetrics {
@@ -67,44 +55,33 @@ export function createPdfDocumentReadingProgress(
     let rawExposureMs = 0;
     const confidence: WeightedConfidence = { total: 0, weight: 0 };
 
-    const chunks = section.chunks.map((chunk): PdfChunkReadingProgress => {
+    for (const chunk of section.chunks) {
       const record = recordsByChunkId.get(chunk.chunkId);
+      if (!record) continue;
+
       const chunkCoveredWords = Math.min(
         chunk.wordCount,
-        finiteNonNegative(record?.effectiveWords),
+        finiteNonNegative(record.effectiveWords),
       );
+      const chunkProcessedWords = Math.max(
+        chunkCoveredWords,
+        finiteNonNegative(record.newWords ?? chunkCoveredWords)
+          + finiteNonNegative(record.reviewWords),
+      );
+      const chunkEffectiveReadingMs = finiteNonNegative(record.effectiveReadingMs);
 
-      if (record) {
-        const chunkProcessedWords = Math.max(
-          chunkCoveredWords,
-          finiteNonNegative(record.newWords ?? chunkCoveredWords)
-            + finiteNonNegative(record.reviewWords),
-        );
-        const chunkEffectiveReadingMs = finiteNonNegative(record.effectiveReadingMs);
-
-        coveredWords += chunkCoveredWords;
-        processedWords += chunkProcessedWords;
-        effectiveReadingMs += chunkEffectiveReadingMs;
-        rawExposureMs += finiteNonNegative(
-          record.rawExposureMs ?? record.exposureSeconds * 1_000,
-        );
-        addConfidence(
-          confidence,
-          record.confidence,
-          chunkProcessedWords || chunkEffectiveReadingMs,
-        );
-      }
-
-      return {
-        chunkId: chunk.chunkId,
-        sectionId: chunk.sectionId,
-        pageIndex: chunk.pageIndex,
-        pageNumber: chunk.pageNumber,
-        wordCount: chunk.wordCount,
-        coveredWords: chunkCoveredWords,
-        rects: chunk.rects,
-      };
-    });
+      coveredWords += chunkCoveredWords;
+      processedWords += chunkProcessedWords;
+      effectiveReadingMs += chunkEffectiveReadingMs;
+      rawExposureMs += finiteNonNegative(
+        record.rawExposureMs ?? record.exposureSeconds * 1_000,
+      );
+      addConfidence(
+        confidence,
+        record.confidence,
+        chunkProcessedWords || chunkEffectiveReadingMs,
+      );
+    }
 
     return createProgressMetrics({
       totalWords: section.wordCount,
@@ -118,7 +95,6 @@ export function createPdfDocumentReadingProgress(
       sectionId: section.sectionId,
       rotation: section.rotation,
       size: section.size,
-      chunks,
     });
   });
   const aggregate = aggregatePdfReadingProgress(pages);

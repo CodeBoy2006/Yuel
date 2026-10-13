@@ -107,19 +107,20 @@ export function createPdfReadingMapOverviewSegments(
 export function createPdfReadingMapVisuals(
   items: PdfReadingProgressMetrics[],
 ): PdfReadingMapVisual[] {
-  const wordReference = percentile(
-    items.map((item) => item.totalWords).filter((value) => value > 0),
+  const wordReference = sortedPercentile(
+    items.map((item) => item.totalWords).filter((value) => value > 0).sort((left, right) => left - right),
     0.9,
   );
-  const timeReference = percentile(
-    items.map((item) => item.effectiveReadingMs).filter((value) => value > 0),
+  const timeReference = sortedPercentile(
+    items.map((item) => item.effectiveReadingMs).filter((value) => value > 0).sort((left, right) => left - right),
     0.9,
   );
-  const paceValues = items
+  const sortedPaceValues = items
     .map((item) => item.wordsPerMinute)
-    .filter((value): value is number => Number.isFinite(value));
-  const paceFloor = percentile(paceValues, 0.1);
-  const paceCeiling = percentile(paceValues, 0.9);
+    .filter((value): value is number => Number.isFinite(value))
+    .sort((left, right) => left - right);
+  const paceFloor = sortedPercentile(sortedPaceValues, 0.1);
+  const paceCeiling = sortedPercentile(sortedPaceValues, 0.9);
 
   return items.map((item) => {
     const evidence = getPdfReadingMapEvidence(item);
@@ -208,10 +209,9 @@ export function getPdfReadingMapEvidence(
   return 'measured';
 }
 
-function percentile(values: number[], percentileValue: number): number {
-  if (values.length === 0) return 1;
+function sortedPercentile(sorted: readonly number[], percentileValue: number): number {
+  if (sorted.length === 0) return 1;
 
-  const sorted = [...values].sort((left, right) => left - right);
   const position = clamp(percentileValue) * (sorted.length - 1);
   const lowerIndex = Math.floor(position);
   const upperIndex = Math.ceil(position);

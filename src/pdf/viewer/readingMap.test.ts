@@ -57,6 +57,13 @@ describe('PDF chapter reading progress', () => {
 });
 
 describe('PDF reading map visualization', () => {
+  it('normalizes unsorted paces without changing source order', () => {
+    const items = [300, 180, 240].map((wordsPerMinute) => metrics({ wordsPerMinute }));
+
+    expect(createPdfReadingMapVisuals(items).map((visual) => visual.paceRatio)).toEqual([1, 0, 0.5]);
+    expect(items.map((item) => item.wordsPerMinute)).toEqual([300, 180, 240]);
+  });
+
   it('compresses long documents into contiguous overview segments', () => {
     const segments = createPdfReadingMapOverviewSegments(
       Array.from(
@@ -142,7 +149,6 @@ function page(
     pageNumber: pageIndex + 1,
     rotation: 0,
     size: { width: 600, height: 800 },
-    chunks: [],
     totalWords,
     coveredWords,
     processedWords: coveredWords,
