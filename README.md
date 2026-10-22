@@ -1,177 +1,79 @@
 # Yuel Reading
 
-Yuel Reading is a local-first MV3 browser extension for English reading analytics. The current MVP captures visible reading activity on HTTP and HTTPS pages where Chrome permits extension access and Yuel recording remains enabled, stores the event stream and aggregates locally, and surfaces reading stats, effective-duration trends and focus sessions, global and per-site recording controls, configurable daily check-in goals, 13-week reading visualizations, recent pages, vocabulary exposure, a searchable saved-excerpt library, Pack tags, and copyable/downloadable summary cards in extension UI pages. It also includes a standalone PDF reader that can open top-level network PDFs from Chrome by default and renders local or bounded remote documents through extension-packaged PDFium WASM workers with virtualized pages, reading-coverage maps, persistent color highlights with notes and tags, contextual English-to-Chinese selection assistance with read-aloud, chapter outlines, thumbnails, full-text search, text selection, and pan navigation.
+Yuel is a local-first Chrome MV3 extension for people reading English articles, documentation, and PDFs. It estimates reading progress from visible text and engagement, keeps a local vocabulary and excerpt library, and provides a PDF workspace with highlights, search, and selection assistance.
 
-## Stack
+## Build and load
 
-- WXT 0.20 with Chrome MV3 output
-- React 19 for popup, side panel, and dashboard pages
-- EmbedPDF Headless 2.14.4 with locally packaged PDFium WASM workers
-- Shared CSS design tokens with entrypoint-specific styles
-- Dexie over IndexedDB for local reading data
-- Vitest for domain, storage, permission, content, and UI smoke tests
-- Playwright Test for packaged-extension E2E and Playwright-managed Chromium for browser fixtures
-
-## Development
+Use Node.js 22.13 or newer in the 22.x line and the pnpm version pinned in [package.json](package.json).
 
 ```bash
 pnpm install
-pnpm test:browser:install
-CI=true pnpm test
-CI=true pnpm test:e2e
-CI=true pnpm test:browser-dom
-CI=true pnpm test:stress:large-text
-CI=true pnpm test:stress:pdf-reader
-CI=true pnpm test:real-pages
-CI=true pnpm test:extension-smoke
-CI=true pnpm test:extension-browser-smoke
-CI=true pnpm typecheck
-CI=true pnpm build
-pnpm dev
+pnpm build
 ```
 
-The production extension output is generated at `.output/chrome-mv3/`.
-`pnpm dev` keeps the WXT watcher running without automatically opening Chrome; load `.output/chrome-mv3-dev/` manually when interactive browser testing is needed.
+Open `chrome://extensions`, enable developer mode, choose **Load unpacked**, and select `.output/chrome-mv3/`. For development, `pnpm dev` watches into `.output/chrome-mv3-dev/`; load that directory manually. WXT does not launch Chrome automatically.
 
-## Local Extension Flow
+The manifest declares Chrome 116 as its minimum version. PDF interception and selection translation are capability-detected; their availability also depends on the browser.
 
-Build and load the extension in Chrome-compatible browsers:
+## Read, save, and review
 
-```bash
-CI=true pnpm build
-```
+- **Popup:** inspect the current site's recording state, pause that site, choose the network PDF handler, or open the side panel, dashboard, or PDF reader.
+- **Side panel:** follow the current web page or PDF's measured coverage, today's totals, vocabulary, and the latest saved excerpt. Data refreshes while the panel is open.
+- **Dashboard:** review the 13-week reading rhythm, effective duration, focus sessions, recent measured pages, and vocabulary. Search excerpts by text, source, notes, or tags; filter by source/tag, sort by save time, copy, reopen, edit, or delete them.
+- **PDF reader:** open a local file or remote URL; navigate by page, outline, thumbnail, search, or reading map. Use zoom, rotation, pan, text selection, copy, print, and download. The reader restores position and view settings when the same document is reopened.
 
-Then open `chrome://extensions`, enable developer mode, choose "Load unpacked", and select `.output/chrome-mv3/`.
+On a web page, select text and choose **保存到阅量摘录** from Chrome's context menu. In a PDF, save a yellow, green, blue, or rose highlight from the selection menu. Click a highlight to edit its color, note, and tags or confirm deletion. Highlights are local records; they are not embedded into the PDF download. Saving a word or short phrase also updates its vocabulary saved count; saving a long excerpt does not mark every word as saved vocabulary.
 
-The extension requests required host access for all HTTP and HTTPS pages:
+### Recording and daily goals
 
-- `host_permissions`: `http://*/*` and `https://*/*`.
-- `declarativeNetRequestWithHostAccess`: installs narrowly scoped response-header rules for the PDF fallback path on Chrome versions where the public MIME handler API is unavailable.
-- The static content script uses the same matches, so supported pages begin collecting by default without a Yuel-specific allow step.
-- The dashboard reading profile can pause or resume all automatic recording. The popup can independently pause the exact current site; this preference does not remove Chrome permissions or delete existing records.
-- Chrome remains the separate authority for extension site access and can restrict access globally or for an individual site. The popup and side panel distinguish browser restrictions from Yuel's global and current-site pauses.
+Recording starts by default on HTTP(S) pages where Chrome permits access and Yuel finds eligible English text. It handles later text injection and SPA route changes, including English passages on localized pages. If a page is not recording, check the popup's state: browser restriction, global pause, site pause, and no detected English are separate conditions.
 
-On an accessible and enabled HTTP or HTTPS page, the content script emits local reading events as visible text segments enter and leave view. It watches the local recording setting and stops or restarts the collector immediately when the global or current-site preference changes; the background worker independently checks the same settings before every batch write. It identifies English reading content from the actual candidate text instead of trusting page-level `lang` declarations, so English articles embedded in localized or translated pages remain eligible while non-English prose and localized technology keyword lists are skipped. It supports SPA-style dynamic pages by watching readable DOM mutations, debouncing same-route content refreshes such as infinite-scroll additions, and polling/listening for client-side route changes so React, Vue, and Next.js pages can rebuild page snapshots after `pushState`, hash, or popstate navigation. Each web snapshot sends its complete page metadata and chunk text once in a registration message; later flushes carry only the registered `snapshotId` and events. The background keeps this registration in a bounded sender-scoped memory cache, and a suspended MV3 worker can request an automatic re-registration without changing event IDs. Viewport exposure uses the version 2 Budgeted Exposure Model: a one-second heartbeat creates one engagement-gated attention-time budget, then capped weighted water-filling distributes that time across sentence-aligned segments targeting 16–24 words, with an 8-word minimum, using additive Gaussian-weighted text geometry from `Range.getClientRects()`. Each segment converts its allocated attention time to effective words once, using the active reading pace and a local content-rate multiplier; code, headings, lists, and body prose therefore consume the same shared time without pretending they are read at the same word rate. Document visibility and window focus gate effective attention, and stale scroll velocity expires after a short quiet period. The storage layer uses the local reading pace profile when one exists, otherwise it falls back to 220 WPM. The background worker persists batches roughly every 15 seconds, retries failed collector flushes, applies segment-level session/day/lifetime caps, records raw viewport exposure separately from effective attention time, merges effective intervals on the same page and technical session when their gap is at most five minutes, and tags matched vocabulary by effective segment coverage with the bundled Tech English Pack. Dashboard reads merge nearby page records again into cross-page focus sessions while preserving source and page counts. Effective reading time is an explainable attention estimate, not a claim of exact eye-on-text dwell time.
+The dashboard's reading profile controls global recording; the popup controls the current site. Site preferences use normalized hostnames: `www.example.com` and `example.com` share a setting, while other subdomains remain separate. Pausing does not delete data or revoke Chrome permissions.
 
-The dynamic-page observer remains active while an SPA has no eligible English text, so later text-node updates or route content can start collection automatically. Nested matching elements are counted once through their accepted reading ancestor, retaining surrounding prose. Element intersection is only a coarse filter; text-range geometry determines visible chunks, and scrolling within a page or nested container refreshes that set.
+The daily goal defaults to **500 effective words** and accepts whole numbers from **1 to 100,000**. Changing it recalculates historical streaks against the new goal. Once today's goal is reached, the share card supports theme selection, one to three source domains, optional favicons and streak, and copy/download. Card preferences remain local.
 
-Users can intentionally store raw selected text by highlighting text on an HTTP or HTTPS page and choosing "保存到阅量摘录" from the browser context menu. A small in-page status confirms success or reports failure. The local `savedItems` record keeps the selected text, source domain, exact HTTP(S) source URL, page title, and a `selection` tag. Saving a single word or short phrase increments its local vocabulary saved count; sentences and long excerpts remain in the excerpt library without turning every contained word into vocabulary memory. Ordinary text selection events remain hashed telemetry and do not store raw text.
+The shared logo and Chrome toolbar icon show daily progress. The toolbar uses 16 steps and an exact-count tooltip; completion adds a gold edge and check mark. Disable toolbar progress in the reading profile to return to a static logo without changing recording.
 
-PDF selections can be saved as yellow, green, blue, or rose local highlights from the in-reader selection menu. Each highlight keeps a separate local PDF annotation anchor with the stable document ID, page index, source rectangles, color, and text hash, while its saved-item record owns the quote, note, and user tags. Existing annotation-backed excerpts remain compatible and render as yellow. Clicking any rendered highlight opens a keyboard-contained editor for color, note, tags, and confirmed deletion; changes remain local and never rewrite the source PDF bytes. Dashboard and Side Panel excerpts can reopen the reader at the source without exposing the quote in the URL. The Dashboard excerpt library searches text, source, notes, and user tags; filters by source and tag; sorts by save time; and supports copy, source reopening, inline note/tag editing, progressive disclosure, and confirmed deletion. Deleting a PDF highlight also removes its local annotation anchor, and deleting a word or short phrase decrements only the vocabulary saved counts created by intentional saves.
+### What the measurements mean
 
-The same PDF selection menu exposes a "划词伴读" action for English text. It opens a compact contextual panel with browser-provided English-to-Simplified-Chinese translation and English read-aloud controls. Translation is progressively enhanced through the built-in `Translator` API, including explicit model-download progress when required; read-aloud remains independently available through browser speech synthesis. Unsupported language pairs, unavailable APIs, oversized selections, and transient failures each receive a specific local fallback instead of blocking copy or highlighting, while closing or replacing the selection cancels stale task updates. Selected companion text and translations exist only in the current reader session and are not added to saved excerpts, annotations, or reading history.
+Effective words and duration are estimates of reading attention, not exact eye-tracking or comprehension measurements. Visible text shares one engagement-gated time budget; session/day caps prevent repeated exposure from increasing a segment indefinitely. Lifetime coverage separates first reading from review. Pages with no effective words are not counted as read pages or shown in recent reading.
 
-Right-clicking selected PDF text exposes it to Chrome's native selection menu, including after document-wide select-all. The reader keeps one temporary DOM selection at the clicked text rather than rendering a full text layer; native Copy writes plain text. Clicking elsewhere, changing the selection, scrolling, resizing, or closing the document clears that temporary range. Available native menu commands depend on Chrome and the operating system.
+Reading pace defaults to **220 WPM**. Dashboard calibration uses a randomly chosen 200–260-word passage and three comprehension questions; timing pauses when the page is hidden or unfocused and ends before the questions. Qualified forward-reading episodes can adapt the pace later. Reset removes the profile and unfinished adaptive episodes. See the [reading model](docs/architecture/reading-architecture.md#reading-model) for the allocation and adaptation rules.
 
-## MVP Surfaces
+## PDF behavior and limits
 
-- Popup: a current-site control center with an exact-site recording switch and distinct active, Yuel-paused, or browser-restricted state first, a compact today summary, a switch for choosing Yuel or Chrome as the top-level network PDF handler, and side-panel/dashboard launch actions.
-- Side panel: the current reading companion, showing current web-page or PDF-document progress when local reading data exists, today’s reading input, recent vocabulary assets, saved highlights, and sticky card/dashboard actions.
-- Dashboard: a reading ledger with a compact today summary, a global automatic-recording switch, configurable effective-word check-in goal and progress, a 13-week activity heatmap, effective-word trend, weekday rhythm, input-composition charts, effective-duration summaries and daily trends, source breakdowns, recent focus sessions, goal-gated share-card preview and export actions, recent measured pages with browser-cached site icons, vocabulary assets, a searchable and editable excerpt library with web/PDF backlinks, reading pace calibration/reset, and quiet local-data management.
-- PDF reader: a standalone workspace launched from the Popup, a saved-excerpt source backlink, or a supported top-level Chrome PDF navigation, with local-file and bounded remote-URL loading, password retry, virtualized continuous scrolling, page navigation, fit-width/fit-page/custom zoom, content-level trackpad gestures, rotation, keyboard controls, hand-tool panning, low-resolution base pages, high-resolution visible tiles, a single-context reading-map/chapter-outline/thumbnail/search panel, and a continuous chapter/page reading river that combines text volume, coverage, effective time, and sufficiently sampled pace with a current-position minimap. Text selections can open the transient "划词伴读" panel for local English-to-Chinese translation and English speech, or become four-color persistent local highlights; rendered highlights remain clickable across virtualized page mounts and open an in-reader editor for note, tags, recoloring, and confirmed deletion. The reader also supports full-text result navigation and highlighting, clickable embedded links and read-only existing native annotations, text selection with copy, print and original-name download actions, recent documents, and restoration of page position, zoom, rotation, and reading mode. Remote recent documents reopen from their stored URL and are accepted only when their content hash still matches. Because Yuel does not retain local PDF bytes, local recent documents and highlight backlinks ask the user to reselect the original file before the hash-verified restore. PDFium text runs feed the same local reading-session protocol as web pages, including page lifecycle, visible text blocks, viewport exposure, scroll velocity, idle/activity state, and hashed selection telemetry.
-- Context menu: explicit selected-text saving on HTTP and HTTPS pages with localized success/failure feedback.
+Local files are limited to **256 MiB**; remote documents to **96 MiB**. Remote files download completely before opening, with both declared and received size checks. Recent remote documents reopen from their stored URL; local documents require reselecting the original file. Both paths verify document identity before restoring saved state or excerpt targets. The recent list shows five documents; PDF bytes are not retained in the database.
 
-Pages that were opened but have no measured effective reading words can exist in local storage, but they are not counted as read pages or shown as recent reading history.
+### Opening network PDFs
 
-## Chrome PDF Handling
+The popup's **网络 PDF** switch defaults to **Yuel**:
 
-The popup preference "Default to Yuel" is enabled by default. The background worker feature-detects Chrome's public `chrome.mimeHandler` API instead of relying on a hard-coded browser version:
+- If Chrome exposes `chrome.mimeHandler`, Yuel uses its one-use PDF stream. Stream acquisition or metadata failures request Chrome's native fallback.
+- Otherwise, when response-header rules are supported, Declarative Net Request (DNR) rules redirect top-level HTTP(S) `GET` responses with `application/pdf`, or `.pdf` URLs served as `application/octet-stream`.
+- The DNR path leaves attachments as downloads and does not intercept embedded PDFs, `POST`, `file:`, `blob:`, or `data:` documents. It must fetch the URL again, including applicable Chrome cookies; single-use URLs can therefore fail. The native stream path avoids the second origin request.
 
-- When the native API is available, Yuel registers `application/pdf`, synchronizes Chrome's per-MIME enabled option, and consumes the browser-provided one-use stream. If stream acquisition or validation fails, the reader asks Chrome to fall back to its native handler.
-- Otherwise, Yuel installs dynamic Declarative Net Request rules for top-level HTTP or HTTPS `GET` navigations. A standard `application/pdf` response is redirected to the reader; `.pdf` URLs served as `application/octet-stream` are also supported.
-- Responses marked `Content-Disposition: attachment` remain downloads. Embedded PDFs, `POST` responses, local `file://` URLs, and `blob:` or `data:` documents are not intercepted by the fallback path.
-- The fallback must request the PDF URL again because DNR cannot transfer the first response body into the extension page. That second request includes applicable Chrome cookies, but single-use download URLs can still fail. The native stream path does not repeat the origin request.
+Manual remote loads and recent-document/backlink reopening use the same cookie-including fetch path. Turning the preference off returns subsequent PDF navigations to Chrome without closing existing reader tabs or deleting records. If automatic handling is unsupported, open the reader from the popup.
 
-Remote reader URL loads, recent-document reopenings, and PDF excerpt backlinks include applicable Chrome cookies through the same request path. Reopened documents still require the stored content hash to match; authenticated sources are not treated as anonymous downloads after the first open. Native stream acquisition or metadata validation failures attempt Chrome’s native fallback; a manual reader with no associated stream stays usable when that fallback rejects.
+### Selection assistance
 
-Turning the popup preference off removes the fallback rules or disables the native MIME registration, returning subsequent PDFs to Chrome. Existing reader tabs and locally stored reading records are unchanged.
+**划词伴读** opens English-to-Chinese translation through the browser's built-in `Translator` API and English read-aloud through speech synthesis. Translation may require a model download; translation and speech report availability and failures independently. The panel accepts English selections up to 1,200 UTF-16 code units, closes with `Escape`, and keeps its quote and translation only for the current reader session. Copy and highlighting remain available if assistance is unavailable.
 
-## Daily Check-in Goal
+Right-clicking selected PDF text also exposes a temporary DOM selection to Chrome's native menu, including after select-all. Native menu commands depend on Chrome and the operating system; scrolling, resizing, or changing the selection clears the temporary range.
 
-The daily check-in goal defaults to 500 effective words and can be changed in the dashboard reading profile to any whole-word value from 1 to 100,000. A day counts toward the streak only when its effective-word total reaches the active goal. Saving a new goal recalculates historical streaks against that goal, while the setting itself remains local and is preserved when reading data is cleared. The share card stays unavailable until the current day has reached the goal, then lets the user choose a theme, show one to three reading domains, and toggle source icons or the streak; these card preferences are stored locally.
+## Local data and privacy
 
-Across the popup, side panel, and dashboard, the shared Yuel Logo also acts as a glanceable daily-goal indicator: unread capacity remains gray, effective reading fills the mark green from bottom to top, and reaching the goal adds a bounded champagne-gold completion glow. The same component exposes numeric progress semantics to assistive technology and keeps a static completed treatment when reduced motion is requested.
+Yuel requires HTTP(S) host access for automatic collection. Chrome controls site access independently of Yuel's recording switches.
 
-The Chrome toolbar Logo mirrors the same local daily state in 16 legible progress steps sized for the 16-DIP browser action. Its tooltip exposes the exact effective-word total and active goal, while completion adds a static gold outline plus a compact circular `✓` medallion inside the icon so the state does not depend on color alone. The reading profile includes a local switch for this progress feedback; turning it off restores the static green Logo, default tooltip, and empty native badge without changing reading collection. The preference survives local reading-data clearing. The background refreshes the active icon mode after stored reading batches, goal or toolbar-setting changes, data clearing, extension startup, and the next local-day rollover.
+- **Automatic web analytics:** store domains, hashed page titles/URLs, chunk hashes, vocabulary lemmas, and reading aggregates. Raw chunk text passes through local extension messages for analysis but is not stored in the chunk table. Ordinary selection telemetry contains a hash and character count.
+- **Intentional saves:** store the quote, exact web source URL/title, note, and tags. PDF highlights also store a document identity and source rectangles. Deleting a highlight removes its anchor; deleting a vocabulary-tracked save reverses its saved-count contribution.
+- **PDF recent state:** stores the display name, identity, view settings, and remote source URL even without saving an excerpt. That URL can include query parameters. PDF bytes stay in the reader/worker lifecycle; packaged PDFium workers and WASM do not require a remote renderer or font fallback.
+- **Browser services:** recent-page icons use Chrome's favicon service rather than direct site-icon fetches. Read-aloud prefers a local English voice, then another browser-provided voice; offline speech depends on the available voice. Translation model downloads and remote PDF loading can require network access.
 
-## Reading Pace Calibration
+The dashboard's confirmed **清空本地数据** action removes analytics, vocabulary, excerpts/highlights, PDF recent/view state, and pace calibration. It preserves recording/site preferences, daily goal, toolbar, PDF-handler, and share-card settings. Clearing does not pause collection; pause automatic recording first to stop new measurements. Event-retention and delayed-write handling are described in the [storage lifecycle](docs/architecture/reading-architecture.md#storage-and-lifecycle).
 
-The dashboard includes an onboarding reading pace calibration flow. Each run randomly selects one of four 200–260-word English passages and asks three comprehension questions matched to that material. The timer accumulates only while the dashboard is visible and focused; hidden-tab, unfocused-window, and question-answering time are excluded. A 3/3 result blends the observed pace at 0.35 weight, 2/3 uses 0.15, and lower comprehension rejects the timing sample; every passage word count uses the same tokenizer as page metrics. A calibrated profile can be restored to the 220 WPM default; reset also clears unfinished adaptive episodes so an old partial sample cannot immediately recreate the removed pace.
+## Project documentation
 
-Automatic adaptation accepts progression episodes on sufficiently long pages: prose segments must dwell in the central attention band, progress toward the top, and meet minimum completed-word, segment-count, and active-time thresholds across persisted batches. Continuous scroll events share one gesture-speed baseline until 750 ms of quiet, so trackpad bursts are not reinterpreted from each roughly 100 ms event interval. Forward scrolling ends an episode only above `5 ×` the active reading pace; the existing engagement model can still reduce effective attention between `1.6 ×` and `5 ×`. A reverse correction is tolerated while the page remains within `1.5%` of its furthest scroll progress, bounded to 80–240 px; a larger retreat ends the episode. Readable DOM changes, web viewport resizing, and PDF zoom or rotation reset only the absolute scroll-coordinate baseline, preserving valid episode evidence across layout changes. Page hiding, focus loss, idle time, or a ten-minute ceiling ends the current episode, while later valid events in the same stored batch can begin the next one.
-
-Every qualified episode produces a confidence score from completed words, completed segments, and active duration. That confidence directly scales the existing `0.12 / 0.06 / 0.03` EMA step, and `adaptiveSampleCount` records the number of accepted adaptive episodes. When one batch completes multiple qualified episodes, their EMA updates are applied in event order. There is no default-profile buffer or three-sample warm-up. Static visible viewports do not calibrate speed, and adaptive WPM is never derived from the budget model's own `effectiveWords / minutes` output.
-
-## Verification
-
-Use these commands before shipping a change:
-
-```bash
-CI=true pnpm test
-CI=true pnpm typecheck
-CI=true pnpm test:e2e
-CI=true pnpm test:browser-dom
-CI=true pnpm test:stress:large-text
-CI=true pnpm test:stress:pdf-reader
-CI=true pnpm test:real-pages
-CI=true pnpm test:extension-smoke
-CI=true pnpm test:extension-browser-smoke
-```
-
-`test:browser-dom` launches a temporary local fixture page in Playwright-managed Chromium and runs source modules against a real browser DOM. It covers native layout and `Range` geometry used by text block extraction without requiring a packaged extension build. The default browser is Playwright's bundled Chromium, so system Chrome is not required; `CHROME_PATH` remains an optional override for the non-extension DOM and corpus harnesses. Set `YUEL_BROWSER_DOM_HEADLESS=false` to watch the run.
-
-The browser DOM smoke suite also evaluates the real-page benchmark injection expression on its local fixture, catching missing runtime dependencies without requiring the live corpus. Its SPA fixture begins with an empty application shell and distinguishes snapshot registrations from event-only references.
-
-The browser DOM smoke suite also runs a source-module collector fixture with a `wxt/browser` runtime stub to verify SPA content injection and client-side route replacement in real Chromium.
-
-`test:stress:large-text` is an opt-in pressure test for large reading documents. It loads a generated 1,200-paragraph browser DOM fixture, verifies extraction and native `Range` geometry against roughly 97k words while filtering excluded page chrome, and runs a 2,000-tick aggregation batch with 80 visible chunks per tick. It uses the same Playwright-managed Chromium runtime as `test:browser-dom`.
-
-`test:stress:pdf-reader` builds the packaged extension and opens a generated 160-page local PDF by default. It waits for sequential PDFium analytics extraction, verifies that the virtual scroller keeps at most four page shells mounted at the beginning and after a last-page jump, bounds renderer DOM and retained JavaScript heap growth, confirms no remote requests, and flushes measured PDF exposure through the existing dashboard. Tune it with `YUEL_PDF_STRESS_PAGES`, `YUEL_PDF_STRESS_LINES`, or `YUEL_PDF_STRESS_MAX_HEAP_MB`.
-
-`test:real-pages` is an opt-in live-site benchmark. It opens a public English documentation/article corpus in Playwright-managed Chromium, injects a benchmark script generated from the current `src/content/extractBlocks.ts` source, and reports per-page text extraction time, range-geometry time, block count, and word count. It requires network access and can be tuned with `YUEL_REAL_PAGE_CONCURRENCY`, `YUEL_REAL_PAGE_SETTLE_MS`, and `YUEL_REAL_PAGE_TIMEOUT_MS`; set `YUEL_REAL_PAGE_REPORT_PATH=/tmp/yuel-real-pages.txt` to write the report to a file.
-
-`test:extension-smoke` builds the Chrome MV3 output and validates the generated manifest, required HTTP/HTTPS host permissions, PDF MIME registration and fallback permission, web-accessible reader entrypoint, all-site content-script matches, context-menu capability, core extension pages including `pdf-reader.html`, the PDFium-compatible extension CSP, the bundled WASM asset, background worker, and content script artifacts.
-
-`test:e2e` and `test:extension-browser-smoke` build the same output and run the packaged extension through Playwright Test. A custom fixture launches bundled Chromium with one isolated temporary profile per test, discovers the MV3 service worker and extension ID, verifies the popup, side panel, dashboard, and PDF reader pages, confirms that an authenticated top-level HTTPS PDF opens in Yuel by default and returns to Chrome when the preference is disabled, renders a generated two-page local PDF through packaged PDFium with pixel evidence and no remote requests, exercises the selection companion's local translation/read-aloud/keyboard-close lifecycle, persistent highlight creation/recoloring/note/tag editing/reopening/deletion, nested chapter outlines, embedded link navigation, thumbnail navigation, content-level trackpad zoom, search highlighting, pan-mode switching, text selection/copy, PDF download, Dashboard source backlinks, local-file identity checks, recent-document reopening, view-state restoration, and responsive panel geometry, verifies the PDF side-panel context and dashboard exposure through the extension runtime, records a sample web runtime batch, and serves a local HTTPS reading page to prove the packaged all-site content script can auto-capture reading data. The runner uses one worker and retains a trace plus screenshot on failure. It runs headlessly by default; use `pnpm test:e2e:headed` or set `YUEL_BROWSER_SMOKE_HEADLESS=false` for an intentional visible run. The local HTTPS check needs `openssl` for its temporary self-signed certificate. Browser suites must run outside process sandboxes that block Chromium startup or localhost ports.
-
-The PDF regression suite also opens a generated document containing a dense reference URL from arXiv:2604.26962 and checks that full-document analytics finishes, navigation responds, and the next page renders. PDF and web chunking share the same word boundaries as English word counting, including URLs and code without whitespace, so short-chunk rebalancing always makes progress.
-
-## Architecture
-
-The scaffold follows the event-driven architecture from the product brief:
-
-```text
-Content script -> Reading events -> Background router -> IndexedDB -> UI pages
-                                      |
-                                      v
-                              Local analysis / Pack rules
-```
-
-Key boundaries:
-
-- `entrypoints/` contains WXT extension entrypoints only.
-- `src/content/` extracts DOM text blocks and adapts browser geometry, scrolling, and selection into the shared reading session.
-- `src/analytics/` owns the source-neutral reading session lifecycle, ordered batch delivery, visibility transitions, viewport exposure heartbeat, focus and idle state, scroll velocity, selection telemetry, and viewport geometry.
-- `src/domain/` contains pure types, metrics, and Pack validation.
-- `src/analysis/` contains lightweight English tokenization and the shared sentence-aligned 8–24 word chunking used by every reading source.
-- `src/storage/` owns the Dexie schema, write repository, aggregate updates, saved-excerpt metadata and deletion invariants, and read-side stats queries.
-- `src/background/pdfHandler.ts` owns native MIME option synchronization, conservative DNR fallback registration, and PDF handler preference changes.
-- `src/permissions/` combines current-tab Chrome host access with Yuel's global and exact-site recording state.
-- `src/packs/` contains declarative Pack data examples used for local vocabulary tagging.
-- `src/pdf/source/` owns bounded local-file and remote-URL acquisition, validation, progress, cancellation, and stable resource IDs.
-- `src/pdf/engine/` owns EmbedPDF plugin registration and the packaged PDFium WASM URL boundary.
-- `src/pdf/companion/` owns browser-capability detection, transient English-to-Chinese translation tasks, model-download progress, cancellation, translator reuse, and English speech synthesis.
-- `src/pdf/viewer/` owns the standalone reader workspace, document lifecycle, rendering and interaction layers, contextual reading-map/chapter-outline/thumbnail/search navigation, controls, and reader states.
-- `src/pdf/analytics/` owns sequential PDFium text-run extraction, stable document/page/chunk identities, shared English chunking, source-coordinate rectangles, rotation-aware projection, event-safe chunk snapshots, the virtualized reader-layout adapter, and the bridge into the source-neutral reading session.
-
-Reading batches remain backward compatible with legacy full web snapshots while supporting resource-backed readers through optional `resourceType` and `resourceId` page metadata. New web collectors register the full current-page snapshot with their first event batch, then send event-only references for the lifetime of that snapshot. The registration cache is ephemeral, sender-scoped, capped at 32 entries, and expires inactive entries after 30 minutes; cache loss returns `snapshot-missing` so the collector can re-register and replay safely. PDF batches keep the document-level `totalWords` but may include only chunks referenced by that batch's visibility events, so long documents do not resend all extracted text on every flush; storage accumulates unique coverage only while the stable PDF resource identity matches. One PDF document maps to one existing page-level reading aggregate, and its physical pages are stable sections referenced by `sectionId` on text chunks. Those reading fields require no new indexes; database version 8 adds only a `savedItems.pdfAnnotationId` index so the reader can join a document's local annotation anchors to their editable saved-item metadata without scanning the full library.
-
-## Privacy Posture
-
-The manifest requires access to all HTTP and HTTPS pages so reading collection starts without a Yuel-specific per-site allow step. Yuel adds a local global recording switch and exact-site exclusions, while Chrome remains the authority for browser-level extension site access and can restrict Yuel globally or for an individual site.
-
-By default, automatically measured page titles and URLs are stored as hashes. Raw page text is not stored in the chunk table; chunk text is only carried through local extension messages for analysis and vocabulary exposure updates. Raw selected text, its page title, and its exact HTTP(S) source URL are stored only when the user explicitly chooses the Yuel context-menu save action; PDF excerpt anchors and source metadata are likewise created only by an explicit save. User-authored excerpt notes and tags remain local. The dashboard can delete individual excerpts or clear all local reading data after confirmation without changing the global recording switch, exact-site preferences, or Chrome's extension site-access settings.
-
-Recent-page icons use Chrome's local favicon service through the manifest's `favicon` permission. Opening the dashboard does not fetch icon files directly from the recorded websites.
-
-PDF bytes remain in the reader page and worker lifecycle and are not written to the Yuel database. Remote PDF URLs currently download the complete file before PDFium opens it, with declared and measured size limits; true HTTP Range loading remains a separate future source adapter. The DNR fallback repeats the intercepted top-level request with applicable Chrome cookies but does not store credentials itself. As with manually opened remote PDFs, the source URL may be retained locally for recent-document reopening. PDFium WASM and executable workers are served from the extension package, and the reader disables remote font fallback.
+- [Development and verification](docs/development.md): toolchain, test selection, browser requirements, and coverage limits.
+- [Current architecture](docs/architecture/reading-architecture.md): runtime ownership, messaging, measurement, PDF integration, and storage.
+- [Product brief](PRODUCT.md): audience, purpose, and product priorities.
+- [Interface system](DESIGN.md): visual rules, shared components, surface hierarchy, and accessibility requirements.

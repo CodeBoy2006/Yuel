@@ -1,103 +1,80 @@
 # Yuel Interface System
 
-## Product scene
-
-A bilingual reader is working through long documentation at a desk and glances at Yuel between paragraphs. The interface should feel like a quiet measurement instrument: fast to scan, truthful about state, and never competitive or performative.
-
-## Design principles
-
-1. **Control, accompany, reflect.** Popup controls the current site, the side panel accompanies the active page, and the dashboard supports reflection. Do not repeat the same hierarchy on every surface.
-2. **Evidence over decoration.** Accent color communicates action or state. It is not used as ambient decoration.
-3. **One surface, few containers.** Group with spacing and dividers before introducing another card.
-4. **Compact, truthful copy.** Labels describe the action that actually happens. Explanatory text is kept to one short sentence at the point of need.
-5. **Quiet numbers.** Metrics use tabular numerals but never become a scoreboard-style hero.
-6. **Local by default.** Privacy is expressed as a persistent state, not repeated marketing copy.
+This guide turns the [product priorities](PRODUCT.md) into interface rules. Use the existing tokens and components for changes; user-facing capabilities and limits belong in the [README](README.md).
 
 ## Visual language
 
-- **Register:** restrained product UI.
-- **Background:** near-neutral with a slight green tint, never cream or parchment.
-- **Ink:** deep green-black rather than blue-black.
-- **Primary:** forest green, reserved for the current selection and primary action.
-- **Brand progress:** the shared Logo is a quiet daily-goal gauge: green rises through a visible gray mark, then a champagne-gold edge and bounded glow signal completion.
-- **Signal:** rust orange, reserved for warnings or attention.
-- **Geometry:** 10–14px radii for controls and containers; pills only for compact statuses.
-- **Elevation:** borders and tonal surfaces do the work. Shadows are limited to the extension popup shell and never paired with a wide blur.
-- **Typography:** system sans throughout, with tabular numerals for measured values. Fixed product-scale sizes; no oversized display type.
-- **Motion:** 160–220ms state transitions with an exponential ease-out. Reduced-motion users receive instant state changes.
+- **Hierarchy:** compact, product-scale system sans typography and tabular numerals. Metrics support a reading ledger rather than a scoreboard.
+- **Surfaces:** near-neutral, slightly green backgrounds and deep green-black ink. Group with spacing and dividers before adding cards; avoid cream, parchment, or decorative green washes.
+- **Color:** forest green marks actions and selection; rust orange signals attention. Daily-goal completion uses a bounded champagne-gold accent.
+- **Geometry:** shared radii span 8–14px; standard buttons use 10px. Reserve pills for compact status labels. Prefer borders and tonal surfaces to broad shadows.
+- **Motion:** ordinary state transitions take 160–220ms with an ease-out curve; the daily-goal logo may use a one-shot completion bloom, never continuous celebration. Reduced motion keeps state changes immediate and completion static.
+- **Copy:** describe the action or state directly. Put a short explanation beside the control or failure it resolves, not in repeated privacy or feature claims.
 
-## Tokens
+### Tokens and shared components
 
-The source of truth lives in `src/ui/foundation.css` and uses OKLCH.
+[`src/ui/foundation.css`](src/ui/foundation.css) owns the OKLCH colors, geometry, focus, motion, and shared styles. Reuse its semantic roles rather than copying values into entrypoint styles:
 
-| Role | Token |
+| Role | Core tokens |
 |---|---|
-| App background | `--y-bg` |
-| Primary surface | `--y-surface` |
-| Secondary surface | `--y-surface-subtle` |
-| Primary ink | `--y-ink` |
-| Secondary ink | `--y-ink-secondary` |
-| Muted ink | `--y-ink-muted` |
-| Divider | `--y-line` |
-| Control boundary | `--y-control-line` |
-| Primary action | `--y-accent` |
-| Inactive Logo progress | `--y-brand-inactive` |
-| Completed Logo edge | `--y-celebration` |
-| Completed Logo glow | `--y-celebration-soft` |
-| Warning signal | `--y-signal` |
-| Warning text | `--y-signal-ink` |
-| Informational state | `--y-info` |
-| Destructive action | `--y-danger` |
+| Background and surfaces | `--y-bg`, `--y-surface`, `--y-surface-subtle`, `--y-surface-strong` |
+| Text | `--y-ink`, `--y-ink-secondary`, `--y-ink-muted` |
+| Boundaries and focus | `--y-line`, `--y-line-strong`, `--y-control-line`, `--y-focus` |
+| Action | `--y-accent`, `--y-accent-hover`, `--y-accent-soft`, `--y-on-accent` |
+| Daily progress | `--y-brand-inactive`, `--y-celebration`, `--y-celebration-soft` |
+| Attention and feedback | `--y-signal`, `--y-signal-ink`, `--y-info`, `--y-danger` and their soft/hover variants |
+| Geometry and motion | `--y-radius-sm`, `--y-radius-md`, `--y-radius-lg`, `--y-duration`, `--y-ease`, `--y-shadow-popup` |
 
-## Shared components
+[`src/ui/primitives.tsx`](src/ui/primitives.tsx) provides:
 
-- `BrandLockup`: one consistent mark and name; it exposes today's effective-word goal as a semantic progressbar, fills green from bottom to top, and uses a one-shot gold completion bloom with a static reduced-motion-safe finish.
-- `ActionButton`: primary, secondary, quiet, and danger variants with complete focus/disabled states.
-- `StatusPill`: neutral, positive, warning, and danger states.
-- `Metric`: compact label/value pair.
-- `SectionHeader`: title plus optional compact metadata.
-- `ProgressBar`: semantic progressbar with an accessible value.
-- `SwitchControl`: shared binary setting with visible state text, keyboard focus, and busy/disabled treatment.
-- `InlineNotice`: concise live status and recovery feedback.
-- `EmptyState`: one-line empty state with an optional next action.
+- `BrandLockup`: the mark/name plus semantic daily-goal progress; green fills the gray mark from below, with a one-shot gold completion treatment.
+- `ActionButton`: primary, secondary, quiet, and danger variants with focus/disabled states.
+- `StatusPill` and `InlineNotice`: neutral, positive, warning, and danger feedback; urgent notices use alerts, other notices use polite live status.
+- `Metric`, `SectionHeader`, and `ProgressBar`: compact measures, section titles with optional metadata, and named numeric progress.
+- `SwitchControl`: a binary setting with visible state, keyboard focus, and busy/disabled treatment.
+- `EmptyState`: a content container; callers supply its children, including an action when useful.
 
-## Surface architecture
+## Surface hierarchy and interaction
 
 ### Chrome toolbar
 
-The pinned browser action is the smallest daily-progress surface. It uses 16 rasterized progress steps so each change maps to roughly one visible DIP: a green interior rises through a gray Logo, while a fine gray outline preserves the silhouette on light and dark Chrome themes. Incomplete states never render as fully filled. Completion replaces that outline with a champagne-gold edge and a broader layered glow whose opacity increases toward the mark, then adds a compact circular `✓` medallion inside the lower-right corner of the icon. The medallion stays secondary to the Logo instead of using Chrome's oversized native badge, while the accessible toolbar title exposes exact words. The state remains static rather than simulating continuous animation. A reading-profile switch can disable progress feedback, returning the action to the static green Logo, default title, and empty native badge while preserving the preference locally.
+The pinned action is the smallest daily-progress surface. Its rasterized icon uses 16 steps; incomplete states must not look complete. Gray preserves the silhouette, green shows progress, and completion adds a gold outline/glow plus a secondary `✓` medallion at the lower right rather than a native badge. The tooltip exposes exact words and goal. This icon is static; disabling progress restores the green logo and default title without changing collection. Rendering lives in [`readingToolbar.ts`](src/background/readingToolbar.ts).
 
 ### Popup
 
-Current site status first, including an exact-site recording switch, a compact daily snapshot second, then the two destinations. A global Yuel pause keeps the saved site preference visible but temporarily disables the site control; Chrome restrictions remain a distinct warning state.
+Put current-site status and its recording switch first, today's compact summary second, then the network-PDF handler preference and destinations: side panel, dashboard, and PDF reader. A global pause keeps the saved site preference visible but disables the site control. Browser restrictions and absence of eligible English remain distinct states.
 
 ### Side panel
 
-Current-page progress is the visual anchor. Daily totals, vocabulary, and the latest excerpt are secondary. Data refreshes while the panel remains open.
+Current web-page or PDF coverage is the anchor. Daily totals, vocabulary, and the latest excerpt are secondary; card/dashboard actions remain easy to reach. Refresh data while open without shifting the hierarchy.
 
 ### PDF reader
 
-The PDF workspace keeps navigation, reading evidence, search, and document output in one compact instrument. Its reading map combines the complete in-memory text structure with local chunk measurements as one continuous document river. Chapter bands are the default scale when an outline exists, while the page scale provides a closer view without changing the underlying evidence. Segment length reflects text volume, the continuous fill shows coverage, quiet ticks show effective time, and a relative marker appears only when pace is sufficiently sampled. A compact focus lens exposes exact values for the current or inspected segment, while a full-document minimap keeps the current position visible in long PDFs. Unrecorded text remains solid but unfilled, and pages without measurable English text use a hollow treatment so neither state appears as measured zero.
+Keep document controls compact and use one navigation context at a time: reading map, chapter outline, thumbnails, or search. The reading map presents a continuous chapter/page river with text-volume segment lengths, coverage fill, effective-time ticks, and pace only when sufficiently sampled. Default to chapter scale when an outline exists; page scale gives a closer view of the same evidence. A focus lens gives exact inspected values; the minimap preserves orientation in long documents. Unrecorded text is solid and unfilled; pages without measurable English use a hollow treatment.
 
-Persistent highlights are a local layer above the rendered PDF, separate from read-only native annotations and from the document bytes. The selection menu uses compact yellow, green, blue, and rose swatches before the highlight command. Stored source rectangles remount with virtualized pages and remain directly clickable. Their editor is a restrained right-side inspector on desktop and a bottom panel on narrow screens, with the quote and page identity fixed above color, note, and tag fields; focus stays inside while open, and deletion requires an explicit second action. Legacy PDF excerpts adopt the yellow treatment without migration.
+Local highlights sit above rendered pages, separate from read-only native annotations. Offer yellow, green, blue, and rose swatches in the selection menu. Clicking a highlight opens a right-side inspector on desktop or a bottom panel on narrow screens. Keep quote/page identity visible above color, note, and tags; contain keyboard focus and require a second action for deletion.
 
-The selection menu also offers "划词伴读" before persistent actions. It opens a compact nonmodal panel near the selected text, clamped to both the viewport and the rendered page so it remains anchored without covering the reader chrome. The panel keeps the English quote, read-aloud control, translation status, and Chinese result in one continuous surface separated by dividers rather than nested cards. Translation and speech degrade independently, download and error states stay explicit, and keyboard users can close with `Escape` and return focus to the originating action. A quiet "选区不保存" line communicates that the quote and translation are transient without turning privacy into promotional copy.
+Place **划词伴读** before persistent selection actions. Its nonmodal panel stays near the selection and within the page/viewport, clear of reader chrome. Arrange the English quote, speech control, translation status, and Chinese result with dividers rather than nested cards. Keep translation and speech failures independent. `Escape` closes the panel and returns focus to the originating action; the quiet **选区不保存** label explains its transient state.
 
 ### Dashboard
 
-The page is organized as a reading ledger: today summary, goal-based check-in progress, a 13-week reading-rhythm view, effective-duration analysis, recent reading, vocabulary, a full-width excerpt library, and reading profile. The rhythm view combines a history-relative, four-level activity heatmap with effective-word trends, weekday averages, and first-read/review composition without turning the page into a scoreboard. The duration view uses the same restrained hierarchy for range summaries, daily bars, source totals, and recent focus sessions; it explicitly describes effective time as an attention estimate and groups reading separated by no more than five minutes.
+Use the current order: today ledger and optional goal-completed share card; reading-rhythm and duration insights; reading profile/calibration; recent reading and vocabulary; full-width excerpt library; local-data footer.
 
-The excerpt library is an operational reading surface rather than a gallery. Search, source segments, tag filtering, and time sorting form one compact toolbar. Results use a continuous divider list so the source, quote, note, tags, and actions remain easy to scan without nested cards. Copy and source reopening stay immediately available; note/tag editing and destructive confirmation expand inline to preserve context. Long excerpts disclose progressively, web saves reopen their exact HTTP(S) source, and PDF saves retain page-level backlinks. Loading, empty, filtered-empty, failure, busy, success, and deletion states remain explicit at the point of action.
+The rhythm view combines a 13-week, history-relative four-level heatmap with word trends, weekday averages, and first-read/review composition. Duration summaries, daily bars, sources, and focus sessions use the same restrained hierarchy. Explain effective time as an attention estimate and the five-minute session grouping near those measures.
 
-The reading profile owns the global automatic-recording switch, editable daily effective-word goal, toolbar progress preference, and reading-speed calibration/reset, while the today ledger reports the remaining words and completed state. The share card is a disclosure available only after the daily goal is reached; it keeps the streak quiet, presents up to three domains as a compact source list, and locally remembers the user's theme, source-count, favicon, and streak-display choices. Calibration becomes a focused full-width flow, and local data management sits in a quiet footer.
+The reading profile owns recording, daily goal, toolbar progress, and pace calibration/reset. Calibration expands into a focused full-width flow. Share cards appear only after goal completion and keep theme, source-count, favicon, and streak choices beside the preview rather than adding a permanent dashboard hero.
 
-## Accessibility baseline
+The excerpt library is a working list, not a gallery. Keep search, source/tag filters, and time sorting in one toolbar. Use divider rows with scannable source, quote, note, tags, and actions. Keep copy/reopen available; expand editing and deletion confirmation inline. Disclose long quotes progressively and distinguish loading, empty, filtered-empty, failure, busy, and success states at the affected action. Preserve web-source and PDF-page backlinks.
 
-- Chinese UI documents declare `lang="zh-CN"`; English calibration content declares `lang="en"`.
-- Body text reaches WCAG AA contrast.
-- Every async status is announced through a live region.
-- Progress indicators expose `role="progressbar"` and numeric values.
-- Focus indicators are explicit and consistent.
-- Touch targets are at least 40px in dense desktop UI and 44px for primary actions.
-- Long domains, excerpts, and tags wrap or truncate without creating horizontal scroll.
-- Motion respects `prefers-reduced-motion`.
+## Accessibility requirements
+
+Apply these requirements when changing a surface; verify the rendered result rather than treating token reuse as proof:
+
+- Declare `lang="zh-CN"` for Chinese UI documents and `lang="en"` for English calibration content.
+- Meet WCAG AA contrast for text and meaningful states; never encode progress or completion by color alone.
+- Expose named progressbars with numeric values, clear control names, and visible keyboard focus.
+- Announce asynchronous results through appropriate live status or alerts.
+- Preserve keyboard operation, modal focus containment, nonmodal dismissal, and focus return.
+- Use targets of at least 40px in dense desktop UI and 44px for primary actions.
+- Wrap or truncate long domains, quotes, and tags without horizontal scrolling or hiding required actions.
+- Respect `prefers-reduced-motion` and keep progress legible in forced-color modes.
