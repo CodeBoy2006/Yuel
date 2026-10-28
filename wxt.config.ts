@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import {
   defineConfig,
   type UserManifest,
@@ -71,6 +73,16 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   webExt: {
     disabled: true,
+  },
+  hooks: {
+    'build:publicAssets': (wxt, files) => {
+      for (const file of ['LICENSE', 'LICENSES/PolyForm-Strict-1.0.0.txt', 'CONTRIBUTING.md']) {
+        files.push({
+          absoluteSrc: path.resolve(wxt.config.root, file),
+          relativeDest: file,
+        });
+      }
+    },
   },
   manifest,
 });

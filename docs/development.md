@@ -4,7 +4,7 @@
 
 Follow the [build and load instructions](../README.md#build-and-load) for local setup. Yuel uses WXT, React, TypeScript, Dexie, and EmbedPDF/PDFium, with shared CSS tokens and entrypoint styles. Dependency versions are pinned in [package.json](../package.json) and resolved by [pnpm-lock.yaml](../pnpm-lock.yaml); use pnpm rather than generating another lockfile.
 
-`pnpm zip` creates the distribution archive. Reload the unpacked extension after rebuilding. WXT's browser auto-launch is disabled in [wxt.config.ts](../wxt.config.ts).
+Development and distribution remain subject to [LICENSE](../LICENSE); use the [upstream contribution workflow](../CONTRIBUTING.md) for changes intended for this project. `pnpm zip` creates an archive but does not authorize publishing it. Builds and ZIPs include `LICENSE` and its referenced `LICENSES/PolyForm-Strict-1.0.0.txt` from the repository, plus `CONTRIBUTING.md` for the contribution terms. Reload the unpacked extension after rebuilding. WXT's browser auto-launch is disabled in [wxt.config.ts](../wxt.config.ts).
 
 ## Choose checks for the changed behavior
 
@@ -22,7 +22,7 @@ The last command builds before checking output. Add the relevant browser or stre
 |---|---|---|
 | `pnpm test` / `pnpm test:unit` | `src/**/*.test.ts(x)` in jsdom: domain, storage, runtime adapters, and UI | Changed application logic; neither smoke nor E2E is included |
 | `pnpm typecheck` | TypeScript with `--noEmit` | Changed TypeScript or configuration |
-| `pnpm test:extension-smoke` | Builds; checks manifest, permissions, MIME declaration, CSP, pages, workers, content script, and WASM artifacts | Packaging or release verification; does not launch a browser |
+| `pnpm test:extension-smoke` | Builds; checks licensing files, manifest, permissions, MIME declaration, CSP, pages, workers, content script, and WASM artifacts | Packaging or release verification; does not launch a browser |
 | `pnpm test:browser-dom` | Real Chromium DOM extraction, native `Range` geometry, empty-SPA recovery, route changes, and benchmark-injection dependencies | Web extraction, geometry, or collector changes |
 | `pnpm test:e2e` | Builds; runs packaged-extension Playwright specs, including PDF regression and native-selection bridge | Extension integration and release verification; PDF stress is opt-in |
 | `pnpm test:extension-browser-smoke` | Builds; runs only `tests/e2e/extension.spec.ts` | Focused main integration flow; a subset of `test:e2e` |

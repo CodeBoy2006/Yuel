@@ -2,7 +2,19 @@
 
 Yuel is a local-first Chrome MV3 extension for people reading English articles, documentation, and PDFs. It estimates reading progress from visible text and engagement, keeps a local vocabulary and excerpt library, and provides a PDF workspace with highlights, search, and selection assistance.
 
+## License and contributions
+
+Yuel is **source-available, not open source**. The [licensing terms](LICENSE) combine the unmodified [PolyForm Strict License 1.0.0](LICENSES/PolyForm-Strict-1.0.0.txt) with a separate, limited upstream contribution permission.
+
+- **Use:** the base license permits its specified noncommercial uses of the unmodified software. Uses outside those terms require separate written permission.
+- **Contribute upstream:** you may fork, modify, build, and test specifically to propose and review improvements to this project. Follow [CONTRIBUTING.md](CONTRIBUTING.md), including its explicit contributor agreement.
+- **Independent editions and redistribution:** no permission is granted to maintain a separate modified product, publish fork binaries, upload to extension stores or package registries, rebrand and distribute, or reuse Yuel code in another project, whether free or paid. Rights independently granted by GitHub's terms or applicable law remain unaffected.
+
+You may share reading-summary cards and user-data outputs produced through permitted use, including their embedded Yuel branding. Third-party dependencies retain their own licenses. Contributions retain their authors' copyright while granting the project the rights needed to maintain, publish, and relicense them. For additional permissions, contact [CodeBoy2006 through the upstream project](https://github.com/CodeBoy2006/Yuel/issues).
+
 ## Build and load
+
+These instructions support uses permitted by [LICENSE](LICENSE), including upstream contribution work; they do not grant additional development or distribution rights.
 
 Use Node.js 22.13 or newer in the 22.x line and the pnpm version pinned in [package.json](package.json).
 
@@ -73,6 +85,7 @@ The dashboard's confirmed **清空本地数据** action removes analytics, vocab
 
 ## Project documentation
 
+- [Contributing](CONTRIBUTING.md): upstream workflow, contributor agreement, and merge checks.
 - [Development and verification](docs/development.md): toolchain, test selection, browser requirements, and coverage limits.
 - [Current architecture](docs/architecture/reading-architecture.md): runtime ownership, messaging, measurement, PDF integration, and storage.
 - [Product brief](PRODUCT.md): audience, purpose, and product priorities.

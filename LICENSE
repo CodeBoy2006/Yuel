@@ -1,0 +1,108 @@
+Yuel Licensing Terms
+Version 1.0 — 2026-10-28
+
+Copyright (c) 2026 CodeBoy2006.
+Copyright in contributions remains with their respective owners.
+All rights reserved except for the permissions expressly granted below.
+
+1. Project and scope
+
+The licensor is CodeBoy2006, acting for rights owned by or licensed to them.
+The official upstream project is https://github.com/CodeBoy2006/Yuel, or a
+successor repository explicitly designated by CodeBoy2006.
+
+These terms cover the project's original source code, compiled code,
+documentation, and original assets supplied with this notice (the Software).
+Third-party components and separately licensed material remain subject to
+their own licenses; these terms neither replace those licenses nor restrict
+rights granted by their owners. User documents, reading data, and excerpts
+are not licensed to the project by these terms.
+
+You may export and share reading-summary cards and user-data outputs produced
+through permitted use of the Software, including the Yuel branding normally
+embedded in those outputs. This does not authorize extracting project assets
+for another product, redistributing the Software, or claiming endorsement.
+
+2. Base license
+
+The Software is licensed under the unmodified PolyForm Strict License 1.0.0
+in LICENSES/PolyForm-Strict-1.0.0.txt, incorporated here by reference.
+Its official text is https://polyformproject.org/licenses/strict/1.0.0.
+
+The base license permits its specified noncommercial uses but does not grant
+permission to distribute the Software, modify it, or create works based on
+it. Yuel is source-available, not open-source software.
+
+3. Additional upstream contribution permission
+
+In addition to the base license, the licensor grants you a non-exclusive,
+worldwide, royalty-free, non-transferable copyright license to do the
+following solely to prepare, submit, review, test, and revise good-faith
+contributions intended for inclusion in the official upstream project:
+
+a. Make local copies of the Software, modify it, build it, and run it for
+   development and verification of those contributions.
+b. Maintain a contribution fork on GitHub and share source changes, patches,
+   and relevant documentation through that fork and the upstream project's
+   pull requests, issues, or another channel approved by the licensor.
+c. Run contribution-related CI and share test builds privately with people
+   reviewing or testing the upstream contribution. Limit access to those
+   people; they receive these same limited permissions directly from the
+   licensor, not a sublicense from you.
+
+This additional permission also covers paid or employer-sponsored work
+performed solely for these upstream contribution purposes. It does not
+authorize use of modified versions for ordinary personal or business
+operations, or for providing a separate product or service.
+
+Keep this notice, the base license, and applicable third-party notices with
+permitted copies. Clearly identify a contribution fork as unofficial and
+link to the official upstream project. Do not present it as an independently
+maintained edition, an official release, or an endorsed product.
+
+This permission does not authorize independent development or maintenance
+of a downstream edition, general-purpose mirrors, public binary releases,
+package-registry or extension-store uploads, rebranding for distribution,
+or incorporation of the Software into another project. These exclusions
+apply whether the activity is paid or free. Submitting a pull request does
+not authorize any of these activities.
+
+You need not finish a contribution, and the upstream project need not accept
+it. If work is abandoned or rejected, you may retain its source and review
+history as an inactive contribution archive with the notices and upstream
+link intact. That archive grants no permission to continue it as a separate
+product. Further development is permitted only for a good-faith upstream
+resubmission or under separate written permission.
+
+The base license's Acceptance, Patent Defense, Violations, and No Liability
+sections also apply to this additional permission. Its Patent License also
+covers the additional acts expressly permitted here. For these additional
+acts, the purpose and conditions in this section govern; the base license's
+text and permissions otherwise remain unchanged. The additional permission
+cannot be sublicensed or transferred.
+
+4. Contributing and ownership
+
+Before submitting material for incorporation, follow CONTRIBUTING.md in the
+official upstream repository and explicitly accept its Contributor License
+Agreement 1.0 for that submission. Preparing a contribution or opening a fork
+alone does not grant the project rights in your original work.
+
+You retain ownership of your contributions. You may use your own independent
+material elsewhere, but this does not grant rights in the project's code or
+other people's material included in a patch or derivative work.
+
+5. Other rights and permissions
+
+Nothing here limits applicable statutory exceptions, rights independently
+granted under GitHub's terms (including public-repository viewing and
+forking), third-party licenses, or valid licenses already granted for copies
+received under those licenses. This notice does not retroactively revoke
+such rights. No trademark license is granted beyond identifying the upstream
+project, retaining its notices, and sharing the outputs permitted in section 1.
+
+For uses outside the base license and the additional permission, obtain
+separate written permission from CodeBoy2006. Send licensing requests through
+https://github.com/CodeBoy2006/Yuel/issues. Silence, public source access,
+attribution, and submission or acceptance of a contribution do not themselves
+grant additional rights.

@@ -2,6 +2,7 @@
   "name": "yuel",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "description": "Local-first reading analytics browser extension.",
   "scripts": {

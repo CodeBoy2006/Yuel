@@ -41,6 +41,9 @@ export interface ExtensionBuildSmokeResult {
 }
 
 const REQUIRED_FILES = [
+  'LICENSE',
+  'LICENSES/PolyForm-Strict-1.0.0.txt',
+  'CONTRIBUTING.md',
   'manifest.json',
   'background.js',
   'popup.html',

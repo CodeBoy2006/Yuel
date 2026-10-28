@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { validateChromeMv3Build } from './extensionBuildSmoke';
@@ -53,6 +55,9 @@ describe('Chrome MV3 build output', () => {
       use_dynamic_url: false,
     });
     expect(result.requiredFiles).toEqual([
+      'LICENSE',
+      'LICENSES/PolyForm-Strict-1.0.0.txt',
+      'CONTRIBUTING.md',
       'manifest.json',
       'background.js',
       'popup.html',
@@ -70,5 +75,12 @@ describe('Chrome MV3 build output', () => {
     ]);
     expect(result.wasmFiles).toHaveLength(1);
     expect(result.wasmFiles[0]).toMatch(/pdfium.*\.wasm$/);
+  });
+
+  it('packages the complete licensing terms from their canonical sources', async () => {
+    for (const file of ['LICENSE', 'LICENSES/PolyForm-Strict-1.0.0.txt', 'CONTRIBUTING.md']) {
+      expect(await readFile(`.output/chrome-mv3/${file}`, 'utf8'))
+        .toBe(await readFile(file, 'utf8'));
+    }
   });
 });
