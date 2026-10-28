@@ -71,7 +71,7 @@ Static viewports do not calibrate pace. The absence of a stored profile represen
 
 ## PDF integration
 
-[`source/load.ts`](../../src/pdf/source/load.ts) bounds acquisition, validates the PDF signature, computes content identity, and returns a releasable in-memory handle. [`PdfReaderWorkspace.tsx`](../../src/pdf/viewer/PdfReaderWorkspace.tsx) passes the buffer to EmbedPDF and releases that handle. Remote acquisition buffers the full file; HTTP Range loading is not implemented. Source limits, cookie behavior, and handler fallback restrictions are in the [PDF guide](../../README.md#pdf-behavior-and-limits).
+[`source/load.ts`](../../src/pdf/source/load.ts) bounds acquisition, validates the PDF signature, computes content identity, and returns a releasable in-memory handle. [`PdfReaderWorkspace.tsx`](../../src/pdf/viewer/PdfReaderWorkspace.tsx) passes the buffer to EmbedPDF and releases that handle. Remote acquisition buffers the full file; HTTP Range loading is not implemented. See the README for [PDF use and file-size limits](../../README.md#pdfs).
 
 [`engine/`](../../src/pdf/engine/) packages PDFium WASM and registers the EmbedPDF plugins. [`viewer/`](../../src/pdf/viewer/) owns password retry, virtualized pages, low-resolution base rendering plus visible high-resolution tiles, zoom/rotation, selection, search, outline/thumbnail navigation, native annotations, print, and download. Downloads use `exportPdf.saveAsCopy()` and the source display name; Yuel's local highlights are separate from that export.
 
